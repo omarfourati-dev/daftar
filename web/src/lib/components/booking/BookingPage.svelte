@@ -129,7 +129,7 @@
 		view = 'details';
 		await tick();
 		detailsHeading?.focus();
-		window.scrollTo?.({ top: 0 });
+		detailsHeading?.scrollIntoView?.({ block: 'start' });
 	}
 
 	async function submit(e: SubmitEvent) {
@@ -166,7 +166,7 @@
 			view = 'done';
 			await tick();
 			doneHeading?.focus();
-			window.scrollTo?.({ top: 0 });
+			doneHeading?.scrollIntoView?.({ block: 'start' });
 		} catch (err) {
 			const backToTimes = ['too_soon', 'outside_horizon', 'invalid_service', 'invalid_practitioner'];
 			if (err instanceof ApiError && (err.status === 409 || backToTimes.includes(err.code ?? ''))) {

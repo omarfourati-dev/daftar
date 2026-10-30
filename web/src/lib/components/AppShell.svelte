@@ -10,6 +10,7 @@
 	import { t, type MessageKey } from '../i18n.svelte';
 	import { pwa } from '../pwa.svelte';
 	import type { Me } from '../types';
+	import FeedbackButton from './FeedbackButton.svelte';
 	import LanguageSwitch from './LanguageSwitch.svelte';
 
 	let { path, children }: { path: string; children: Snippet } = $props();
@@ -84,6 +85,7 @@
 		<div class="flex min-w-0 flex-1 flex-col">
 			<header class="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2 print:hidden">
 				<span class="min-w-0 flex-1 truncate font-semibold text-slate-800">{practice?.name ?? t('common.appName')}</span>
+				{#if !isAdmin}<FeedbackButton {path} />{/if}
 				<LanguageSwitch onchange={saveLanguage} />
 				<button type="button" class="btn-secondary min-h-9 px-3 py-1 text-sm" onclick={logout}>{t('common.logout')}</button>
 			</header>
@@ -92,6 +94,11 @@
 			{/if}
 			{#if practice?.status === 'suspended'}
 				<p class="bg-rose-100 px-4 py-2 text-center text-sm text-rose-900 print:hidden">{t('shell.suspended')}</p>
+			{:else if practice?.status === 'past_due'}
+				<p class="bg-amber-100 px-4 py-2 text-center text-sm text-amber-950 print:hidden">
+					{auth.user?.role === 'owner' ? t('billing.pastDue') : t('billing.pastDueStaff')}
+					{#if auth.user?.role === 'owner'}<a class="ms-1 font-semibold underline" href="/app/abonnement">{t('billing.pastDueLink')}</a>{/if}
+				</p>
 			{/if}
 			{#if pwa.offline}
 				<p class="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900 print:hidden">
