@@ -56,7 +56,7 @@ def test_subdomain_label(host: str | None, label: str | None) -> None:
 # --- static routing on a practice sub-domain -------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("path", ["/", "/rdv/abc123", "/app", "/app/agenda", "/connexion", "/invitation"])
+@pytest.mark.parametrize("path", ["/", "/rdv/abc123", "/app", "/app/agenda", "/connexion", "/invitation", "/reinitialiser"])
 def test_practice_host_serves_the_spa(client: TestClient, lac: Any, path: str) -> None:
     res = client.get(path, headers=on("cabinet-lac." + BASE), follow_redirects=False)
     assert res.status_code == 200, path

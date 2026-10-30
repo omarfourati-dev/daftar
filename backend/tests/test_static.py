@@ -51,6 +51,7 @@ def test_files(client: TestClient, path: str, contains: str, cache: str, ctype: 
         "/app/recu/7",
         "/connexion",
         "/invitation",
+        "/reinitialiser",  # password reset link (section 15, A3)
         "/salle/0a1b2c3d4e",
         "/ticket/0a1b2c3d4e",
     ],

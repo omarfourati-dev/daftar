@@ -4,12 +4,12 @@ Order for ``GET``/``HEAD`` of a path that is not an API route:
 1. exact file in ``landing/``;
 2. directory in ``landing/`` with ``index.html`` (without trailing slash: 308 redirect to ``…/``);
 3. file from ``web/build`` (SvelteKit output);
-4. for paths without a file extension under ``/app``, ``/connexion``, ``/invitation``, ``/salle/``, ``/ticket/``,
+4. for paths without a file extension under ``/app``, ``/connexion``, ``/invitation``, ``/reinitialiser``, ``/salle/``, ``/ticket/``,
    ``/r/``, ``/rdv/``: the SPA shell ``200.html``;
 5. otherwise 404 (``landing/404.html`` when present, else problem+json). ``/api/*`` never gets here.
 
 On a practice sub-domain (``<slug>.<BASE_DOMAIN>``, see :meth:`StaticSite.respond_practice`): ``/``, ``/rdv/…``,
-``/app…``, ``/connexion``, ``/invitation`` → SPA; app assets (``/_app``, ``/icons``, ``/sw.js``, ``/favicon.svg``)
+``/app…``, ``/connexion``, ``/invitation``, ``/reinitialiser`` → SPA; app assets (``/_app``, ``/icons``, ``/sw.js``, ``/favicon.svg``)
 as usual; everything else 302 to the same path on the main domain. Manifests and icons of the practice come from
 daftar/branding.py (wired in app.py).
 
@@ -39,9 +39,9 @@ from .problems import problem_response
 SPA_SHELL = "200.html"
 #: The landing pages that show Google AdSense (design section 7): the French and the Arabic home page.
 AD_PAGES = ("index.html", "ar/index.html")
-SPA_PREFIXES = ("/app", "/connexion", "/invitation")
+SPA_PREFIXES = ("/app", "/connexion", "/invitation", "/reinitialiser")
 SPA_PREFIXES_WITH_TOKEN = ("/salle/", "/ticket/", "/r/", "/rdv/")
-PRACTICE_SPA_PREFIXES = ("/app", "/connexion", "/invitation")
+PRACTICE_SPA_PREFIXES = ("/app", "/connexion", "/invitation", "/reinitialiser")
 PRACTICE_ASSET_PREFIXES = ("/_app/", "/icons/")
 PRACTICE_ASSETS = ("/sw.js", "/favicon.svg", "/200.html")
 

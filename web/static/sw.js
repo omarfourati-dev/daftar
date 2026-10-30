@@ -10,7 +10,7 @@ const SHELL = 'daftar-shell-' + BUILD;
 const SHELL_PAGE = '/200.html';
 const ICONS = ['icon-192.png', 'icon-512.png', 'maskable-512.png'].map((f) => '/icons/' + f);
 const PASS = ['/api', '/healthz', '/metrics'];
-const SPA = ['/app', '/connexion', '/invitation'];
+const SPA = ['/app', '/connexion', '/invitation', '/reinitialiser'];
 const SPA_WITH_TOKEN = ['/salle/', '/ticket/', '/r/', '/rdv/'];
 
 function isSpaRoute(path) {
