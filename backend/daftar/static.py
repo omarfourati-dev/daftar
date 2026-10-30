@@ -191,7 +191,8 @@ class StaticSite:
         if path is None:
             return self.not_found(request)
         if path == "/":
-            return RedirectResponse("/app", status_code=302)
+            query = request.url.query
+            return RedirectResponse("/app" + (f"?{query}" if query else ""), status_code=302)
         if is_spa_route(path):
             shell = self.shell()
             return self._send(request, shell) if shell else self.not_found(request)

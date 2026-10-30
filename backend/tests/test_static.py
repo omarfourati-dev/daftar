@@ -153,3 +153,17 @@ def test_api_paths_never_get_files(client: TestClient) -> None:
 def test_spa_route_rules() -> None:
     assert is_spa_route("/app") and is_spa_route("/invitation/") and is_spa_route("/ticket/abc")
     assert not is_spa_route("/ticket/") and not is_spa_route("/app.js") and not is_spa_route("/appointments")
+
+
+def test_the_app_host_root_keeps_the_query() -> None:
+    """``https://app.<BASE_DOMAIN>/?lang=ar`` opens ``/app?lang=ar`` (no database needed: StaticSite alone)."""
+    from starlette.requests import Request
+
+    from daftar.static import StaticSite
+    from tests.conftest import FIXTURES
+
+    site = StaticSite(FIXTURES / "landing", FIXTURES / "web")
+    for query, location in ((b"", "/app"), (b"lang=ar", "/app?lang=ar")):
+        scope = {"type": "http", "method": "GET", "path": "/", "raw_path": b"/", "query_string": query, "headers": []}
+        res = site.respond_app(Request(scope), "https://daftar.omarfourati.de")
+        assert (res.status_code, res.headers["location"]) == (302, location)
