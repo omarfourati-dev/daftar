@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import AppShell from '../../lib/components/AppShell.svelte';
+	import '#lib/install.svelte'; // keeps the browser's install prompt for /app/installer (it fires once, early)
 
 	let { children } = $props();
 </script>

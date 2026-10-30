@@ -11,6 +11,7 @@ import { demo } from './ar/demo';
 import { display } from './ar/display';
 import { errors } from './ar/errors';
 import { feedback } from './ar/feedback';
+import { installer } from './ar/installer';
 import { invitation } from './ar/invitation';
 import { kit } from './ar/kit';
 import { nav } from './ar/nav';
@@ -60,5 +61,6 @@ export const ar: Messages = {
 	booking,
 	reset,
 	feedback,
-	billing
+	billing,
+	installer
 };
