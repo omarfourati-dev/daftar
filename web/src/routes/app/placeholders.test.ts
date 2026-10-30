@@ -6,7 +6,6 @@ import Agenda from './agenda/+page.svelte';
 import Caisse from './caisse/+page.svelte';
 import Patients from './patients/+page.svelte';
 import Rappels from './rappels/+page.svelte';
-import Reglages from './reglages/+page.svelte';
 import Salle from './salle/+page.svelte';
 import { i18n } from '#lib/i18n.svelte';
 
@@ -17,8 +16,7 @@ const pages: [string, Component, string, string][] = [
 	['/app/salle', Salle, 'Salle d’attente', 'قاعة الانتظار'],
 	['/app/patients', Patients, 'Patients', 'المرضى'],
 	['/app/caisse', Caisse, 'Caisse', 'الصندوق'],
-	['/app/rappels', Rappels, 'Rappels', 'التذكيرات'],
-	['/app/reglages', Reglages, 'Réglages', 'الإعدادات']
+	['/app/rappels', Rappels, 'Rappels', 'التذكيرات']
 ];
 
 describe('app pages', () => {
