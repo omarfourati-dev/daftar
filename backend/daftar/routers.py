@@ -11,6 +11,7 @@ from fastapi import APIRouter
 
 from . import auth, hosts, invitations
 from . import finance  # be-patienten
+from . import overview  # be-patienten
 from . import patients  # be-patienten
 from . import reminders  # be-patienten
 
@@ -21,4 +22,5 @@ ROUTERS: list[APIRouter] = [
     patients.router,
     finance.router,
     reminders.router,
+    overview.router,
 ]
