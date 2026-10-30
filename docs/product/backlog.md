@@ -104,6 +104,9 @@ dafür zahlen“.
 ## Release 2 – nach dem Pilot
 - WhatsApp-Business-API/SMS-Gateway für automatische Erinnerungen; Web-Push für neue Online-Anfragen.
 - Logo-Upload je Praxis; Flouci live (Händlerkonto); eine Windows-App (Tauri, signiert), eine Store-App (Capacitor).
+- **Praxis-Website als Zusatzleistung** („site vitrine“): eigene Website je Praxis (FR/AR, SEO lokal, Öffnungszeiten
+  und Leistungen live aus Daftar, Buchungsknopf), auf eigener Domain der Praxis. Prototyp: Cabinet Dr. Fadoua Bellaj
+  Fourati (30.10.2026).
 - Zwei-Faktor-Anmeldung, Sitzungsliste; Mehrere Standorte; Konsultationsnotizen (erst nach Rechtsprüfung).
 
 ## Bewusst nicht
