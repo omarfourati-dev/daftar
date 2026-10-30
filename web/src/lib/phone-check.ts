@@ -13,3 +13,12 @@ export function looksLikePhone(raw: string): boolean {
 	}
 	return digits.length === 8;
 }
+
+/** "+21671123456" → "+216 71 123 456" (how Tunisians write numbers); other numbers unchanged. */
+export function formatPhone(e164: string): string {
+	const digits = e164.replace(/\D/g, '');
+	if (e164.trim().startsWith('+') && digits.length === 11 && digits.startsWith('216')) {
+		return `+216 ${digits.slice(3, 5)} ${digits.slice(5, 8)} ${digits.slice(8)}`;
+	}
+	return e164;
+}

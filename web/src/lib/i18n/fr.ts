@@ -17,6 +17,7 @@ import { invitation } from './fr/invitation';
 import { kit } from './fr/kit';
 import { nav } from './fr/nav';
 import { patients } from './fr/patients';
+import { poster } from './fr/poster';
 import { practice } from './fr/practice';
 import { rappels } from './fr/rappels';
 import { recu } from './fr/recu';
@@ -55,7 +56,8 @@ export const fr = {
 	ticket,
 	recu,
 	kit,
-	practice
+	practice,
+	poster
 };
 
 export type Messages = typeof fr;

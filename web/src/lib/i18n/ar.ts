@@ -12,6 +12,7 @@ import { invitation } from './ar/invitation';
 import { kit } from './ar/kit';
 import { nav } from './ar/nav';
 import { patients } from './ar/patients';
+import { poster } from './ar/poster';
 import { practice } from './ar/practice';
 import { rappels } from './ar/rappels';
 import { recu } from './ar/recu';
@@ -50,5 +51,6 @@ export const ar: Messages = {
 	ticket,
 	recu,
 	kit,
-	practice
+	practice,
+	poster
 };
