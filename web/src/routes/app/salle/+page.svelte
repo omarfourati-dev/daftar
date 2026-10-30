@@ -126,6 +126,7 @@
 			{#if practice?.displayToken}
 				<a class="btn-secondary" href={screenPath(practice.displayToken)} target="_blank" rel="noopener noreferrer"><Icon name="screen" />{t('salle.screen')}</a>
 			{/if}
+			<a class="btn-secondary" href="/app/salle/suivant"><Icon name="users" />{t('salle.next.link')}</a>
 			<button type="button" class="btn-primary" onclick={() => (creating = true)}><Icon name="plus" />{t('salle.newTicket')}</button>
 		</div>
 	</div>

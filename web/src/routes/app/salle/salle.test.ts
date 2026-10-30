@@ -73,6 +73,7 @@ describe('/app/salle – the waiting room at the desk', () => {
 		expect(preview.getByText('13')).toBeInTheDocument();
 		expect(preview.queryByText(/Leila/)).not.toBeInTheDocument();
 		expect(screen.getByRole('link', { name: /Écran de la salle/ })).toHaveAttribute('href', '/salle/ecran-0123456789abcdef');
+		expect(screen.getByRole('link', { name: 'Patient suivant' })).toHaveAttribute('href', '/app/salle/suivant');
 	});
 
 	it('calls the next patient, then starts and ends the consultation', async () => {
