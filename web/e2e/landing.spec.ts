@@ -363,9 +363,19 @@ test.describe("Werbung nur auf den beiden Startseiten", () => {
   });
 
   const PRIVACY_PAGES = [
-    { path: "/confidentialite/", button: "Paramètres de confidentialité", old: /Daftar n'utilise aucun cookie|aucune ressource n'est chargée chez des tiers\./ },
-    { path: "/ar/confidentialite/", button: "إعدادات الخصوصية", old: /لا يستعمل دفتر أي ملف تعريف ارتباط: لا في موقع التعريف|ولا يُحمَّل أي شيء من أطراف أخرى\./ },
-    { path: "/datenschutz/", button: "Paramètres de confidentialité", old: /Daftar setzt keine Cookies – weder auf der Website|es wird nichts von Dritten geladen\./ },
+    {
+      path: "/confidentialite/", button: "Paramètres de confidentialité", old: /Daftar n'utilise aucun cookie|aucune ressource n'est chargée chez des tiers\./,
+      // Fix-Liste 4: Googles Einwilligungsfenster nur für EWR, Vereinigtes Königreich und Schweiz
+      region: [/Espace économique européen/, /Royaume-Uni/, /Suisse/, /En dehors de ces pays/],
+    },
+    {
+      path: "/ar/confidentialite/", button: "إعدادات الخصوصية", old: /لا يستعمل دفتر أي ملف تعريف ارتباط: لا في موقع التعريف|ولا يُحمَّل أي شيء من أطراف أخرى\./,
+      region: [/المنطقة الاقتصادية الأوروبية/, /المملكة المتحدة/, /سويسرا/, /خارج هذه البلدان/],
+    },
+    {
+      path: "/datenschutz/", button: "Paramètres de confidentialité", old: /Daftar setzt keine Cookies – weder auf der Website|es wird nichts von Dritten geladen\./,
+      region: [/Europäischen Wirtschaftsraum/, /Vereinigten Königreich/, /Schweiz/, /Außerhalb dieser Länder/],
+    },
   ];
   for (const spec of PRIVACY_PAGES) {
     test(`${spec.path} erklärt die Werbung auf den Startseiten (Google, Einwilligung, Widerruf, USA)`, async ({ page }) => {
@@ -387,6 +397,8 @@ test.describe("Werbung nur auf den beiden Startseiten", () => {
       }
       await expect(page.locator("main")).not.toContainText(spec.old);
       await expect(page.locator(".summary")).toContainText(/AdSense/);
+      for (const fact of spec.region) expect(text, String(fact)).toMatch(fact);
+      for (const fact of spec.region.slice(0, 3)) await expect(page.locator(".summary"), String(fact)).toContainText(fact);
     });
   }
 
@@ -517,6 +529,10 @@ test.describe("Rechtstexte: Online-Buchung und Abonnement", () => {
         }, id);
       expect(await sectionText("abonnement")).toContain("Flouci");
       expect(await sectionText("reservation-en-ligne")).toMatch(/cookie|cookies|ملفات تعريف الارتباط/i);
+      // Fix-Liste 2: 20 Versuche je IP (Mobilfunk-NAT), 3 je Telefonnummer und Praxis
+      expect(await sectionText("reservation-en-ligne")).toMatch(/\(20 [^)]*\)/);
+      expect(await sectionText("reservation-en-ligne")).toMatch(/\b3\b[^.]*(téléphone|Telefonnummer|الهاتف)/);
+      expect(await sectionText("reservation-en-ligne")).not.toMatch(/\(3 (par heure|pro Stunde|في الساعة)\)/);
       await expect(page.locator("main")).not.toContainText(/cabinet dentaire|Zahnarztpraxis|عيادة الأسنان/i);
     });
   }
@@ -531,6 +547,8 @@ test.describe("Rechtstexte: Online-Buchung und Abonnement", () => {
     });
     expect(annex2).toContain("réservation en ligne");
     expect(annex2).toContain("deux rendez-vous");
+    expect(annex2).toContain("20 tentatives de réservation par heure et par adresse IP");
+    expect(annex2).toContain("3 tentatives par heure et par numéro de téléphone");
     await expect(page.locator("main")).not.toContainText(/dentiste titulaire|cabinet dentaire/i);
   });
 });
