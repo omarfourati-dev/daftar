@@ -366,7 +366,11 @@ Physiotherapie/Kiné, Psychologie, …). Zahnärzte bleiben ein Beispiel, nicht 
 - Standard-Leistungskatalog **je Fachrichtung** (Konstante im Code, FR + AR, Dauer, online buchbar ja/nein; Preise leer),
   z. B. Généraliste: Consultation 20, Contrôle 15, Certificat médical 10, Vaccination 15, Urgence 20; Pédiatre:
   Consultation 30, Suivi croissance 20, Vaccination 15; Kiné: Séance 45, Bilan 60; Psychologue: Séance 50, Premier
-  entretien 60; Dentiste wie in 11.2; `autre`: Consultation 30, Contrôle 20.
+  entretien 60; Dentiste wie in 11.2; Ophtalmologue: Consultation 20, Mesure de la vue / réfraction 20, Fond d'œil 20,
+  Tension oculaire 15, Adaptation lentilles 30; Gynécologue: Consultation 30, Suivi de grossesse 30, Échographie 20,
+  Frottis 15; Dermatologue: Consultation 20, Contrôle 15, Petite chirurgie 30; Cardiologue: Consultation 30, ECG 15,
+  Échographie cardiaque 30, Pose Holter 15; ORL: Consultation 20, Audiogramme 30, Lavage d'oreille 15;
+  `autre`: Consultation 30, Contrôle 20.
 - Feld `treatment.tooth` bleibt, die App zeigt es nur bei `dentiste` („Dent“).
 - Texte neutral: „cabinet“, „praticien“, „patient“, „acte / consultation“ statt zahnspezifischer Begriffe; Manifest-Name
   „Daftar – agenda du cabinet médical“.
