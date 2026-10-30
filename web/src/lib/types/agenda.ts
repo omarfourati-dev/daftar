@@ -153,6 +153,8 @@ export interface Dashboard {
 	remindersPending: number;
 	dueTotalMillimes: number;
 	patientsCount: number;
+	/** Owner only (section 16.3, field name is a contract addition): closed cash days not verified yet. */
+	unverifiedCashDays?: { day: string; differenceMillimes: number }[];
 }
 
 export type OnboardingKey = 'hours' | 'services' | 'practitioners' | 'team' | 'booking' | 'import' | 'install' | 'poster';

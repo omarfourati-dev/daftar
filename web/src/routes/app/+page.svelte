@@ -216,6 +216,25 @@
 
 	{#if rowError}<p role="alert" class="rounded-lg bg-rose-50 px-3 py-2 text-rose-900 ring-1 ring-rose-200">{rowError}</p>{/if}
 
+	{#if auth.role === 'owner' && data?.unverifiedCashDays?.length}
+		<section aria-labelledby="cash-check-title" class="card flex flex-col gap-2 border-amber-300">
+			<h2 id="cash-check-title" class="text-lg font-bold">{t('today.cashCheck.title')}</h2>
+			<ul class="flex flex-wrap gap-2">
+				{#each data.unverifiedCashDays as c (c.day)}
+					<li>
+						<a
+							class="inline-flex min-h-11 items-center rounded-lg px-3 font-semibold ring-1 hover:bg-slate-50 {c.differenceMillimes ? 'text-rose-800 ring-rose-200' : 'text-emerald-800 ring-emerald-200'}"
+							href="/app/caisse?day={c.day}"
+							>{c.differenceMillimes
+								? t('today.cashCheck.difference', { date: formatDay(c.day), amount: money(c.differenceMillimes) })
+								: t('today.cashCheck.exact', { date: formatDay(c.day) })}</a
+						>
+					</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
+
 	<div class="grid items-start gap-6 lg:grid-cols-2">
 		{#if requests.length}
 			<section aria-labelledby="requests-title" class="card flex flex-col gap-3 border-dashed border-brand-600">

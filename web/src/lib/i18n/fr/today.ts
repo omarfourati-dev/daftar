@@ -28,6 +28,11 @@ export const today = {
 		came: 'Venu',
 		done: '{patient} : {status}.'
 	},
+	cashCheck: {
+		title: 'Caisses à vérifier',
+		difference: '{date} : écart {amount}',
+		exact: '{date} : caisse juste'
+	},
 	upcoming: {
 		title: 'Prochains rendez-vous',
 		empty: 'Plus aucun rendez-vous prévu aujourd’hui.',

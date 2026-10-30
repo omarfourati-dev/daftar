@@ -29,6 +29,11 @@ export const today: Messages['today'] = {
 		came: 'حضر',
 		done: '{patient}: {status}.'
 	},
+	cashCheck: {
+		title: 'صناديق للمراجعة',
+		difference: '{date}: فارق {amount}',
+		exact: '{date}: الصندوق مضبوط'
+	},
 	upcoming: {
 		title: 'المواعيد القادمة',
 		empty: 'لا توجد مواعيد أخرى اليوم.',

@@ -161,4 +161,24 @@ describe('/app – today at a glance', () => {
 		expect(await screen.findByRole('region', { name: 'لم يحضروا؟' })).toBeInTheDocument();
 		expect(await screen.findByRole('region', { name: 'طلبات جديدة عبر الإنترنت' })).toBeInTheDocument();
 	});
+
+	it('shows the owner the cash closings still to verify', async () => {
+		auth.set('tok', owner);
+		dashboardApi({
+			'GET /api/dashboard': () =>
+				json(200, {
+					...dashboard,
+					unverifiedCashDays: [
+						{ day: '2026-10-29', differenceMillimes: -5000 },
+						{ day: '2026-10-28', differenceMillimes: 0 }
+					]
+				}),
+			'GET /api/onboarding': () => json(200, { steps: [], dismissed: true })
+		});
+		render(Page);
+		const check = within(await screen.findByRole('region', { name: 'Caisses à vérifier' }));
+		expect(check.getByRole('link', { name: /29\/10\/2026/ })).toHaveAttribute('href', '/app/caisse?day=2026-10-29');
+		expect(check.getByRole('link', { name: /29\/10\/2026/ })).toHaveTextContent('écart -5 DT');
+		expect(check.getByRole('link', { name: /28\/10\/2026/ })).toHaveTextContent('caisse juste');
+	});
 });

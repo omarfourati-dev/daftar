@@ -81,3 +81,33 @@ export interface Ledger {
 export interface Receipt extends Payment {
 	practice: { name: string; nameAr?: string; address: string; city: string; phone: string; taxId?: string };
 }
+
+/** Cash closing of a day (section 16.3); names are display names. */
+export interface CashClosing {
+	expectedCashMillimes: number;
+	countedCashMillimes: number;
+	differenceMillimes: number;
+	note?: string;
+	closedBy: string | null;
+	closedAt: string;
+	verifiedBy?: string | null;
+	verifiedAt?: string | null;
+}
+
+/** `GET /api/cash?day=`. */
+export interface CashDay {
+	day: string;
+	totalMillimes: number;
+	byMethod: Record<string, number>;
+	payments: Payment[];
+	closing?: CashClosing | null;
+}
+
+/** `GET /api/balances` items. */
+export interface Balance {
+	patientId: number;
+	name: string;
+	phone: string;
+	dueMillimes: number;
+	lastPaymentAt: string | null;
+}
