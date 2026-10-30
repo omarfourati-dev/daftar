@@ -5,15 +5,15 @@
 	 * The medical alert is shown in red, ≥ 2 no-shows suggest a deposit. A taken slot (409) lists the conflict and
 	 * the next free start times – one click books one of them.
 	 */
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { ApiError, api, apiErrorMessage } from '../../api';
 	import type { AgendaBase } from '../../agenda/data';
 	import { savedAppointment } from '../../agenda/data';
 	import { money, personName, practitionerLabel, serviceLabel, slotLabel } from '../../agenda/format';
 	import { displayPhone, millimesToInput, parseDinars } from '../../agenda/links';
-	import { hhmm, minutesOfDay, tunisDayOf } from '../../agenda/time';
+	import { hhmm, isoWeekday, minutesOfDay, tunisDayOf, weekDays } from '../../agenda/time';
 	import { formatTime, i18n, t, tunisInstant } from '../../i18n.svelte';
-	import type { Appointment, AppointmentSaved, ConflictProblem } from '../../types/agenda';
+	import type { Appointment, AppointmentSaved, ConflictProblem, SeriesCreated, SeriesOccurrence } from '../../types/agenda';
 	import type { Patient, PatientSummary } from '../../types/patients';
 	import Icon from '../daily/Icon.svelte';
 	import Modal from '../daily/Modal.svelte';
@@ -30,7 +30,8 @@
 		practitionerId?: number | null;
 		/** New appointment for a known patient (from the patient file). */
 		patient?: Chosen | null;
-		onsaved: (a: Appointment) => void;
+		/** The saved appointment (the first one of a series) and an optional summary for the page. */
+		onsaved: (a: Appointment, note?: string) => void;
 		onclose: () => void;
 	};
 	let { base, appointment = null, day: startDay, time: startTime, practitionerId: startPractitioner = null, patient: startPatient = null, onsaved, onclose }: Props =
@@ -59,6 +60,27 @@
 	let reason = $state(current?.reason ?? '');
 	let deposit = $state(millimesToInput(current?.depositRequiredMillimes ?? 0));
 	let notes = $state(current?.notes ?? '');
+
+	// Series (story B4): weekdays (ISO 1–7) and number of sessions, checked by the server before saving.
+	let repeat = $state(false);
+	let weekdays = $state<number[]>(init.day ? [isoWeekday(init.day)] : []);
+	let count = $state(10);
+	let occurrences = $state<SeriesOccurrence[] | null>(null);
+	let seriesList: HTMLUListElement | undefined = $state();
+	const blocked = $derived(occurrences?.filter((o) => o.conflict || o.closed).length ?? 0);
+	const WEEK = weekDays('2026-10-26'); // a Monday … Sunday, only for the names
+	const weekdayName = (i: number, style: 'long' | 'short') =>
+		new Intl.DateTimeFormat(i18n.locale === 'ar' ? 'ar-TN' : 'fr-TN', { weekday: style, timeZone: 'Africa/Tunis' }).format(new Date(`${WEEK[i - 1]}T12:00:00+01:00`));
+
+	// any change of what is repeated needs a new check
+	$effect(() => {
+		void [day, time, duration, practitionerKey, serviceKey, patient?.id, count, weekdays.length, repeat];
+		occurrences = null;
+	});
+
+	function toggleWeekday(d: number) {
+		weekdays = weekdays.includes(d) ? weekdays.filter((x) => x !== d) : [...weekdays, d].sort();
+	}
 
 	let error = $state('');
 	let conflict = $state<ConflictProblem | null>(null);
@@ -105,17 +127,52 @@
 		if (!reason.trim() || reason === previous) reason = serviceLabel(next);
 	}
 
-	async function save(at?: string) {
+	/** The patient of the dialog, created on the server first when it is a new one. */
+	async function ensurePatient(): Promise<Chosen> {
+		if (patient) return patient;
+		const created = await api<Patient>('/api/patients', {
+			method: 'POST',
+			json: { firstName: firstName.trim(), lastName: lastName.trim(), phone: phone.trim(), lang, reminderConsent: consent }
+		});
+		patient = created;
+		creating = false;
+		return created;
+	}
+
+	function common(patientId: number) {
+		return {
+			patientId,
+			startsAt: tunisInstant(day, time),
+			durationMin: Number(duration),
+			reason: reason.trim() || (service ? serviceLabel(service) : ''),
+			serviceId: service?.id ?? null,
+			practitionerId: practitionerKey ? Number(practitionerKey) : null,
+			notes: notes.trim()
+		};
+	}
+
+	/** Checks before any request; false (with the message shown) when something is missing. */
+	function ready(): boolean {
 		error = '';
+		conflict = null;
+		if (!patient && !creating) {
+			error = t('agenda.form.pickPatient');
+			return false;
+		}
+		return true;
+	}
+
+	function failed(err: unknown) {
+		if (err instanceof ApiError && err.status === 409 && err.body && typeof err.body === 'object') conflict = err.body as ConflictProblem;
+		else error = apiErrorMessage(err);
+	}
+
+	async function save(at?: string) {
 		if (at) {
 			day = tunisDayOf(at);
 			time = hhmm(minutesOfDay(at));
 		}
-		conflict = null;
-		if (!patient && !creating) {
-			error = t('agenda.form.pickPatient');
-			return;
-		}
+		if (!ready()) return;
 		const depositMillimes = deposit.trim() ? parseDinars(deposit) : 0;
 		if (depositMillimes === null) {
 			error = t('agenda.form.invalidAmount');
@@ -123,39 +180,64 @@
 		}
 		busy = true;
 		try {
-			if (!patient) {
-				const created = await api<Patient>('/api/patients', {
-					method: 'POST',
-					json: { firstName: firstName.trim(), lastName: lastName.trim(), phone: phone.trim(), lang, reminderConsent: consent }
-				});
-				patient = created;
-				creating = false;
-			}
-			const body = {
-				patientId: patient.id,
-				startsAt: tunisInstant(day, time),
-				durationMin: Number(duration),
-				reason: reason.trim() || (service ? serviceLabel(service) : ''),
-				serviceId: service?.id ?? null,
-				practitionerId: practitionerKey ? Number(practitionerKey) : null,
-				notes: notes.trim(),
-				depositRequiredMillimes: depositMillimes
-			};
+			const body = { ...common((await ensurePatient()).id), depositRequiredMillimes: depositMillimes };
 			const saved = current
 				? await api<AppointmentSaved>(`/api/appointments/${current.id}`, { method: 'PATCH', json: body })
 				: await api<AppointmentSaved>('/api/appointments', { method: 'POST', json: body });
 			onsaved(savedAppointment(saved));
 		} catch (err) {
-			if (err instanceof ApiError && err.status === 409 && err.body && typeof err.body === 'object') conflict = err.body as ConflictProblem;
-			else error = apiErrorMessage(err);
+			failed(err);
 		} finally {
 			busy = false;
 		}
 	}
 
+	async function previewSeries() {
+		if (!ready()) return;
+		busy = true;
+		try {
+			const body = { ...common((await ensurePatient()).id), rule: { weekdays, count: Number(count) } };
+			const result = await api<{ occurrences: SeriesOccurrence[] }>('/api/appointments/series/preview', { method: 'POST', json: body });
+			occurrences = result.occurrences;
+		} catch (err) {
+			failed(err);
+		} finally {
+			busy = false;
+		}
+		if (!occurrences) return;
+		await tick();
+		seriesList?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+	}
+
+	async function createSeries() {
+		if (!ready() || !patient) return;
+		busy = true;
+		try {
+			const body = { ...common(patient.id), rule: { weekdays, count: Number(count) }, skipConflicts: blocked > 0 };
+			const result = await api<SeriesCreated>('/api/appointments/series', { method: 'POST', json: body });
+			const note = [t('agenda.series.created', { count: result.created.length })];
+			if (result.skipped.length) note.push(t('agenda.series.skipped', { count: result.skipped.length }));
+			if (result.created[0]) onsaved(result.created[0], note.join(' '));
+			else onclose();
+		} catch (err) {
+			failed(err);
+		} finally {
+			busy = false;
+		}
+	}
+
+	const submitLabel = $derived.by(() => {
+		if (busy) return repeat && !occurrences ? t('agenda.series.previewing') : t('agenda.form.saving');
+		if (!repeat) return t('agenda.form.save');
+		if (!occurrences) return t('agenda.series.preview');
+		return blocked ? t('agenda.series.createSkipping', { count: occurrences.length - blocked }) : t('agenda.series.create', { count: occurrences.length });
+	});
+
 	function submit(e: SubmitEvent) {
 		e.preventDefault();
-		void save();
+		if (!repeat) void save();
+		else if (occurrences) void createSeries();
+		else void previewSeries();
 	}
 </script>
 
@@ -253,7 +335,57 @@
 			>
 			<p id="deposit-hint" class="-mt-2 text-xs text-slate-500">{t('agenda.form.depositHint')}</p>
 			<label class="label">{t('agenda.form.notes')}<textarea class="input min-h-20" bind:value={notes} maxlength="2000"></textarea></label>
+			{#if !editing}
+				<label class="inline-flex min-h-11 items-center gap-3 font-medium"
+					><input type="checkbox" bind:checked={repeat} class="h-5 w-5 accent-brand-700" /><Icon name="repeat" class="h-4 w-4 text-slate-500" />{t(
+						'agenda.form.repeat'
+					)}</label
+				>
+			{/if}
 		</fieldset>
+		{#if repeat}
+			<fieldset class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:col-span-2">
+				<legend class="px-1 text-sm font-semibold text-slate-600">{t('agenda.series.title')}</legend>
+				<div class="flex flex-wrap items-end gap-4">
+					<div class="flex flex-col gap-1">
+						<span class="text-sm font-medium text-slate-700">{t('agenda.series.weekdays')}</span>
+						<div class="flex flex-wrap gap-1.5">
+							{#each [1, 2, 3, 4, 5, 6, 7] as d (d)}
+								<button
+									type="button"
+									class="min-h-11 min-w-12 rounded-lg border px-2 text-sm font-semibold first-letter:uppercase {weekdays.includes(d)
+										? 'border-brand-700 bg-brand-700 text-white'
+										: 'border-slate-300 bg-white text-slate-700'}"
+									aria-pressed={weekdays.includes(d)}
+									aria-label={weekdayName(d, 'long')}
+									onclick={() => toggleWeekday(d)}>{weekdayName(d, 'short')}</button
+								>
+							{/each}
+						</div>
+					</div>
+					<label class="label w-36">{t('agenda.series.count')}<input class="input" type="number" min="1" max="52" bind:value={count} /></label>
+				</div>
+				{#if occurrences}
+					<p class="text-sm font-semibold {blocked ? 'text-amber-900' : 'text-emerald-800'}">
+						{blocked ? t('agenda.series.someBlocked', { count: blocked }) : t('agenda.series.allFree')}
+					</p>
+					<ul bind:this={seriesList} aria-label={t('agenda.series.title')} class="grid gap-1.5 sm:grid-cols-2">
+						{#each occurrences as o (o.startsAt)}
+							<li
+								class="flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm {o.conflict || o.closed
+									? 'bg-rose-50 text-rose-900 ring-1 ring-rose-200'
+									: 'bg-white ring-1 ring-slate-200'}"
+							>
+								<span class="font-medium first-letter:uppercase">{slotLabel(o.startsAt)}</span>
+								<span class="font-semibold"
+									>{o.closed ? t('agenda.series.closed') : o.conflict ? t('agenda.series.conflict', { patient: o.conflict.patientName }) : t('agenda.series.ok')}</span
+								>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</fieldset>
+		{/if}
 	</form>
 
 	{#if error}
@@ -280,6 +412,11 @@
 
 	{#snippet footer()}
 		<button type="button" class="btn-secondary" onclick={onclose}>{t('common.cancel')}</button>
-		<button type="submit" form="appointment-form" class="btn-primary" disabled={busy}>{busy ? t('agenda.form.saving') : t('agenda.form.save')}</button>
+		<button
+			type="submit"
+			form="appointment-form"
+			class="btn-primary"
+			disabled={busy || (repeat && (!weekdays.length || (!!occurrences && occurrences.length === blocked)))}>{submitLabel}</button
+		>
 	{/snippet}
 </Modal>

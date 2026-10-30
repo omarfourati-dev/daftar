@@ -200,9 +200,9 @@
 		form = { appointment: a };
 	}
 
-	function saved(a: Appointment) {
+	function saved(a: Appointment, note?: string) {
 		form = null;
-		say(t('agenda.form.saved'));
+		say(note ?? t('agenda.form.saved'));
 		const target = tunisDayOf(a.startsAt);
 		if (!days.includes(target)) go(target);
 		else void load();
@@ -389,7 +389,18 @@
 </div>
 
 {#if detail && base}
-	<AppointmentDetail appointment={detail} {base} onchanged={changed} onmove={move} onclose={() => (detail = null)} />
+	<AppointmentDetail
+		appointment={detail}
+		{base}
+		onchanged={changed}
+		onmove={move}
+		onclose={() => (detail = null)}
+		onseriescancelled={(count) => {
+			detail = null;
+			say(t('agenda.series.cancelled', { count }));
+			void load();
+		}}
+	/>
 {/if}
 
 {#if form && base}

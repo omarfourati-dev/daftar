@@ -10,7 +10,7 @@
 	import { money, personName, practitionerLabel, statusLabel } from '../../agenda/format';
 	import { telUrl, whatsappUrl, displayPhone } from '../../agenda/links';
 	import { dateAndTime, messageIn, patientLang, type PatientMessage } from '../../agenda/messages';
-	import { hhmm, minutesOfDay } from '../../agenda/time';
+	import { hhmm, minutesOfDay, tunisDayOf } from '../../agenda/time';
 	import { formatDate, formatDateTime, t, type MessageKey } from '../../i18n.svelte';
 	import type { AppointmentStatus } from '../../status';
 	import type { Appointment } from '../../types/agenda';
@@ -24,16 +24,16 @@
 		onchanged: (a: Appointment) => void;
 		onmove: (a: Appointment) => void;
 		onclose: () => void;
-		/** Series cancellation (story B4) – shown for appointments of a series. */
-		oncancelseries?: (a: Appointment) => void;
+		/** This and the following sessions of its series were cancelled (story B4). */
+		onseriescancelled?: (count: number) => void;
 	};
-	let { appointment, base, onchanged, onmove, onclose, oncancelseries }: Props = $props();
+	let { appointment, base, onchanged, onmove, onclose, onseriescancelled }: Props = $props();
 
 	let a = $state(untrack(() => appointment));
 	let busy = $state(false);
 	let error = $state('');
 	let notice = $state('');
-	let confirmingCancel = $state(false);
+	let confirmingCancel = $state<'one' | 'series' | null>(null);
 	/** After confirming/declining a request: the message to send. */
 	let sendMessage = $state<PatientMessage | null>(null);
 	let receiptId = $state<number | null>(null);
@@ -93,7 +93,23 @@
 			update(await api<Appointment>(`/api/appointments/${a.id}/status`, { method: 'POST', json: { status } }));
 			notice = t('agenda.detail.statusChanged', { status: statusLabel(status) });
 			sendMessage = wasRequest ? (status === 'confirmed' ? 'confirmed' : status === 'cancelled' ? 'rejected' : null) : null;
-			confirmingCancel = false;
+			confirmingCancel = null;
+		} catch (err) {
+			error = apiErrorMessage(err);
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function cancelSeries() {
+		busy = true;
+		error = '';
+		try {
+			const result = await api<{ cancelled: number }>(`/api/appointments/series/${a.seriesId}/cancel`, {
+				method: 'POST',
+				json: { from: tunisDayOf(a.startsAt) }
+			});
+			onseriescancelled?.(result.cancelled);
 		} catch (err) {
 			error = apiErrorMessage(err);
 		} finally {
@@ -127,6 +143,9 @@
 			<StatusPill status={a.status} class="px-3 py-1 text-sm" />
 			<span class="font-semibold tabular-nums">{t('agenda.detail.time', { start: hhmm(start), end: hhmm(start + a.durationMin), duration: a.durationMin })}</span>
 			{#if practitioner}<span class="text-slate-600">{t('agenda.detail.with', { practitioner })}</span>{/if}
+			{#if a.seriesId}<span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700"
+					><Icon name="repeat" class="h-3.5 w-3.5" />{t('agenda.series.badge')}</span
+				>{/if}
 		</div>
 		{#if a.reason}<p class="text-lg font-semibold">{a.reason}</p>{/if}
 
@@ -202,11 +221,18 @@
 
 		{#if confirmingCancel}
 			<div class="flex flex-col gap-3 rounded-lg border border-rose-200 bg-rose-50 p-3">
-				<p class="font-semibold text-rose-950">{t('agenda.detail.cancelConfirm', { patient: personName(a.patient), date: when.date, time: when.time })}</p>
+				<p class="font-semibold text-rose-950">
+					{confirmingCancel === 'series'
+						? t('agenda.series.cancelFromConfirm')
+						: t('agenda.detail.cancelConfirm', { patient: personName(a.patient), date: when.date, time: when.time })}
+				</p>
 				<div class="flex flex-wrap gap-2">
-					<button type="button" class="btn-secondary" onclick={() => (confirmingCancel = false)}>{t('agenda.detail.keep')}</button>
-					<button type="button" class="btn bg-rose-700 text-white hover:bg-rose-800" disabled={busy} onclick={() => setStatus('cancelled')}
-						>{t('agenda.detail.confirmCancel')}</button
+					<button type="button" class="btn-secondary" onclick={() => (confirmingCancel = null)}>{t('agenda.detail.keep')}</button>
+					<button
+						type="button"
+						class="btn bg-rose-700 text-white hover:bg-rose-800"
+						disabled={busy}
+						onclick={() => (confirmingCancel === 'series' ? cancelSeries() : setStatus('cancelled'))}>{t('agenda.detail.confirmCancel')}</button
 					>
 				</div>
 			</div>
@@ -214,11 +240,11 @@
 	</div>
 
 	{#snippet footer()}
-		{#if a.seriesId && cancellable && oncancelseries}
-			<button type="button" class="btn-secondary me-auto text-rose-800" onclick={() => oncancelseries?.(a)}><Icon name="repeat" />{t('agenda.series.cancelFrom')}</button>
+		{#if a.seriesId && cancellable}
+			<button type="button" class="btn-secondary text-rose-800" onclick={() => (confirmingCancel = 'series')}><Icon name="repeat" />{t('agenda.series.cancelFrom')}</button>
 		{/if}
 		{#if cancellable && a.status !== 'requested'}
-			<button type="button" class="btn-secondary text-rose-800" onclick={() => (confirmingCancel = true)}>{t('agenda.detail.cancelAppointment')}</button>
+			<button type="button" class="btn-secondary text-rose-800" onclick={() => (confirmingCancel = 'one')}>{t('agenda.detail.cancelAppointment')}</button>
 		{/if}
 		{#if a.status !== 'done' && a.status !== 'cancelled'}
 			<button type="button" class="btn-secondary" onclick={() => onmove(a)}><Icon name="edit" />{t('agenda.detail.move')}</button>

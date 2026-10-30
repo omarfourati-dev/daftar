@@ -150,3 +150,23 @@ describe('AppointmentDetail – status workflow with big buttons', () => {
 		expect(onmove).toHaveBeenCalledWith(a);
 	});
 });
+
+describe('AppointmentDetail – series', () => {
+	beforeEach(() => {
+		auth.set('tok', assistant);
+		i18n.setLocale('fr');
+	});
+
+	it('cancels this and the following sessions of a series after confirmation', async () => {
+		const a = appt({ id: 11, seriesId: 'abc' });
+		mockApi({ 'POST /api/appointments/series/abc/cancel': () => json(200, { cancelled: 3 }) });
+		const onseries = vi.fn();
+		render(AppointmentDetail, { props: { appointment: a, base, onchanged: vi.fn(), onmove: vi.fn(), onclose: vi.fn(), onseriescancelled: onseries } });
+		expect(screen.getByText('Série')).toBeInTheDocument();
+		await fireEvent.click(screen.getByRole('button', { name: 'Annuler les séances suivantes' }));
+		expect(screen.getByText('Annuler cette séance et toutes les suivantes ?')).toBeInTheDocument();
+		await fireEvent.click(screen.getByRole('button', { name: 'Oui, annuler' }));
+		await vi.waitFor(() => expect(onseries).toHaveBeenCalledWith(3));
+		expect(sentJson('POST /api/appointments/series/abc/cancel')).toEqual({ from: '2026-10-30' });
+	});
+});

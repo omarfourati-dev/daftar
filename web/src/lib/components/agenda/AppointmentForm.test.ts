@@ -191,3 +191,93 @@ describe('AppointmentForm – new appointment in a few clicks', () => {
 		expect(screen.getByRole('option', { name: 'استشارة' })).toBeInTheDocument();
 	});
 });
+
+describe('AppointmentForm – series of sessions (kiné, psy)', () => {
+	beforeEach(() => {
+		auth.set('tok', assistant);
+		i18n.setLocale('fr');
+		clock.now = () => new Date(NOW);
+	});
+
+	async function choosePatient() {
+		await fireEvent.input(screen.getByLabelText('Nom ou téléphone'), { target: { value: 'Sami' } });
+		await fireEvent.click(await screen.findByRole('button', { name: /Sami Trabelsi/ }));
+	}
+
+	it('checks every session first, lists the taken dates and creates only the free ones', async () => {
+		const created = [appt({ id: 60, seriesId: 's1' }), appt({ id: 61, seriesId: 's1' })];
+		mockApi({
+			'GET /api/patients?q=Sami&limit=8': () => json(200, { items: [sami], total: 1 }),
+			'POST /api/appointments/series/preview': () =>
+				json(200, {
+					occurrences: [
+						{ startsAt: '2026-10-30T09:15:00+01:00', endsAt: '2026-10-30T09:45:00+01:00', conflict: null, closed: false },
+						{ startsAt: '2026-11-03T09:15:00+01:00', endsAt: '2026-11-03T09:45:00+01:00', conflict: { id: 3, startsAt: '2026-11-03T09:00:00+01:00', patientName: 'Hichem Bouzid' }, closed: false },
+						{ startsAt: '2026-11-06T09:15:00+01:00', endsAt: '2026-11-06T09:45:00+01:00', conflict: null, closed: true },
+						{ startsAt: '2026-11-10T09:15:00+01:00', endsAt: '2026-11-10T09:45:00+01:00', conflict: null, closed: false }
+					]
+				}),
+			'POST /api/appointments/series': () => json(201, { seriesId: 's1', created, skipped: [{ startsAt: '2026-11-03T09:15:00+01:00', reason: 'conflict' }, { startsAt: '2026-11-06T09:15:00+01:00', reason: 'closed' }] })
+		});
+		const { onsaved } = open();
+		await choosePatient();
+		await fireEvent.click(screen.getByLabelText('Répéter (séances)'));
+		expect(screen.getByRole('button', { name: 'vendredi' })).toHaveAttribute('aria-pressed', 'true');
+		await fireEvent.click(screen.getByRole('button', { name: 'mardi' }));
+		await fireEvent.input(screen.getByLabelText('Nombre de séances'), { target: { value: '4' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Vérifier les dates' }));
+		expect(await screen.findByText('2 séance(s) impossible(s).')).toBeInTheDocument();
+		expect(sentJson('POST /api/appointments/series/preview')).toEqual({
+			patientId: 7,
+			startsAt: '2026-10-30T09:15:00+01:00',
+			durationMin: 30,
+			reason: '',
+			serviceId: null,
+			practitionerId: 12,
+			notes: '',
+			rule: { weekdays: [2, 5], count: 4 }
+		});
+		const list = within(screen.getByRole('list', { name: 'Séances régulières' }));
+		expect(list.getAllByRole('listitem')).toHaveLength(4);
+		expect(list.getByText('Pris : Hichem Bouzid')).toBeInTheDocument();
+		expect(list.getByText('Cabinet fermé')).toBeInTheDocument();
+		await fireEvent.click(screen.getByRole('button', { name: 'Créer 2 rendez-vous sans les dates prises' }));
+		await vi.waitFor(() => expect(onsaved).toHaveBeenCalledWith(created[0], 'Rendez-vous créés : 2. Dates ignorées : 2.'));
+		expect(sentJson('POST /api/appointments/series')).toMatchObject({ rule: { weekdays: [2, 5], count: 4 }, skipConflicts: true, patientId: 7 });
+	});
+
+	it('creates all sessions when every date is free', async () => {
+		const created = [appt({ id: 62, seriesId: 's2' })];
+		mockApi({
+			'GET /api/patients?q=Sami&limit=8': () => json(200, { items: [sami], total: 1 }),
+			'POST /api/appointments/series/preview': () =>
+				json(200, { occurrences: [{ startsAt: '2026-10-30T09:15:00+01:00', endsAt: '2026-10-30T09:45:00+01:00', conflict: null, closed: false }] }),
+			'POST /api/appointments/series': () => json(201, { seriesId: 's2', created, skipped: [] })
+		});
+		const { onsaved } = open();
+		await choosePatient();
+		await fireEvent.click(screen.getByLabelText('Répéter (séances)'));
+		await fireEvent.input(screen.getByLabelText('Nombre de séances'), { target: { value: '1' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Vérifier les dates' }));
+		expect(await screen.findByText('Toutes les séances sont libres.')).toBeInTheDocument();
+		await fireEvent.click(screen.getByRole('button', { name: 'Créer 1 rendez-vous' }));
+		await vi.waitFor(() => expect(onsaved).toHaveBeenCalledWith(created[0], 'Rendez-vous créés : 1.'));
+		expect(sentJson('POST /api/appointments/series')).toMatchObject({ skipConflicts: false });
+	});
+
+	it('checks the dates again after a change', async () => {
+		mockApi({
+			'GET /api/patients?q=Sami&limit=8': () => json(200, { items: [sami], total: 1 }),
+			'POST /api/appointments/series/preview': () =>
+				json(200, { occurrences: [{ startsAt: '2026-10-30T09:15:00+01:00', endsAt: '2026-10-30T09:45:00+01:00', conflict: null, closed: false }] })
+		});
+		open();
+		await choosePatient();
+		await fireEvent.click(screen.getByLabelText('Répéter (séances)'));
+		await fireEvent.click(screen.getByRole('button', { name: 'Vérifier les dates' }));
+		await screen.findByText('Toutes les séances sont libres.');
+		await fireEvent.click(screen.getByRole('button', { name: 'lundi' }));
+		expect(screen.queryByText('Toutes les séances sont libres.')).not.toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Vérifier les dates' })).toBeInTheDocument();
+	});
+});
