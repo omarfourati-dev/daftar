@@ -140,6 +140,7 @@
 						>{t(item.key)}</a
 					>
 				{/each}
+				<FeedbackButton {path} variant="menu" />
 			</div>
 		{/if}
 	</div>

@@ -16,6 +16,7 @@ import { demo } from './fr/demo';
 import { display } from './fr/display';
 import { errors } from './fr/errors';
 import { feedback } from './fr/feedback';
+import { importer } from './fr/importer';
 import { installer } from './fr/installer';
 import { invitation } from './fr/invitation';
 import { kit } from './fr/kit';
@@ -67,7 +68,8 @@ export const fr = {
 	reset,
 	feedback,
 	billing,
-	installer
+	installer,
+	importer
 };
 
 export type Messages = typeof fr;

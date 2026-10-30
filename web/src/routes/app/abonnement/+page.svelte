@@ -141,8 +141,6 @@
 					</p>
 				{:else if billing.status === 'suspended'}
 					<p class="rounded-lg bg-rose-50 px-3 py-2 text-rose-950">{t('billing.suspendedInfo')}</p>
-				{:else if billing.status === 'past_due'}
-					<p class="rounded-lg bg-amber-50 px-3 py-2 text-amber-950">{t('billing.pastDue')}</p>
 				{/if}
 			</section>
 

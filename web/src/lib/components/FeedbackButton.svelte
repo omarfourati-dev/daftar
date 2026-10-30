@@ -4,7 +4,8 @@
 	import { t } from '../i18n.svelte';
 	import Modal from './Modal.svelte';
 
-	let { path }: { path: string } = $props();
+	/** `menu`: a full-width row for the phone's "Plus" sheet; `icon`: the header button */
+	let { path, variant = 'icon' }: { path: string; variant?: 'icon' | 'menu' } = $props();
 	const MAX = 2000;
 	let open = $state(false);
 	let message = $state('');
@@ -40,14 +41,16 @@
 
 <button
 	type="button"
-	class="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-ink focus-visible:outline-2 focus-visible:outline-brand-700"
+	class={variant === 'menu'
+		? 'flex w-full items-center gap-2 rounded-lg px-3 py-3 text-start font-medium text-slate-700'
+		: 'hidden min-h-9 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-ink focus-visible:outline-2 focus-visible:outline-brand-700 md:inline-flex'}
 	aria-label={t('feedback.button')}
 	onclick={show}
 >
 	<svg viewBox="0 0 20 20" class="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7"
 		><path d="M4 4h12v9H8l-4 3z" stroke-linejoin="round" /></svg
 	>
-	<span class="hidden lg:inline">{t('feedback.button')}</span>
+	<span class={variant === 'menu' ? '' : 'hidden lg:inline'}>{t('feedback.button')}</span>
 </button>
 
 <Modal {open} title={t('feedback.title')} onclose={() => (open = false)}>
