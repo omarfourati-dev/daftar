@@ -284,3 +284,17 @@ def test_only_the_admin(client: TestClient, as_user: Factory, make_practice: Fac
         assert_problem(getattr(client, method)(url, **kwargs), 403, "forbidden")
         no_token = {k: v for k, v in kwargs.items() if k != "headers"}
         assert_problem(getattr(client, method)(url, **no_token), 401, "unauthorized")
+
+
+def test_a_slug_taken_in_the_same_instant_is_409(
+    client: TestClient, admin: dict[str, str], make_practice: Factory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The check sees the slug free (another request takes it meanwhile); the unique index decides."""
+    from daftar import admin_practices
+
+    make_practice(slug="dr-ben-salah")
+    other = make_practice(slug="autre-cabinet")
+    monkeypatch.setattr(admin_practices, "slug_reason", lambda *a, **k: None)
+    assert_problem(client.post("/api/admin/practices", json=full_body(), headers=admin), 409, "slug_taken")
+    res = client.patch(f"/api/admin/practices/{other.id}", json={"slug": "dr-ben-salah"}, headers=admin)
+    assert_problem(res, 409, "slug_taken")

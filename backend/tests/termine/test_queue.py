@@ -238,6 +238,13 @@ def test_waiting_room_screen(client: TestClient, lac: Any, busy: list[dict[str, 
     assert res.json() == {"practiceName": "Cabinet du Lac", "called": [4, 3, 2], "next": [5, 6, 7, 8], "waiting": 4}
 
 
+def test_the_screen_shows_at_most_three_calls(client: TestClient, lac: Any, busy: list[dict[str, Any]], as_user: Factory, clock: Any) -> None:
+    clock.advance(minutes=1)
+    client.post(f"/api/queue/{busy[4]['id']}/status", json={"status": "called"}, headers=as_user(lac, "assistant"))
+    body = client.get(f"/api/public/display/{lac.display_token}").json()
+    assert (body["called"], body["next"], body["waiting"]) == ([5, 4, 3], [6, 7, 8], 3)
+
+
 def test_ticket_page(client: TestClient, lac: Any, busy: list[dict[str, Any]]) -> None:
     res = client.get(f"/api/public/ticket/{busy[6]['ticketToken']}")
     assert res.status_code == 200, res.text

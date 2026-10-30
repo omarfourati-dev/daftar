@@ -132,10 +132,10 @@ def test_invitation_list_shows_only_open_staff_invitations(
     owner = auth_headers(team["owner"])
     used = make_invitation(p, "dentist")
     client.post("/api/invitations/accept", json={"token": used, "name": "Dr X", "email": "x@lac.tn", "password": "mot-de-passe-long"})
-    make_invitation(p, "owner")  # the admin's owner link is not the owner's business
-    make_invitation(team["other_practice"], "dentist")  # another practice
     old = client.post("/api/staff/invitations", json={"role": "dentist"}, headers=owner).json()
     clock.advance(days=7, seconds=1)
+    make_invitation(p, "owner")  # an open owner link (the admin's) is not the owner's business
+    make_invitation(team["other_practice"], "dentist")  # another practice
     fresh = client.post("/api/staff/invitations", json={"role": "assistant"}, headers=owner).json()
     assert [i["id"] for i in client.get("/api/staff/invitations", headers=owner).json()] == [fresh["id"]]
     assert old["id"] != fresh["id"]
