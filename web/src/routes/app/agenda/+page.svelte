@@ -16,6 +16,7 @@
 	import type { Patient } from '#lib/types/patients';
 	import { viewport } from '#lib/viewport.svelte';
 	import AgendaList from '../../../lib/components/agenda/AgendaList.svelte';
+	import AppointmentDetail from '../../../lib/components/agenda/AppointmentDetail.svelte';
 	import AppointmentForm from '../../../lib/components/agenda/AppointmentForm.svelte';
 	import DayColumn from '../../../lib/components/agenda/DayColumn.svelte';
 	import Icon from '../../../lib/components/daily/Icon.svelte';
@@ -36,6 +37,8 @@
 	let seq = 0;
 	/** The open appointment dialog (new or move). */
 	let form = $state<{ appointment?: Appointment; day?: string; time?: string; practitionerId?: number | null; patient?: Patient } | null>(null);
+	/** The open appointment (status, deposit, move, cancel). */
+	let detail = $state<Appointment | null>(null);
 	let message = $state('');
 	let messageTimer: ReturnType<typeof setTimeout> | undefined;
 	/** `?nouveau=1[&patient=ID]`: open the dialog once the agenda is there. */
@@ -184,7 +187,18 @@
 		form = { day, time: nextTime(), practitionerId: filter || null, patient };
 	}
 
-	function openAppointment(_a: Appointment) {}
+	function openAppointment(a: Appointment) {
+		detail = a;
+	}
+
+	function changed(a: Appointment) {
+		appointments = appointments.map((x) => (x.id === a.id ? a : x));
+	}
+
+	function move(a: Appointment) {
+		detail = null;
+		form = { appointment: a };
+	}
 
 	function saved(a: Appointment) {
 		form = null;
@@ -373,6 +387,10 @@
 		{/if}
 	{/if}
 </div>
+
+{#if detail && base}
+	<AppointmentDetail appointment={detail} {base} onchanged={changed} onmove={move} onclose={() => (detail = null)} />
+{/if}
 
 {#if form && base}
 	<AppointmentForm {base} {...form} onsaved={saved} onclose={() => (form = null)} />

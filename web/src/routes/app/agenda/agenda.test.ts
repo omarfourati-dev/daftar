@@ -191,4 +191,21 @@ describe('/app/agenda – day and week', () => {
 		const dialog = within(await screen.findByRole('dialog', { name: 'Nouveau rendez-vous' }));
 		expect(await dialog.findByText('Amel Gharbi')).toBeInTheDocument();
 	});
+
+	it('opens an appointment, changes its status in place and moves it', async () => {
+		agendaApi({
+			'GET /api/appointments?from=2026-10-30&to=2026-10-30': () => json(200, [lina]),
+			'POST /api/appointments/2/status': () => json(200, { ...lina, status: 'arrived' })
+		});
+		render(Page);
+		await fireEvent.click(await screen.findByRole('button', { name: /11:00 Lina Zouari/ }));
+		const dialog = within(screen.getByRole('dialog', { name: 'Lina Zouari' }));
+		await fireEvent.click(dialog.getByRole('button', { name: 'Arrivé' }));
+		const karim = within(screen.getByRole('region', { name: 'Dr Karim Jaziri' }));
+		await vi.waitFor(() => expect(karim.getByRole('button', { name: /11:00 Lina Zouari/ })).toHaveTextContent('Arrivé'));
+		await fireEvent.click(dialog.getByRole('button', { name: 'Déplacer / modifier' }));
+		const move = within(screen.getByRole('dialog', { name: 'Modifier le rendez-vous' }));
+		expect(move.getByLabelText('Heure')).toHaveValue('11:00');
+		expect(screen.queryByRole('dialog', { name: 'Lina Zouari' })).not.toBeInTheDocument();
+	});
 });

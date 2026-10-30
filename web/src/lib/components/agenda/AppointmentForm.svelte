@@ -175,7 +175,7 @@
 				</div>
 				{#if patient.alerts}
 					<p class="flex gap-2 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-800">
-						<Icon name="alert" class="mt-0.5 h-4 w-4" /><span><span class="sr-only">{t('agenda.alert')} : </span>{patient.alerts}</span>
+						<Icon name="alert" class="mt-0.5 h-4 w-4" /><span><span class="sr-only">{t('agenda.alert')} – </span>{patient.alerts}</span>
 					</p>
 				{/if}
 				{#if patient.noShows >= 2}
