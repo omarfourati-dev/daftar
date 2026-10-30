@@ -79,5 +79,5 @@ export interface Ledger {
 
 /** `GET /api/payments/{id}` – a payment with the practice for the receipt. */
 export interface Receipt extends Payment {
-	practice: { name: string; address: string; city: string; phone: string };
+	practice: { name: string; nameAr?: string; address: string; city: string; phone: string; taxId?: string };
 }
