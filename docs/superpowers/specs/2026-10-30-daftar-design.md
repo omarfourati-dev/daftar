@@ -326,11 +326,15 @@ Daten (ohne Admin-Felder) plus Schließtage, Leistungen, Behandler und sieht sei
   `{date, slots:["09:00",…]}` · `POST /api/public/practices/{slug}/bookings {serviceId, practitionerId?, startsAt,
   firstName, lastName, phone, lang, reminderConsent, note?, website}` → 201 `{status:'requested'|'confirmed', startsAt,
   serviceName, practitionerName, manageToken}`; 409 Slot weg; 422 `blocked` wenn diese Telefonnummer in der Praxis
-  ≥ `booking_block_no_shows` Nichterscheinen hat („Merci d'appeler le cabinet“); 429 (3/h je IP, höchstens 2 künftige
-  Online-Buchungen je Telefonnummer und Praxis, `booking_max_per_day`). Patient wird über Telefon **und** Nachname
-  (ohne Groß/Klein) wiedererkannt, sonst neu angelegt.
-  `GET /api/public/bookings/{token}` → Termin, Status, Praxis-Kontakt · `POST /api/public/bookings/{token}/cancel` →
-  storniert (bis `booking_min_notice_hours` vorher).
+  ≥ `booking_block_no_shows` Nichterscheinen hat („Merci d'appeler le cabinet“); 429 (20 Versuche/h je IP – Patienten
+  hinter Mobilfunk-NAT teilen sich eine –, 3 Versuche/h je Telefonnummer und Praxis, höchstens 2 künftige
+  Online-Buchungen je Telefonnummer und Praxis, `booking_max_per_day`; die Buchungen einer Praxis laufen per
+  `pg_advisory_xact_lock` nacheinander, damit parallele Anfragen die Grenzen nicht gemeinsam überspringen). Patient wird
+  über Telefon **und** Nachname (ohne Groß/Klein) wiedererkannt, sonst neu angelegt.
+  Verwaltung mit dem Token im Body (Fix-Liste 3; die Seite `/rdv#<token>` hält ihn aus Caddy- und App-Logs):
+  `POST /api/public/bookings/lookup {token}` → Termin, Status, Praxis-Kontakt · `POST /api/public/bookings/cancel
+  {token}` → storniert (bis `booking_min_notice_hours` vorher). Vorerst bleiben die Pfad-Varianten mit gleichen
+  Antworten: `GET /api/public/bookings/{token}`, `POST /api/public/bookings/{token}/cancel`.
 - Praxis-Seite: Online-Anfragen erscheinen im Dashboard („Nouvelles demandes en ligne“) und gestrichelt in der Agenda;
   Bestätigen (→ `confirmed`) oder Ablehnen (→ `cancelled`) mit fertigem WhatsApp-Text an den Patienten.
 - Datenschutz: Die Rechtstexte erklären die Online-Buchung (Daten gehen an die Praxis als Verantwortliche, Daftar als

@@ -12,14 +12,19 @@ Practice pages (``/r/<slug>`` and ``https://<slug>.<BASE_DOMAIN>``); suspended o
   practitionerName, manageToken}``. The patient is recognized by phone **and** last name (case-insensitive), else
   created. 409 ``slot_unavailable``; 422 ``too_soon`` / ``outside_horizon`` / ``blocked`` (this phone number has
   ``booking_block_no_shows`` no-shows in the practice); 429 ``booking_limit`` (2 future online bookings per phone),
-  ``day_full`` (``booking_max_per_day``), ``too_many_requests`` (3 per IP and hour). ``website`` is a honeypot: when
-  filled, the answer looks like a success and nothing is stored.
+  ``day_full`` (``booking_max_per_day``), ``too_many_requests`` (20 attempts per IP and hour – patients behind a
+  carrier's NAT share one –, 3 attempts per phone number and practice and hour). Bookings of one practice run one
+  after the other (``pg_advisory_xact_lock``), so parallel requests cannot pass both limits. ``website`` is a
+  honeypot: when filled, the answer looks like a success and nothing is stored.
 
-The patient's link ``/rdv/<manageToken>`` (only the SHA-256 is stored):
-- ``GET /api/public/bookings/{token}`` → ``{status, startsAt, endsAt, serviceName, practitionerName, canCancel,
-  cancelUntil, practice: {…contact}}`` – no names, no phone of the patient
-- ``POST /api/public/bookings/{token}/cancel`` → the same, cancelled; 409 ``too_late`` (less than
+The patient's link ``/rdv#<manageToken>`` (only the SHA-256 is stored; in the fragment the token never reaches a
+server log):
+- ``POST /api/public/bookings/lookup {token}`` → ``{status, startsAt, endsAt, serviceName, practitionerName,
+  canCancel, cancelUntil, practice: {…contact}}`` – no names, no phone of the patient
+- ``POST /api/public/bookings/cancel {token}`` → the same, cancelled; 409 ``too_late`` (less than
   ``booking_min_notice_hours`` before), 409 ``cannot_cancel`` (already arrived, done, no-show)
+- for now also with the token in the path (old links ``/rdv/<token>``): ``GET /api/public/bookings/{token}``,
+  ``POST /api/public/bookings/{token}/cancel`` – same answers
 """
 
 from __future__ import annotations
@@ -51,9 +56,14 @@ router = APIRouter(prefix="/api/public", tags=["public"])
 #: Profile and slot requests per IP and 10 minutes (a patient flips through days).
 READ_LIMIT = 300
 READ_WINDOW = timedelta(minutes=10)
-#: Booking attempts per IP and hour (section 11.3).
-BOOKING_LIMIT = 3
+#: Booking attempts per IP and hour (section 11.3; fixlist 2: many patients share a carrier's NAT address).
+BOOKING_LIMIT = 20
 BOOKING_WINDOW = timedelta(hours=1)
+#: Booking attempts per phone number and practice and hour.
+PHONE_LIMIT = 3
+PHONE_WINDOW = timedelta(hours=1)
+#: First key of ``pg_advisory_xact_lock(key, practice_id)``: the online bookings of one practice, one after the other.
+BOOKING_LOCK = 0x0B00C
 #: Views and cancellations of booking links per IP and 10 minutes.
 MANAGE_LIMIT = 60
 MANAGE_WINDOW = timedelta(minutes=10)
@@ -140,6 +150,10 @@ class PracticeContact(ApiModel):
     address: str
     city: str
     maps_url: str
+
+
+class TokenIn(ApiModel):
+    token: Annotated[str, Field(min_length=1, max_length=200)]
 
 
 class BookingView(ApiModel):
@@ -236,6 +250,12 @@ def _free(
                                   patient_id=patient_id)
 
 
+def _one_at_a_time(conn: Connection, practice_id: int) -> None:
+    """Waits until no other online booking of this practice is running (released when the transaction ends) – so the
+    limits per phone and per day hold for parallel requests too."""
+    conn.execute(select(func.pg_advisory_xact_lock(BOOKING_LOCK, practice_id)))
+
+
 def _slot_taken() -> ApiError:
     return conflict("Ce créneau n'est plus disponible. Choisissez un autre horaire.", code="slot_unavailable")
 
@@ -296,6 +316,9 @@ def create_booking(slug: str, body: BookingIn, ctx: Ctx, conn: Conn, ip: ClientI
         return BookingCreated(status="requested", starts_at=body.starts_at, ends_at=body.starts_at + timedelta(minutes=30),
                               service_name="", practitioner_name=None, manage_token=new_token())
     _bookable(row)
+    ctx.limiter("booking-phone", PHONE_LIMIT, PHONE_WINDOW).enforce(
+        f"{row.id}:{body.phone}", "Trop de tentatives pour ce numéro. Réessayez plus tard ou appelez le cabinet."
+    )
     svc = _service(conn, row.id, body.service_id)
     resources = _resources(conn, row.id, body.practitioner_id)
     now = ctx.clock.now()
@@ -305,6 +328,7 @@ def create_booking(slug: str, body: BookingIn, ctx: Ctx, conn: Conn, ip: ClientI
         raise unprocessable("Ce créneau est trop proche. Appelez le cabinet.", code="too_soon")
     if day > last_day:
         raise unprocessable("Cette date est trop lointaine pour une réservation en ligne.", code="outside_horizon")
+    _one_at_a_time(conn, row.id)
     same_phone = select(patient.c.id).where(patient.c.practice_id == row.id, patient.c.phone == body.phone)
     if row.booking_block_no_shows > 0:
         no_shows = conn.execute(
@@ -404,6 +428,16 @@ def _view(row: Row[Any], now: datetime, status: str | None = None) -> BookingVie
         practice=PracticeContact(slug=row.slug, name=row.name, name_ar=row.name_ar, phone=row.phone,
                                  whatsapp=row.whatsapp, address=row.address, city=row.city, maps_url=row.maps_url),
     )
+
+
+@router.post("/bookings/lookup")
+def lookup_booking(body: TokenIn, ctx: Ctx, conn: Conn, ip: ClientIp) -> BookingView:
+    return view_booking(body.token, ctx, conn, ip)
+
+
+@router.post("/bookings/cancel")
+def cancel_booking_by_body(body: TokenIn, ctx: Ctx, conn: Conn, ip: ClientIp) -> BookingView:
+    return cancel_booking(body.token, ctx, conn, ip)
 
 
 @router.get("/bookings/{token}")

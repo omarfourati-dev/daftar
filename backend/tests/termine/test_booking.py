@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import itertools
+import threading
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from typing import Any
 
@@ -21,7 +24,7 @@ _ips = itertools.count(1)
 
 
 def fresh_ip() -> dict[str, str]:
-    """Each booking from its own IP unless a test is about the per-IP limit (3 bookings per hour)."""
+    """Each booking from its own IP unless a test is about the per-IP limit (20 attempts per hour)."""
     return {"X-Forwarded-For": f"198.51.100.{next(_ips) % 250 + 1}"}
 
 
@@ -272,17 +275,90 @@ def test_booking_max_per_day(client: TestClient, lac: Any, db: Any) -> None:
     assert book(client, "cabinet-lac", serviceId=s, startsAt=iso(TUE, "15:00"), phone="20 333 444", lastName="Autre").status_code == 201
 
 
-def test_three_bookings_per_ip_and_hour(client: TestClient, lac: Any, clock: Any) -> None:
+def test_twenty_booking_attempts_per_ip_and_hour(client: TestClient, lac: Any, clock: Any) -> None:
+    """Patients behind a mobile carrier's NAT share one IP (fixlist 2): 20 attempts per IP and hour, bots included."""
     ip = {"X-Forwarded-For": "203.0.113.90"}
     s = lac.consultation.id
-    for n, hhmm in enumerate(("09:00", "10:00", "11:00")):
+    for n, hhmm in enumerate(("09:00", "10:00")):
         res = book(client, "cabinet-lac", ip, serviceId=s, startsAt=iso(MON, hhmm), phone=f"20 00{n} 111", lastName=f"P{n}")
         assert res.status_code == 201, res.text
+    for _ in range(18):
+        assert book(client, "cabinet-lac", ip, serviceId=s, website="http://spam.example").status_code == 201
     res = book(client, "cabinet-lac", ip, serviceId=s, startsAt=iso(MON, "14:00"), phone="20 009 111", lastName="P9")
     assert_problem(res, 429, "too_many_requests")
     assert int(res.headers["Retry-After"]) > 0
     clock.advance(hours=1)
     assert book(client, "cabinet-lac", ip, serviceId=s, startsAt=iso(MON, "14:00"), phone="20 009 111", lastName="P9").status_code == 201
+
+
+def test_three_booking_attempts_per_phone_and_practice_and_hour(
+    client: TestClient, lac: Any, clock: Any, make_practice: Factory, make_service: Factory
+) -> None:
+    s = lac.consultation.id
+    for _ in range(3):  # failed attempts count as well (09:07 is not on the grid), each from another IP
+        assert_problem(book(client, "cabinet-lac", serviceId=s, startsAt=iso(MON, "09:07")), 409, "slot_unavailable")
+    res = book(client, "cabinet-lac", serviceId=s, phone="+216 20 111 222")  # the same number, written differently
+    assert_problem(res, 429, "too_many_requests")
+    assert int(res.headers["Retry-After"]) > 0
+    assert book(client, "cabinet-lac", serviceId=s, phone="20 111 333", lastName="Autre").status_code == 201
+    other = make_practice("Cabinet de la Mer", slug="cabinet-mer", practitioners=["Dr. M"], online_booking_enabled=True)
+    svc = make_service(other, "Consultation", 30, online_bookable=True)
+    assert book(client, "cabinet-mer", serviceId=svc.id).status_code == 201  # the same number in another practice
+    clock.advance(hours=1)
+    assert book(client, "cabinet-lac", serviceId=s).status_code == 201
+
+
+def meet_before_the_slot_check(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Parallel bookings wait for each other right before the slot check, after the limits were read - without a
+    lock both would pass them. A request that waits for the other one's lock never arrives: the first goes on alone."""
+    barrier = threading.Barrier(2)
+    real = booking_module._free
+
+    def meet(*args: Any, **kwargs: Any) -> Any:
+        try:
+            barrier.wait(timeout=2)
+        except threading.BrokenBarrierError:
+            pass
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(booking_module, "_free", meet)
+
+
+def in_parallel(*calls: Callable[[], Any]) -> list[Any]:
+    with ThreadPoolExecutor(len(calls)) as pool:
+        return [f.result() for f in [pool.submit(c) for c in calls]]
+
+
+def test_two_future_bookings_per_phone_hold_under_parallel_requests(
+    client: TestClient, lac: Any, make_patient: Factory, make_appointment: Factory, monkeypatch: pytest.MonkeyPatch, db: Any
+) -> None:
+    pat = make_patient(lac, last_name="Ben Ali", phone="+21620111222")
+    make_appointment(pat, starts_at=at(TUE, "09:00"), source="online")
+    meet_before_the_slot_check(monkeypatch)
+    s = lac.consultation.id
+    results = in_parallel(lambda: book(client, "cabinet-lac", serviceId=s, startsAt=iso(MON, "09:00")),
+                          lambda: book(client, "cabinet-lac", serviceId=s, startsAt=iso(MON, "10:00")))
+    assert sorted(r.status_code for r in results) == [201, 429], [r.text for r in results]
+    assert_problem(next(r for r in results if r.status_code == 429), 429, "booking_limit")
+    with db.connect() as conn:
+        assert conn.execute(select(func.count()).select_from(appointment)).scalar_one() == 2
+
+
+def test_booking_max_per_day_holds_under_parallel_requests(
+    client: TestClient, lac: Any, db: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with db.begin() as conn:
+        conn.execute(update(practice).where(practice.c.id == lac.id).values(booking_max_per_day=1))
+    meet_before_the_slot_check(monkeypatch)
+    s = lac.consultation.id
+    results = in_parallel(
+        lambda: book(client, "cabinet-lac", serviceId=s, startsAt=iso(MON, "09:00")),
+        lambda: book(client, "cabinet-lac", serviceId=s, startsAt=iso(MON, "10:00"), phone="20 333 444", lastName="Autre"),
+    )
+    assert sorted(r.status_code for r in results) == [201, 429], [r.text for r in results]
+    assert_problem(next(r for r in results if r.status_code == 429), 429, "day_full")
+    with db.connect() as conn:
+        assert conn.execute(select(func.count()).select_from(appointment)).scalar_one() == 1
 
 
 def test_the_honeypot_pretends_and_stores_nothing(client: TestClient, lac: Any, db: Any) -> None:
@@ -395,11 +471,44 @@ def test_cancelling_too_late_or_after_the_visit(client: TestClient, lac: Any, cl
 def test_unknown_booking_links(client: TestClient) -> None:
     assert_problem(client.get("/api/public/bookings/inconnu"), 404, "not_found")
     assert_problem(client.post("/api/public/bookings/inconnu/cancel"), 404, "not_found")
+    assert_problem(client.post("/api/public/bookings/lookup", json={"token": "inconnu"}), 404, "not_found")
+    assert_problem(client.post("/api/public/bookings/cancel", json={"token": "inconnu"}), 404, "not_found")
 
 
 def test_booking_links_are_rate_limited(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(booking_module, "MANAGE_LIMIT", 2)
+    monkeypatch.setattr(booking_module, "MANAGE_LIMIT", 3)
     ip = {"X-Forwarded-For": "203.0.113.80"}
-    for _ in range(2):
-        assert_problem(client.get("/api/public/bookings/inconnu", headers=ip), 404, "not_found")
+    assert_problem(client.get("/api/public/bookings/inconnu", headers=ip), 404, "not_found")
+    assert_problem(client.post("/api/public/bookings/lookup", json={"token": "inconnu"}, headers=ip), 404, "not_found")
+    assert_problem(client.post("/api/public/bookings/cancel", json={"token": "inconnu"}, headers=ip), 404, "not_found")
     assert_problem(client.post("/api/public/bookings/inconnu/cancel", headers=ip), 429, "too_many_requests")
+    assert_problem(client.post("/api/public/bookings/lookup", json={"token": "inconnu"}, headers=ip), 429, "too_many_requests")
+
+
+# --- the token in the request body (fixlist 3: the page /rdv#<token> keeps it out of every log) ------------------
+
+
+def test_lookup_with_the_token_in_the_body(client: TestClient, lac: Any) -> None:
+    token = book(client, "cabinet-lac", serviceId=lac.consultation.id).json()["manageToken"]
+    res = client.post("/api/public/bookings/lookup", json={"token": token})
+    assert res.status_code == 200, res.text
+    assert res.json() == client.get(f"/api/public/bookings/{token}").json()
+    assert res.json()["status"] == "requested" and res.json()["canCancel"] is True
+
+
+def test_cancel_with_the_token_in_the_body(client: TestClient, lac: Any, clock: Any) -> None:
+    token = book(client, "cabinet-lac", serviceId=lac.consultation.id).json()["manageToken"]
+    res = client.post("/api/public/bookings/cancel", json={"token": token})
+    assert res.status_code == 200, res.text
+    assert (res.json()["status"], res.json()["canCancel"]) == ("cancelled", False)
+    assert client.post("/api/public/bookings/cancel", json={"token": token}).json() == res.json()  # twice is fine
+    assert client.post("/api/public/bookings/lookup", json={"token": token}).json()["status"] == "cancelled"
+    late = book(client, "cabinet-lac", serviceId=lac.consultation.id, startsAt=iso(MON, "10:00")).json()["manageToken"]
+    clock.set(at(MON, "08:01"))
+    assert_problem(client.post("/api/public/bookings/cancel", json={"token": late}), 409, "too_late")
+
+
+@pytest.mark.parametrize("body", [{}, {"token": ""}, {"token": "x" * 201}, {"token": 42}])
+def test_the_body_token_is_validated(client: TestClient, body: dict[str, Any]) -> None:
+    for action in ("lookup", "cancel"):
+        assert_problem(client.post(f"/api/public/bookings/{action}", json=body), 422, "validation")
