@@ -3,12 +3,14 @@ import type { Messages } from './fr';
 import { admin } from './ar/admin';
 import { agenda } from './ar/agenda';
 import { auth } from './ar/auth';
+import { billing } from './ar/billing';
 import { booking } from './ar/booking';
 import { caisse } from './ar/caisse';
 import { common } from './ar/common';
 import { demo } from './ar/demo';
 import { display } from './ar/display';
 import { errors } from './ar/errors';
+import { feedback } from './ar/feedback';
 import { invitation } from './ar/invitation';
 import { kit } from './ar/kit';
 import { nav } from './ar/nav';
@@ -18,6 +20,7 @@ import { practice } from './ar/practice';
 import { rappels } from './ar/rappels';
 import { recu } from './ar/recu';
 import { reglages } from './ar/reglages';
+import { reset } from './ar/reset';
 import { roles } from './ar/roles';
 import { salle } from './ar/salle';
 import { shell } from './ar/shell';
@@ -54,5 +57,8 @@ export const ar: Messages = {
 	kit,
 	practice,
 	poster,
-	booking
+	booking,
+	reset,
+	feedback,
+	billing
 };

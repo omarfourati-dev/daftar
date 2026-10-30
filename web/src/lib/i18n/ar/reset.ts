@@ -1,0 +1,15 @@
+import type { Messages } from '../fr';
+
+export const reset: Messages['reset'] = {
+	title: 'كلمة مرور جديدة',
+	checking: 'جارٍ التحقق من الرابط…',
+	intro: 'اختر كلمة مرور جديدة لـ {email} ({practice}).',
+	introAdmin: 'اختر كلمة مرور جديدة لـ {email}.',
+	password: 'كلمة المرور الجديدة',
+	repeat: 'أعد كتابة كلمة المرور',
+	hint: '10 أحرف على الأقل. ستُغلق كل جلساتك الأخرى.',
+	submit: 'حفظ كلمة المرور',
+	busy: 'جارٍ الحفظ…',
+	incomplete: 'هذا الرابط ناقص. افتح الرابط كاملًا كما وصلك من العيادة.',
+	toLogin: 'الذهاب إلى تسجيل الدخول'
+};
