@@ -50,7 +50,7 @@ MUTATIONS: list[tuple[str, str, str, str]] = [
     # waiting room
     ("daftar/queue.py", "            ahead = position - 1 + called", "            ahead = position - 1", T + "test_queue.py"),
     ("daftar/queue.py", "        if active is not None:", "        if False:", T + "test_queue.py"),
-    ("daftar/queue.py", "    _lock_tickets(conn, practice_id)\n    number", "    number", T + "test_queue.py"),
+    ("daftar/queue.py", "    lock_queue(conn, practice_id)\n    number", "    number", T + "test_queue.py"),
     ("daftar/queue.py", "        .limit(3)", "        .limit(4)", T + "test_queue.py"),
     ("daftar/queue.py", "                appointment.c.status.in_(MIRRORED_APPOINTMENT_STATUSES),", "                True,", T + "test_queue.py"),
     ("daftar/queue.py", '    ctx.limiter("public-queue", PUBLIC_LIMIT, PUBLIC_WINDOW).enforce(ip)', "    pass", T + "test_queue.py"),
@@ -63,6 +63,17 @@ MUTATIONS: list[tuple[str, str, str, str]] = [
     ("daftar/booking.py", '        raise _slot_taken() from exc', "        raise", T + "test_booking.py"),
     ("daftar/booking.py", "    if body.website:  # a bot", "    if False:  # a bot", T + "test_booking.py"),
     ("daftar/booking.py", "        if no_shows >= row.booking_block_no_shows:", "        if no_shows > row.booking_block_no_shows:", T + "test_booking.py"),
+    # 16.1 next free times, 16.2 patient suivant
+    ("daftar/availability.py", "    for offset in range(NEXT_DAYS + 1):", "    for offset in range(NEXT_DAYS):", T + "test_availability_next.py"),
+    ("daftar/availability.py", "practitioner_id=free[0]", "practitioner_id=free[-1]", T + "test_availability_next.py"),
+    ("daftar/availability.py", "                                   patient_id=patient_id, closed=closed):", "                                   closed=closed):", T + "test_availability_next.py"),
+    ("daftar/queue.py", "        appointment.c.starts_at <= now + DUE_BEFORE,", "        appointment.c.starts_at <= now + DUE_BEFORE + timedelta(minutes=1),", T + "test_queue_next.py"),
+    ("daftar/queue.py", "            mine = w.appointment_id == appt.id or (w.appointment_id is None and w.patient_id == appt.patient_id)", "            mine = w.appointment_id == appt.id", T + "test_queue_next.py"),
+    ("daftar/queue.py", "        waiting = [w for w in waiting if w.appointment_id is None or w.doctor in (None, practitioner_id)]", "        pass", T + "test_queue_next.py"),
+    ("daftar/queue.py", "    for appt in conn.execute(due.order_by(appointment.c.starts_at, appointment.c.id)).all():", "    for appt in conn.execute(due.order_by(appointment.c.id)).all():", T + "test_queue_next.py"),
+    ("daftar/queue_next.py", "    queue.lock_queue(conn, user.pid)  # held", "    pass  # held", T + "test_queue_next.py"),
+    ("daftar/queue_next.py", "        appointment.c.starts_at <= now - LATE_AFTER,", "        appointment.c.starts_at <= now,", T + "test_queue_next.py"),
+    ("daftar/queue_next.py", "        ~present,\n", "", T + "test_queue_next.py"),
 ]
 
 if __name__ == "__main__":

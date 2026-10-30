@@ -28,9 +28,9 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Response
 from pydantic import Field
-from sqlalchemy import Connection, Row, delete, desc, func, insert, select, text, update
+from sqlalchemy import Connection, Row, delete, desc, func, insert, or_, select, text, update
 
-from .clock import today_tunis
+from .clock import today_tunis, tunis_day_bounds
 from .deps import ClientIp, Conn, Ctx, StaffUser, StaffWriter
 from .phone import OptionalPhone
 from .problems import conflict, not_found, unprocessable
@@ -51,6 +51,8 @@ _LOCK_NAMESPACE = 0x51554555  # "QUEU"
 #: queue status → status of a linked appointment (``left`` changes nothing).
 MIRROR = {"waiting": "arrived", "called": "arrived", "in_treatment": "in_treatment", "done": "done"}
 MIRRORED_APPOINTMENT_STATUSES = ("arrived", "in_treatment", "done")
+#: An appointment is due this long before its start (“Patient suivant”, section 16.2).
+DUE_BEFORE = timedelta(minutes=5)
 
 
 class QueueEntryOut(ApiModel):
@@ -142,7 +144,7 @@ def _default_minutes(conn: Connection, practice_id: int) -> int:
     return conn.execute(select(practice.c.default_duration_min).where(practice.c.id == practice_id)).scalar_one()
 
 
-def _entries(conn: Connection, practice_id: int, day: date) -> list[QueueEntryOut]:
+def day_entries(conn: Connection, practice_id: int, day: date) -> list[QueueEntryOut]:
     rows = _day_rows(conn, practice_id, day)
     waits = _waits(rows, _default_minutes(conn, practice_id))
     out = [
@@ -157,17 +159,17 @@ def _entries(conn: Connection, practice_id: int, day: date) -> list[QueueEntryOu
     return sorted(out, key=lambda e: (e.status not in ACTIVE, e.ticket_no))
 
 
-def _entry(conn: Connection, practice_id: int, entry_id: int) -> QueueEntryOut:
+def entry_out(conn: Connection, practice_id: int, entry_id: int) -> QueueEntryOut:
     day = conn.execute(
         select(queue_entry.c.day).where(queue_entry.c.id == entry_id, queue_entry.c.practice_id == practice_id)
     ).scalar()
     if day is None:
         raise not_found()
-    return next(e for e in _entries(conn, practice_id, day) if e.id == entry_id)
+    return next(e for e in day_entries(conn, practice_id, day) if e.id == entry_id)
 
 
 def next_ticket_no(conn: Connection, practice_id: int, day: date) -> int:
-    """The next free ticket number of the day (call it while holding :func:`_lock_tickets`)."""
+    """The next free ticket number of the day (call it while holding :func:`lock_queue`)."""
     return conn.execute(
         select(func.coalesce(func.max(queue_entry.c.ticket_no), 0) + 1).where(
             queue_entry.c.practice_id == practice_id, queue_entry.c.day == day
@@ -175,8 +177,9 @@ def next_ticket_no(conn: Connection, practice_id: int, day: date) -> int:
     ).scalar_one()
 
 
-def _lock_tickets(conn: Connection, practice_id: int) -> None:
-    """Serializes ticket numbering of one practice until the transaction ends (two clicks at once → 1 and 2)."""
+def lock_queue(conn: Connection, practice_id: int) -> None:
+    """Serializes changes to a practice's queue until the transaction ends: ticket numbers (two clicks at once →
+    1 and 2) and calling the next person (two calls at once never call the same one)."""
     conn.execute(text("SELECT pg_advisory_xact_lock(CAST(:ns AS integer), CAST(:key AS integer))"), {"ns": _LOCK_NAMESPACE, "key": practice_id % 2_147_483_647})
 
 
@@ -192,7 +195,7 @@ def add_to_queue(
     appointment_id: int | None = None,
 ) -> int:
     """Inserts a waiting ticket with the next number of ``day``; returns its id."""
-    _lock_tickets(conn, practice_id)
+    lock_queue(conn, practice_id)
     number = next_ticket_no(conn, practice_id, day)
     return conn.execute(
         insert(queue_entry)
@@ -220,7 +223,7 @@ def status_values(status: str, now: datetime, called_at: datetime | None) -> dic
 
 @router.get("")
 def list_queue(user: StaffUser, ctx: Ctx, conn: Conn, day: date | None = None) -> list[QueueEntryOut]:
-    return _entries(conn, user.pid, day or today_tunis(ctx.clock))
+    return day_entries(conn, user.pid, day or today_tunis(ctx.clock))
 
 
 @router.post("", status_code=201)
@@ -252,32 +255,76 @@ def take_ticket(body: QueueIn, user: StaffWriter, ctx: Ctx, conn: Conn) -> Queue
     entry_id = add_to_queue(
         conn, user.pid, now=ctx.clock.now(), day=day, name=name, phone=phone, patient_id=body.patient_id
     )
-    return _entry(conn, user.pid, entry_id)
+    return entry_out(conn, user.pid, entry_id)
 
 
-@router.post("/{entry_id}/status")
-def change_status(entry_id: int, body: StatusIn, user: StaffWriter, ctx: Ctx, conn: Conn) -> QueueEntryOut:
+def set_queue_status(conn: Connection, practice_id: int, entry_id: int, status: str, now: datetime) -> None:
+    """Changes a ticket's status (404 if not of the practice); a linked appointment follows (:data:`MIRROR`)."""
     row = conn.execute(
         select(queue_entry.c.called_at, queue_entry.c.appointment_id).where(
-            queue_entry.c.id == entry_id, queue_entry.c.practice_id == user.pid
+            queue_entry.c.id == entry_id, queue_entry.c.practice_id == practice_id
         )
     ).first()
     if row is None:
         raise not_found()
-    conn.execute(
-        update(queue_entry).where(queue_entry.c.id == entry_id).values(**status_values(body.status, ctx.clock.now(), row.called_at))
-    )
-    if row.appointment_id is not None and body.status in MIRROR:
+    conn.execute(update(queue_entry).where(queue_entry.c.id == entry_id).values(**status_values(status, now, row.called_at)))
+    if row.appointment_id is not None and status in MIRROR:
         conn.execute(
             update(appointment)
             .where(
                 appointment.c.id == row.appointment_id,
-                appointment.c.practice_id == user.pid,
+                appointment.c.practice_id == practice_id,
                 appointment.c.status.in_(MIRRORED_APPOINTMENT_STATUSES),
             )
-            .values(status=MIRROR[body.status])
+            .values(status=MIRROR[status])
         )
-    return _entry(conn, user.pid, entry_id)
+
+
+def next_in_line(
+    conn: Connection, practice_id: int, day: date, now: datetime, practitioner_id: int | None = None
+) -> list[tuple[int, Literal["appointment", "waiting_list"]]]:
+    """The waiting tickets in calling order (section 16.2) as ``(entry id, reason)``.
+
+    First the patients of due appointments (start ≤ now + 5 min, not finished) who are waiting – by appointment time;
+    then everybody else by ticket number (early appointment patients count like everybody else). With a
+    practitioner: their appointments (and those without practitioner) and every ticket not linked to another
+    practitioner's appointment.
+    """
+    start, end = tunis_day_bounds(day)
+    waiting = conn.execute(
+        select(queue_entry.c.id, queue_entry.c.patient_id, queue_entry.c.appointment_id,
+               appointment.c.practitioner_id.label("doctor"))
+        .select_from(queue_entry.outerjoin(appointment, appointment.c.id == queue_entry.c.appointment_id))
+        .where(queue_entry.c.practice_id == practice_id, queue_entry.c.day == day, queue_entry.c.status == "waiting")
+        .order_by(queue_entry.c.ticket_no)
+    ).all()
+    due = select(appointment.c.id, appointment.c.patient_id).where(
+        appointment.c.practice_id == practice_id,
+        appointment.c.starts_at >= start,
+        appointment.c.starts_at < end,
+        appointment.c.starts_at <= now + DUE_BEFORE,
+        appointment.c.status.in_(("scheduled", "confirmed", "arrived")),
+    )
+    if practitioner_id is not None:
+        waiting = [w for w in waiting if w.appointment_id is None or w.doctor in (None, practitioner_id)]
+        due = due.where(or_(appointment.c.practitioner_id == practitioner_id, appointment.c.practitioner_id.is_(None)))
+    line: list[tuple[int, Literal["appointment", "waiting_list"]]] = []
+    taken: set[int] = set()
+    for appt in conn.execute(due.order_by(appointment.c.starts_at, appointment.c.id)).all():
+        for w in waiting:
+            mine = w.appointment_id == appt.id or (w.appointment_id is None and w.patient_id == appt.patient_id)
+            if mine and w.id not in taken:
+                line.append((w.id, "appointment"))
+                taken.add(w.id)
+                break
+    line.extend((w.id, "waiting_list") for w in waiting if w.id not in taken)
+    return line
+
+
+@router.post("/{entry_id}/status")
+def change_status(entry_id: int, body: StatusIn, user: StaffWriter, ctx: Ctx, conn: Conn) -> QueueEntryOut:
+    set_queue_status(conn, user.pid, entry_id, body.status, ctx.clock.now())
+    return entry_out(conn, user.pid, entry_id)
 
 
 @router.delete("/{entry_id}", status_code=204)
