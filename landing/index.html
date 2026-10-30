@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Daftar – l'agenda du cabinet dentaire, sans cahier</title>
-<meta name="description" content="Agenda, salle d'attente, dossiers patients et paiements en plusieurs fois pour les cabinets dentaires en Tunisie. En français et en arabe. Phase pilote gratuite.">
+<title>Daftar – l'agenda du cabinet médical, sans cahier</title>
+<meta name="description" content="Agenda, rendez-vous en ligne, salle d'attente et paiements pour les cabinets médicaux en Tunisie : médecins, dentistes, kinés, psychologues… En français et en arabe.">
 <link rel="canonical" href="https://daftar.omarfourati.de/">
 <link rel="alternate" hreflang="fr" href="https://daftar.omarfourati.de/">
 <link rel="alternate" hreflang="ar" href="https://daftar.omarfourati.de/ar/">
@@ -21,14 +21,14 @@
 <meta property="og:locale:alternate" content="ar_AR">
 <meta property="og:url" content="https://daftar.omarfourati.de/">
 <meta property="og:title" content="Daftar – fini le cahier de rendez-vous">
-<meta property="og:description" content="Agenda, salle d'attente, patients et paiements pour les cabinets dentaires en Tunisie. En français et en arabe. Phase pilote gratuite.">
+<meta property="og:description" content="Agenda, rendez-vous en ligne, salle d'attente et paiements pour les cabinets médicaux en Tunisie. En français et en arabe. Phase pilote gratuite.">
 <meta property="og:image" content="https://daftar.omarfourati.de/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Daftar, l'agenda du cabinet dentaire : « Fini le cahier de rendez-vous », en français et en arabe.">
+<meta property="og:image:alt" content="Daftar, l'agenda du cabinet médical : « Fini le cahier de rendez-vous », en français et en arabe.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Daftar – fini le cahier de rendez-vous">
-<meta name="twitter:description" content="Agenda, salle d'attente, patients et paiements pour les cabinets dentaires en Tunisie. En français et en arabe.">
+<meta name="twitter:description" content="Agenda, rendez-vous en ligne, salle d'attente et paiements pour les cabinets médicaux en Tunisie. En français et en arabe.">
 <meta name="twitter:image" content="https://daftar.omarfourati.de/og-image.png">
 <script type="application/ld+json">
 {
@@ -38,7 +38,7 @@
   "alternateName": "دفتر",
   "url": "https://daftar.omarfourati.de/",
   "image": "https://daftar.omarfourati.de/og-image.png",
-  "description": "Application web de gestion des rendez-vous, de la salle d'attente, des dossiers patients et des paiements pour les cabinets dentaires en Tunisie, en français et en arabe.",
+  "description": "Application web pour les cabinets médicaux en Tunisie, toutes spécialités : agenda, prise de rendez-vous en ligne, salle d'attente, dossiers patients et paiements, en français et en arabe.",
   "applicationCategory": "BusinessApplication",
   "operatingSystem": "Web, Windows, Android, iOS",
   "inLanguage": ["fr", "ar"],
@@ -69,8 +69,8 @@
     </a>
     <nav class="main-nav" aria-label="Sections">
       <ul>
+        <li><a href="#reservation">Réservation en ligne</a></li>
         <li><a href="#journee">Fonctionnalités</a></li>
-        <li><a href="#securite">Sécurité</a></li>
         <li><a href="#tarifs">Tarifs</a></li>
         <li><a href="#faq">FAQ</a></li>
       </ul>
@@ -89,20 +89,35 @@
   <div class="wrap hero-grid">
     <div>
       <h1 id="hero-title">Fini le cahier de rendez-vous</h1>
-      <p class="lead">Daftar remplace le cahier de votre cabinet dentaire&nbsp;: rendez-vous, salle d'attente, dossiers patients et paiements, sur le PC de l'accueil comme sur votre téléphone.</p>
+      <p class="lead">Daftar remplace le cahier de votre cabinet&nbsp;: agenda, <a href="#reservation">rendez-vous en ligne</a>, salle d'attente, dossiers patients et paiements, sur le PC de l'accueil comme sur votre téléphone.</p>
       <div class="hero-actions">
         <a class="btn btn-primary" href="/app/demo">Essayer la démo</a>
         <a class="btn btn-secondary" href="#pilote">Demander un accès pilote</a>
       </div>
       <p class="hero-note">Démo immédiate, sans inscription, avec des données fictives. En français et en arabe.</p>
+      <div class="for-whom">
+        <p id="pour-qui">Pour les cabinets de toutes spécialités&nbsp;:</p>
+        <ul class="specialties" aria-labelledby="pour-qui">
+          <li>Médecins généralistes</li>
+          <li>Dentistes</li>
+          <li>Pédiatres</li>
+          <li>Gynécologues</li>
+          <li>Dermatologues</li>
+          <li>Ophtalmologues</li>
+          <li>Cardiologues</li>
+          <li>ORL</li>
+          <li>Kinésithérapeutes</li>
+          <li>Psychologues</li>
+        </ul>
+      </div>
     </div>
     <div class="hero-visual">
       <figure class="frame-desktop">
         <div class="frame-bar" aria-hidden="true"><span>daftar.omarfourati.de/app/agenda</span></div>
-        <img src="/img/screen-agenda.png" width="1440" height="900" alt="Aperçu de l'agenda du jour dans Daftar : deux colonnes de praticiens, rendez-vous colorés selon leur statut (terminé, en soins, absent, arrivé, confirmé).">
+        <img src="/img/screen-agenda.png" width="1440" height="900" alt="Aperçu de l'agenda du jour dans Daftar pour un cabinet avec un médecin généraliste et un pédiatre : rendez-vous colorés selon leur statut, demandes en ligne à confirmer, pause de midi.">
       </figure>
       <figure class="frame-phone">
-        <img src="/img/screen-mobile.png" width="780" height="1688" alt="Aperçu sur téléphone : les rappels de demain avec un bouton WhatsApp et un bouton SMS par patient.">
+        <img src="/img/screen-booking.png" width="780" height="1688" alt="Aperçu sur téléphone de la page de réservation en ligne d'un cabinet : choix de l'acte, du jour et d'un horaire libre.">
       </figure>
     </div>
   </div>
@@ -112,10 +127,15 @@
   <div class="wrap">
     <div class="section-head">
       <h2 id="cahier-title">Le cahier a fait son temps</h2>
-      <p>Quatre situations bien connues à l'accueil, et ce que Daftar y change.</p>
+      <p>Cinq situations bien connues à l'accueil, et ce que Daftar y change.</p>
     </div>
     <div class="compare-labels" aria-hidden="true"><span></span><span>Avec le cahier</span><span>Avec Daftar</span></div>
     <ul class="compare">
+      <li>
+        <h3>Le téléphone</h3>
+        <div class="was"><span class="row-label">Avec le cahier</span><p>Le téléphone sonne pendant les consultations&nbsp;: un patient veut un rendez-vous, un autre veut déplacer le sien.</p></div>
+        <div class="now"><span class="row-label">Avec Daftar</span><p>Vos patients réservent eux-mêmes sur la page en ligne de votre cabinet et annulent par leur lien. Vous confirmez d'un clic.</p></div>
+      </li>
       <li>
         <h3>Les absences</h3>
         <div class="was"><span class="row-label">Avec le cahier</span><p>Un patient ne vient pas. Le créneau est perdu, et personne ne se rappelle que c'est déjà la troisième fois.</p></div>
@@ -128,15 +148,44 @@
       </li>
       <li>
         <h3>Les impayés</h3>
-        <div class="was"><span class="row-label">Avec le cahier</span><p>Une couronne payée en trois fois, notée dans la marge. Trois mois plus tard, plus personne ne sait ce qu'il reste à payer.</p></div>
-        <div class="now"><span class="row-label">Avec Daftar</span><p>Les soins et chaque versement sont enregistrés dans le dossier du patient. Le reste à payer est calculé automatiquement, avec un reçu pour chaque paiement.</p></div>
+        <div class="was"><span class="row-label">Avec le cahier</span><p>Dix séances de kiné, une couronne, un suivi de grossesse&nbsp;: payés en plusieurs fois et notés dans la marge. Trois mois plus tard, plus personne ne sait ce qu'il reste à payer.</p></div>
+        <div class="now"><span class="row-label">Avec Daftar</span><p>Les actes et chaque versement sont enregistrés dans le dossier du patient. Le reste à payer est calculé automatiquement, avec un reçu pour chaque paiement.</p></div>
       </li>
       <li>
         <h3>Tout sur papier</h3>
-        <div class="was"><span class="row-label">Avec le cahier</span><p>Un seul cahier, posé à l'accueil. Impossible de consulter l'agenda depuis le fauteuil ou depuis chez vous.</p></div>
+        <div class="was"><span class="row-label">Avec le cahier</span><p>Un seul cahier, posé à l'accueil. Impossible de consulter l'agenda depuis la salle de consultation ou depuis chez vous.</p></div>
         <div class="now"><span class="row-label">Avec Daftar</span><p>Daftar s'ouvre sur le PC de l'accueil, sur une tablette et sur votre téléphone, avec un accès personnel pour chaque membre de l'équipe.</p></div>
       </li>
     </ul>
+  </div>
+</section>
+
+<section class="section booking" id="reservation" aria-labelledby="reservation-title">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="reservation-title">Vos patients réservent en ligne</h2>
+      <p>Chaque cabinet a sa propre page de réservation. Vos patients y prennent rendez-vous à toute heure, sans appeler pendant vos consultations.</p>
+    </div>
+    <p class="booking-url"><span class="visually-hidden">Exemple d'adresse&nbsp;: </span><span class="booking-url-slug">cabinet-ben-salah</span><span>.daftar.omarfourati.de</span></p>
+    <div class="booking-grid">
+      <div>
+        <ol class="booking-steps">
+          <li>Le patient choisit l'acte et, s'il le souhaite, le praticien.</li>
+          <li>Il ne voit que les horaires libres, selon vos horaires d'ouverture, vos pauses et vos congés.</li>
+          <li>Il laisse son nom et son numéro de téléphone, sans créer de compte.</li>
+          <li>Vous confirmez la demande d'un clic, ou la confirmation est automatique si vous le préférez.</li>
+        </ol>
+        <ul class="ticks booking-ticks">
+          <li>Le patient reçoit un lien pour annuler lui-même son rendez-vous.</li>
+          <li>Un patient qui a manqué plusieurs rendez-vous ne peut plus réserver en ligne&nbsp;: la page l'invite à appeler le cabinet.</li>
+          <li>Vous choisissez les actes et les praticiens réservables en ligne, le délai minimum avant un rendez-vous et le nombre de réservations par jour.</li>
+          <li>Pas de compte, pas de cookies&nbsp;: la page reste simple pour vos patients.</li>
+        </ul>
+      </div>
+      <figure class="shot shot-phone">
+        <img src="/img/screen-booking.png" width="780" height="1688" loading="lazy" alt="Page de réservation en ligne du Cabinet Dr Ben Salah, médecin généraliste à Sousse : choix de l'acte (consultation, contrôle, certificat médical, vaccination), du jour et d'un horaire libre, puis bouton Continuer.">
+      </figure>
+    </div>
   </div>
 </section>
 
@@ -151,36 +200,37 @@
         <div class="day-text">
           <time class="clock" datetime="08:00">08:00</time>
           <h3>L'agenda du jour, prêt avant le premier patient</h3>
-          <p>Vue par jour ou par semaine, avec une colonne par praticien. Cliquez sur un créneau libre, retrouvez le patient par son nom ou son numéro de téléphone, ou créez-le sur place&nbsp;: le rendez-vous est pris.</p>
+          <p>Vue par jour ou par semaine, avec une colonne par praticien. Chaque acte a sa durée&nbsp;: un clic sur un horaire libre, le patient retrouvé par son nom ou son numéro de téléphone, ou créé sur place, et le rendez-vous est pris.</p>
           <ul class="ticks">
-            <li>Un statut pour chaque rendez-vous&nbsp;: prévu, confirmé, arrivé, en soins, terminé, absent, annulé.</li>
-            <li>Une alerte quand deux rendez-vous se chevauchent.</li>
+            <li>Jamais deux rendez-vous en même temps pour le même praticien ou le même patient&nbsp;: Daftar le refuse et propose les horaires libres.</li>
+            <li>Horaires d'ouverture pour chaque jour, avec la pause de midi, vos congés et les jours fériés.</li>
+            <li>Les demandes en ligne apparaissent en pointillés, prêtes à être confirmées.</li>
             <li>«&nbsp;Acompte conseillé&nbsp;» pour les patients déjà absents deux fois.</li>
           </ul>
         </div>
         <figure class="shot">
-          <img src="/img/screen-agenda.png" width="1440" height="900" loading="lazy" alt="Agenda du jour : une colonne par praticien, chaque rendez-vous avec l'heure, le patient, le motif et le statut ; un rendez-vous signale « 2 absences », un autre « Acompte 50 DT payé ».">
+          <img src="/img/screen-agenda.png" width="1440" height="900" loading="lazy" alt="Agenda du jour d'un cabinet avec un médecin généraliste et un pédiatre : chaque rendez-vous avec l'heure, le patient, l'acte et le statut ; deux demandes en ligne à confirmer, la pause de 12:30 à 14:00, un patient signalé « 2 absences ».">
         </figure>
       </li>
       <li>
         <div class="day-text">
           <time class="clock" datetime="09:30">09:30</time>
           <h3>La salle d'attente, dans l'ordre</h3>
-          <p>À son arrivée, chaque patient reçoit un numéro de ticket, avec ou sans rendez-vous. L'accueil appelle le suivant d'un clic, puis le passe en soins.</p>
+          <p>À son arrivée, chaque patient reçoit un numéro de ticket, avec ou sans rendez-vous. L'accueil appelle le suivant d'un clic, puis le passe en consultation.</p>
           <ul class="ticks">
             <li>Un écran dans la salle d'attente affiche les numéros appelés et les suivants, jamais les noms.</li>
             <li>Le patient suit sa position et l'attente estimée sur son téléphone, grâce à un lien WhatsApp ou à un QR code.</li>
           </ul>
         </div>
         <figure class="shot">
-          <img src="/img/screen-salle.png" width="1440" height="900" loading="lazy" alt="Salle d'attente : tickets en soins, appelé et en attente avec position et attente estimée, boutons Appeler et WhatsApp ; à côté, l'écran de la salle avec le ticket appelé 13 et les prochains 14, 15, 16.">
+          <img src="/img/screen-salle.png" width="1440" height="900" loading="lazy" alt="Salle d'attente : tickets en consultation, appelé et en attente avec position et attente estimée, boutons Appeler et WhatsApp ; à côté, l'écran de la salle avec le ticket appelé 13 et les prochains 14, 15, 16.">
         </figure>
       </li>
       <li>
         <div class="day-text">
           <time class="clock" datetime="11:30">11:30</time>
           <h3>Le dossier patient, avec le reste à payer</h3>
-          <p>Coordonnées, rendez-vous passés et à venir, nombre de présences et d'absences. Ajoutez les soins avec leur prix, puis les versements au fil des séances&nbsp;: Daftar calcule ce qu'il reste à payer.</p>
+          <p>Coordonnées, rendez-vous passés et à venir, nombre de présences et d'absences. Ajoutez les actes avec leur prix (consultation, séance, soin), puis les versements au fil des visites&nbsp;: Daftar calcule ce qu'il reste à payer.</p>
           <ul class="ticks">
             <li>Paiement en espèces, D17, Flouci, carte, chèque ou virement.</li>
             <li>Les acomptes sont rattachés à leur rendez-vous.</li>
@@ -188,7 +238,7 @@
           </ul>
         </div>
         <figure class="shot">
-          <img src="/img/screen-patient.png" width="1440" height="900" loading="lazy" alt="Dossier d'un patient : venu 7 fois, absent 2 fois ; liste des soins et des paiements ; total 990,000 DT, payé 600,000 DT, reste à payer 390,000 DT.">
+          <img src="/img/screen-patient.png" width="1440" height="900" loading="lazy" alt="Dossier d'un patient dans un cabinet dentaire : venu 7 fois, absent 2 fois ; liste des actes et des paiements ; total 990,000 DT, payé 600,000 DT, reste à payer 390,000 DT.">
         </figure>
       </li>
       <li>
@@ -203,7 +253,7 @@
           </ul>
         </div>
         <figure class="shot shot-phone">
-          <img src="/img/screen-mobile.png" width="780" height="1688" loading="lazy" alt="Téléphone affichant les rappels de demain : pour chaque patient l'heure, le motif, le message prêt et les boutons WhatsApp et SMS ; un rappel est marqué envoyé, un patient sans accord est grisé.">
+          <img src="/img/screen-mobile.png" width="780" height="1688" loading="lazy" alt="Téléphone d'un cabinet de kinésithérapie affichant les rappels de demain : pour chaque patient l'heure, la séance, le message prêt et les boutons WhatsApp et SMS ; un rappel est marqué envoyé, un patient sans accord est grisé.">
         </figure>
       </li>
       <li>
@@ -214,7 +264,7 @@
         </div>
         <figure class="receipt">
           <p class="receipt-title">Caisse du jour</p>
-          <p class="receipt-date">Jeudi 30 octobre</p>
+          <p class="receipt-date">Vendredi 30 octobre</p>
           <table>
             <tbody>
               <tr><th scope="row">Espèces</th><td>385,000 DT</td></tr>
@@ -234,8 +284,16 @@
     <h2 class="also-title" id="aussi-title">Également inclus</h2>
     <ul class="also" aria-labelledby="aussi-title">
       <li>
+        <h3>Plusieurs praticiens</h3>
+        <p>Cabinet de groupe ou centre&nbsp;: une colonne par praticien dans l'agenda, chacun avec sa spécialité. Un praticien n'a pas besoin de compte pour avoir son agenda.</p>
+      </li>
+      <li>
+        <h3>Vos actes, avec durée et prix</h3>
+        <p>Un catalogue prérempli selon votre spécialité (consultation, contrôle, séance, vaccination, soin…), avec la durée et le prix de chaque acte, que vous adaptez.</p>
+      </li>
+      <li>
         <h3>Une équipe, des rôles</h3>
-        <p>Le propriétaire du cabinet invite dentistes et assistantes par un lien personnel. L'équipe, les réglages et l'export restent réservés au propriétaire.</p>
+        <p>Le propriétaire du cabinet invite ses collègues et l'accueil par un lien personnel. L'équipe, les réglages et l'export restent réservés au propriétaire.</p>
       </li>
       <li>
         <h3>Français ou arabe</h3>
@@ -323,7 +381,7 @@
       <div>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>
         <dt>Aucun traceur</dt>
-        <dd>Pas de publicité, pas d'outil de mesure d'audience, pas de cookies. Rien n'est chargé depuis d'autres sites.</dd>
+        <dd>Pas de publicité, pas d'outil de mesure d'audience, pas de cookies, y compris sur la page de réservation. Rien n'est chargé depuis d'autres sites.</dd>
       </div>
       <div>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 19h16"/></svg>
@@ -333,7 +391,7 @@
       <div>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M17 11l2 2 3.5-3.5"/></svg>
         <dt>Des accès par rôle</dt>
-        <dd>Propriétaire, dentiste ou assistante&nbsp;: chacun n'a accès qu'à ce dont il a besoin, et toutes les sessions se ferment en un clic.</dd>
+        <dd>Propriétaire, praticien ou accueil&nbsp;: chacun n'a accès qu'à ce dont il a besoin, et toutes les sessions se ferment en un clic.</dd>
       </div>
     </dl>
     <div class="facts-aside">
@@ -354,16 +412,16 @@
     <ol class="steps">
       <li>
         <h3>Essayez la démo</h3>
-        <p>Un cabinet fictif est créé pour vous, avec des patients et des rendez-vous inventés. Il est supprimé automatiquement après 24&nbsp;heures.</p>
+        <p>Choisissez votre spécialité&nbsp;: un cabinet fictif est créé pour vous, avec des patients et des rendez-vous inventés. Il est supprimé automatiquement après 24&nbsp;heures.</p>
         <a class="btn btn-primary btn-small" href="/app/demo">Essayer la démo</a>
       </li>
       <li>
         <h3>Demandez un accès pilote</h3>
-        <p>Laissez vos coordonnées dans le formulaire ci-dessous. Vous êtes recontacté pour préparer votre cabinet.</p>
+        <p>Laissez vos coordonnées dans le formulaire ci-dessous. Vous êtes recontacté pour préparer votre cabinet, vos horaires et vos actes.</p>
       </li>
       <li>
         <h3>Invitez votre équipe</h3>
-        <p>Vous recevez un lien personnel pour créer votre compte, puis vous invitez vos collègues depuis les réglages.</p>
+        <p>Vous recevez un lien personnel pour créer votre compte, puis vous invitez vos collègues et partagez votre page de réservation.</p>
       </li>
     </ol>
   </div>
@@ -382,7 +440,7 @@
         <p class="price">Gratuite</p>
         <p>Pour les cabinets qui utilisent Daftar au quotidien pendant la phase pilote et partagent leurs retours.</p>
         <ul>
-          <li>Toutes les fonctionnalités</li>
+          <li>Toutes les fonctionnalités, réservation en ligne comprise</li>
           <li>Toute l'équipe du cabinet</li>
           <li>Aucun moyen de paiement demandé</li>
         </ul>
@@ -395,6 +453,7 @@
         <ul>
           <li>Sans engagement</li>
           <li>Tarif préférentiel pour les cabinets pilotes</li>
+          <li>Paiement simple par Flouci ou virement</li>
           <li>Export de vos données à tout moment</li>
         </ul>
       </section>
@@ -408,6 +467,14 @@
       <h2 id="faq-title">Questions fréquentes</h2>
     </div>
     <div class="faq">
+      <details>
+        <summary>Daftar convient-il à ma spécialité&nbsp;?</summary>
+        <div><p>Daftar est fait pour tous les cabinets&nbsp;: médecine générale, dentaire, pédiatrie, gynécologie, dermatologie, ophtalmologie, cardiologie, ORL, kinésithérapie, psychologie et d'autres. Le catalogue d'actes est prérempli selon votre spécialité et vous l'adaptez librement.</p></div>
+      </details>
+      <details>
+        <summary>Mes patients peuvent-ils prendre rendez-vous en ligne&nbsp;?</summary>
+        <div><p>Oui. Chaque cabinet a sa page de réservation, par exemple cabinet-ben-salah.daftar.omarfourati.de. Vous choisissez les actes et les praticiens réservables en ligne, et si chaque demande doit être confirmée par l'accueil.</p></div>
+      </details>
       <details>
         <summary>Faut-il installer un logiciel&nbsp;?</summary>
         <div><p>Non. Daftar s'ouvre dans le navigateur (Chrome, Edge, Safari) sur PC, tablette et téléphone. Vous pouvez l'installer comme une application, mais ce n'est pas obligatoire.</p></div>
@@ -430,10 +497,10 @@
       </details>
       <details>
         <summary>Combien de personnes peuvent l'utiliser&nbsp;?</summary>
-        <div><p>Toute l'équipe du cabinet. Le propriétaire invite les dentistes et les assistantes par un lien&nbsp;; chacun a son propre accès et choisit sa langue.</p></div>
+        <div><p>Toute l'équipe du cabinet. Le propriétaire invite ses collègues et l'accueil par un lien&nbsp;; chacun a son propre accès et choisit sa langue.</p></div>
       </details>
       <details>
-        <summary>Daftar encaisse-t-il les paiements&nbsp;?</summary>
+        <summary>Daftar encaisse-t-il les paiements de mes patients&nbsp;?</summary>
         <div><p>Non. Daftar enregistre les paiements que vous recevez (espèces, D17, Flouci, carte, chèque, virement) et calcule le reste à payer, mais il n'encaisse rien lui-même.</p></div>
       </details>
       <details>
@@ -442,7 +509,7 @@
       </details>
       <details>
         <summary>Que se passe-t-il après la phase pilote&nbsp;?</summary>
-        <div><p>Daftar sera proposé à partir de 49&nbsp;DT par mois, sans engagement, avec un tarif préférentiel pour les cabinets pilotes. Si vous arrêtez, vous pouvez exporter vos données.</p></div>
+        <div><p>Daftar sera proposé à partir de 49&nbsp;DT par mois, sans engagement, avec un tarif préférentiel pour les cabinets pilotes. Le paiement se fera par Flouci ou par virement. Si vous arrêtez, vous pouvez exporter vos données.</p></div>
       </details>
       <details>
         <summary>Qui développe Daftar&nbsp;?</summary>
@@ -483,12 +550,12 @@
         </div>
         <div class="field field-wide">
           <label for="pf-email">E-mail <span class="opt">(facultatif)</span></label>
-          <input id="pf-email" name="email" type="email" autocomplete="email" maxlength="200" dir="ltr">
+          <input id="pf-email" name="email" type="email" autocomplete="email" maxlength="254" dir="ltr">
         </div>
         <div class="field field-wide">
           <label for="pf-message">Message <span class="opt">(facultatif)</span></label>
           <textarea id="pf-message" name="message" maxlength="2000" rows="4" aria-describedby="pf-message-hint"></textarea>
-          <span class="hint" id="pf-message-hint">Par exemple le nombre de praticiens, ou vos questions.</span>
+          <span class="hint" id="pf-message-hint">Par exemple votre spécialité, le nombre de praticiens, ou vos questions.</span>
         </div>
         <div class="hp" aria-hidden="true">
           <label for="pf-website">Laissez ce champ vide</label>
@@ -516,13 +583,14 @@
     <div class="footer-grid">
       <div class="footer-brand">
         <img src="/brand/logo.svg" alt="Daftar" width="230" height="64">
-        <p>L'agenda du cabinet dentaire, en français et en arabe.</p>
+        <p>L'agenda des cabinets médicaux, en français et en arabe.</p>
       </div>
       <nav aria-labelledby="f-produit">
         <h2 id="f-produit">Daftar</h2>
         <ul>
           <li><a href="/app/demo">Essayer la démo</a></li>
           <li><a href="/connexion">Se connecter</a></li>
+          <li><a href="#reservation">Réservation en ligne</a></li>
           <li><a href="#tarifs">Tarifs</a></li>
           <li><a href="#faq">Questions fréquentes</a></li>
         </ul>

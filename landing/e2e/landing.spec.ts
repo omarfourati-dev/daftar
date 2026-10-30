@@ -192,12 +192,152 @@ test.describe("Verkaufsseite", () => {
     });
   }
 
+  for (const path of ["/", "/ar/"]) {
+    test(`${path}: Installationsschritte bleiben ein Textfluss (Zitate zerreißen die Zeile nicht)`, async ({ page }) => {
+      for (const viewport of Object.values(VIEWPORTS)) {
+        await page.setViewportSize(viewport);
+        await page.goto(BASE + path);
+        const heights = await page.locator("#appareils .install li").evaluateAll((lis) => lis.map((li) => li.getBoundingClientRect().height));
+        expect(heights.length).toBe(9);
+        // Höchstens drei Textzeilen pro Schritt; ein zerrissener Schritt ist mehrere hundert Pixel hoch.
+        for (const h of heights) expect(h, `${viewport.width}px`).toBeLessThan(100);
+      }
+    });
+  }
+
   test("AR: Layout ist gespiegelt (Heftrand und Bildspalte rechts bzw. links)", async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.desktop);
     await page.goto(BASE + "/ar/");
     const textBox = await page.locator(".hero h1").boundingBox();
     const visualBox = await page.locator(".hero-visual").boundingBox();
     expect(textBox && visualBox && textBox.x > visualBox.x).toBeTruthy();
+  });
+});
+
+// Daftar richtet sich an alle Fachrichtungen (Spezifikation Abschnitt 12) und bietet Online-Buchung (Abschnitt 11).
+const HOME = {
+  fr: {
+    path: "/",
+    specialties: ["Médecins généralistes", "Dentistes", "Pédiatres", "Kinésithérapeutes", "Psychologues"],
+    bookingUrl: "cabinet-ben-salah.daftar.omarfourati.de",
+    img: "/img/",
+    features: ["Plusieurs praticiens", "durée et prix", "pause", "congés", "même temps"],
+    payment: "Flouci",
+  },
+  ar: {
+    path: "/ar/",
+    specialties: ["أطباء الطب العام", "أطباء الأسنان", "أطباء الأطفال", "أخصائيو العلاج الطبيعي", "الأخصائيون النفسيون"],
+    bookingUrl: "cabinet-ben-salah.daftar.omarfourati.de",
+    img: "/img/ar/",
+    features: ["عدّة أطباء", "المدة والسعر", "استراحة", "العطل", "في الوقت نفسه"],
+    payment: "Flouci",
+  },
+};
+
+for (const [lang, home] of Object.entries(HOME)) {
+  test.describe(`Alle Fachrichtungen und Online-Buchung (${lang})`, () => {
+    test("Titel, Beschreibung, OG und JSON-LD sind nicht zahnarztspezifisch", async ({ page }) => {
+      await page.goto(BASE + home.path);
+      const texts = [
+        await page.title(),
+        await page.locator('meta[name="description"]').getAttribute("content"),
+        await page.locator('meta[property="og:title"]').getAttribute("content"),
+        await page.locator('meta[property="og:description"]').getAttribute("content"),
+        JSON.parse((await page.locator('script[type="application/ld+json"]').textContent()) ?? "{}").description,
+        await page.locator(".hero h1").textContent(),
+        await page.locator(".hero .lead").textContent(),
+      ].join(" | ");
+      // Zahnärzte dürfen genannt werden, aber nicht als einzige Zielgruppe („cabinet dentaire“).
+      expect(texts).not.toMatch(/cabinets? dentaires?|عيادات? الأسنان|عيادة طب الأسنان/i);
+      expect(texts).toMatch(/médic|médecin|طبي|أطباء/i);
+    });
+
+    test("der Hero nennt mehrere Fachrichtungen, Zahnärzte sind eine davon", async ({ page }) => {
+      await page.goto(BASE + home.path);
+      const items = page.locator(".hero .specialties li");
+      expect(await items.count()).toBeGreaterThanOrEqual(6);
+      const list = (await items.allTextContents()).map((t) => t.trim());
+      for (const s of home.specialties) expect(list).toContain(s);
+    });
+
+    test("eigener Abschnitt Online-Buchung mit Beispieladresse und Handy-Mockup, im Hero verlinkt", async ({ page }) => {
+      await page.goto(BASE + home.path);
+      const section = page.locator("section#reservation");
+      await expect(section.locator("h2")).toBeVisible();
+      await expect(section).toContainText(home.bookingUrl);
+      const img = section.locator(`img[src="${home.img}screen-booking.png"]`);
+      await expect(img).toHaveCount(1);
+      await img.scrollIntoViewIfNeeded();
+      await expect.poll(() => img.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(0);
+      await expect(page.locator('.hero a[href="#reservation"]')).toHaveCount(1);
+      await expect(page.locator('.main-nav a[href="#reservation"]')).toHaveCount(1);
+    });
+
+    test("Funktionsliste nennt mehrere Behandler, Leistungen mit Dauer und Preis, Pause, Urlaub, keine Doppelbuchung", async ({ page }) => {
+      await page.goto(BASE + home.path);
+      const text = (await page.locator("#journee").innerText()).replace(/\s+/g, " ");
+      for (const f of home.features) expect(text).toContain(f);
+    });
+
+    test("Preise: Zahlung per Flouci oder Überweisung, Pilotphase ohne Zahlungsmittel", async ({ page }) => {
+      await page.goto(BASE + home.path);
+      await expect(page.locator("#tarifs .plan").nth(1)).toContainText(home.payment);
+      await expect(page.locator("#tarifs .plan-now")).not.toContainText(home.payment);
+    });
+  });
+}
+
+test.describe("Mockups haben die Formate der späteren echten Screenshots", () => {
+  const png = async (request: import("@playwright/test").APIRequestContext, url: string) => {
+    const res = await request.get(BASE + url);
+    expect(res.status(), url).toBe(200);
+    const buf = await res.body();
+    return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+  };
+  for (const dir of ["/img/", "/img/ar/"]) {
+    test(`${dir}: Desktop 1440 × 900, Handy im Verhältnis 390 : 844`, async ({ request }) => {
+      for (const name of ["agenda", "salle", "patient"]) expect(await png(request, `${dir}screen-${name}.png`)).toEqual({ w: 1440, h: 900 });
+      for (const name of ["mobile", "booking"]) {
+        const { w, h } = await png(request, `${dir}screen-${name}.png`);
+        expect(w * 844).toBe(h * 390);
+      }
+    });
+  }
+});
+
+test.describe("Rechtstexte: Online-Buchung und Abonnement", () => {
+  for (const path of ["/confidentialite/", "/ar/confidentialite/", "/datenschutz/"]) {
+    test(`${path} erklärt Online-Buchung und Zahlung der Abos über Flouci`, async ({ page }) => {
+      await page.goto(BASE + path);
+      const booking = page.locator("#reservation-en-ligne");
+      await expect(booking).toHaveCount(1);
+      const billing = page.locator("#abonnement");
+      await expect(billing).toHaveCount(1);
+      const sectionText = async (id: string) =>
+        page.evaluate((h2id) => {
+          // Text vom Abschnittstitel bis zum nächsten h2
+          const start = document.getElementById(h2id)!;
+          let text = start.textContent ?? "";
+          for (let el = start.nextElementSibling; el && el.tagName !== "H2"; el = el.nextElementSibling) text += " " + el.textContent;
+          return text;
+        }, id);
+      expect(await sectionText("abonnement")).toContain("Flouci");
+      expect(await sectionText("reservation-en-ligne")).toMatch(/cookie|cookies|ملفات تعريف الارتباط/i);
+      await expect(page.locator("main")).not.toContainText(/cabinet dentaire|Zahnarztpraxis|عيادة الأسنان/i);
+    });
+  }
+
+  test("Muster-AVV beschreibt die Online-Buchung in Anlage 1 und deren Schutz in Anlage 2", async ({ page }) => {
+    await page.goto(BASE + "/contrat-sous-traitance/");
+    await expect(page.locator("#annexe1 + table")).toContainText("Réservation en ligne");
+    const annex2 = await page.evaluate(() => {
+      let text = "";
+      for (let el = document.getElementById("annexe2")!.nextElementSibling; el; el = el.nextElementSibling) text += " " + el.textContent;
+      return text;
+    });
+    expect(annex2).toContain("réservation en ligne");
+    expect(annex2).toContain("deux rendez-vous");
+    await expect(page.locator("main")).not.toContainText(/dentiste titulaire|cabinet dentaire/i);
   });
 });
 

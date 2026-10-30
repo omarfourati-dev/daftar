@@ -8,6 +8,12 @@ Sprachwechsel FR ↔ AR, Demo-/Login-Links, JSON-LD, `robots.txt`, `sitemap.xml`
 JSON-Body inkl. Honeypot `website`, ohne JavaScript nur der `mailto:`-Hinweis). Das Backend wird für
 `POST /api/public/pilot-requests` mit `page.route` gemockt.
 
+Seit Abschnitt 11/12 der Spezifikation außerdem: Texte nicht zahnarztspezifisch (alle Fachrichtungen),
+Abschnitt Online-Buchung mit Beispieladresse und Mockup, Funktionsliste (mehrere Behandler, Leistungen mit
+Dauer und Preis, Pause, Urlaub, keine Doppelbuchung), Preise mit „Flouci ou virement“, Formate der Mockups
+(Desktop 1440 × 900, Handy 390 : 844 – gilt auch für die späteren echten Screenshots), Rechtstexte mit
+Abschnitten `#reservation-en-ligne` und `#abonnement`, Muster-AVV mit Online-Buchung in den Anlagen.
+
 Basis-URL: `E2E_BASE_URL` (Standard `http://localhost:18083`). Der Server muss `landing/` so ausliefern
 wie in Produktion (Datei → Verzeichnis mit `index.html`) und SPA-Routen (`/app/…`, `/connexion`) mit 200
 beantworten. Tests mit `request.get` erwarten für Verzeichnisse den Pfad mit abschließendem `/`.
