@@ -1,0 +1,108 @@
+# Daftar – Product Backlog (PO)
+
+Stand 30.10.2026. Grundlage: `docs/superpowers/specs/2026-10-30-daftar-design.md` (Abschnitte 1–13). Dieses Dokument
+legt fest, **was in welche Version kommt** und **wann etwas fertig ist**. Bei Widerspruch zur Spezifikation gilt die
+Spezifikation für das „Wie“, dieses Backlog für das „Was zuerst“.
+
+## Produktziel
+
+Eine tunesische Arztpraxis wirft ihr Terminheft weg, weil Daftar am Empfang schneller ist als Papier, weniger
+Patienten nicht erscheinen, das Wartezimmer ruhiger ist und offene Beträge nicht mehr verloren gehen. Erfolg im
+Pilot: 5 Praxen nutzen Daftar 4 Wochen lang täglich; Nichterscheinen sinkt messbar; jede Praxis sagt „ich würde
+dafür zahlen“.
+
+## Definition of Done (gilt für jede Story)
+
+1. **TDD**: Test zuerst geschrieben und rot gesehen; Backend pytest gegen echtes Postgres, Web Vitest.
+2. **E2E**: Jede Story hat mindestens einen Playwright-Test des Hauptwegs; läuft lokal gegen den Docker-Stack und in CI.
+3. **Mandantentrennung**: Jeder neue Endpunkt hat einen Test „fremde Praxis → 404“ und einen Rollentest.
+4. **FR + AR** vollständig (keine fehlenden Schlüssel), RTL geprüft; Zahlen westlich, Zeitzone Africa/Tunis.
+5. **Geräte**: geprüft bei 390 px (Handy), 820 px (Tablet), 1440 px (Desktop); keine horizontale Scrollleiste.
+6. **Barrierefreiheit**: axe-core im E2E-Test ohne „serious“/„critical“; Tastatur bedienbar; sichtbarer Fokus.
+7. **Sicherheit**: keine Patientendaten in Logs/URLs/öffentlichen Seiten; Eingaben begrenzt; Rate-Limits bei
+   öffentlichen Endpunkten; Fehler als problem+json ohne Interna.
+8. **Leere, Lade- und Fehlerzustände** gestaltet (kein „undefined“, kein endloser Spinner, verständliche Meldung).
+9. `npm run check`, alle Tests grün, Commit auf main, Deploy grün, Smoke-Test live.
+
+## Release 1 – heute live (Pilot-fähig)
+
+### Epic A – Kundenstamm & Zugang
+- A1 **Admin legt Praxis mit vollständigen Daten an** (Assistent, Spec 11.2/12) → Einladungslink + Buchungslink.
+  *AK*: Slug live geprüft (Format, reserviert, vergeben); Fachrichtung belegt Leistungskatalog vor; Pflichtfelder validiert.
+- A2 **Einladung annehmen** (Besitzer, Mitarbeiter) – Einmal-Link 7 Tage.
+- A3 **Passwort vergessen ohne E-Mail**: Besitzer erzeugt für Mitarbeiter, Admin für Besitzer einen
+  **Zurücksetzen-Link** (Einmal-Link 24 h, nur Hash gespeichert, alle Sitzungen des Kontos werden ungültig).
+  *AK*: Link zweimal benutzen → Fehler; abgelaufen → Fehler; fremde Praxis → 404.
+- A4 **Eigene App je Praxis** (Spec 13) inkl. `/app/installer` und QR-Code.
+- A5 **Erste Schritte** (Checkliste auf dem Dashboard, bis alles erledigt ist): Öffnungszeiten, Leistungen & Preise,
+  Behandler, Team eingeladen, Online-Buchung aktiviert, App installiert, Plakat gedruckt. Abgeleitet aus Daten.
+
+### Epic B – Termine ohne Doppelbuchung
+- B1 **Agenda Tag/Woche**, Spalte je Behandler, Schließtage sichtbar, „Jetzt“-Linie.
+- B2 **Termin in ≤ 10 s**: Klick auf freien Slot → Patient per Name/Telefon suchen oder neu → Leistung (setzt Dauer)
+  → speichern. *AK*: Überschneidung → 409 und Vorschläge der nächsten freien Zeiten; Patient mit ≥ 2 Nichterscheinen
+  → Hinweis „Acompte conseillé“.
+- B3 **Status-Workflow** (requested → confirmed → arrived → in_treatment → done / no_show / cancelled) mit großen Knöpfen.
+- B4 **Serientermine** (Kiné/Psy): „toutes les semaines / 2× par semaine, N séances“; jede Sitzung einzeln geprüft;
+  Konflikte werden vor dem Speichern gelistet (überspringen oder abbrechen). Spalte `appointment.series_id`.
+- B5 **Tagesabschluss**: Termine von heute, die noch `scheduled/confirmed` sind und deren Zeit vorbei ist, erscheinen als
+  „Non venus ?“ mit einem Klick auf `no_show`.
+- B6 **Agenda drucken** (Tagesliste, Druck-CSS) für Praxen, die Papier mögen.
+- B7 **Globale Suche** im Kopf (Name/Telefon, Tastenkürzel `/`), Tastenkürzel `N` = neuer Termin.
+
+### Epic C – Online-Buchung
+- C1 Buchungsseite je Praxis (Spec 11.3), Verwaltungslink, Stornieren, Sperre bei Nichterscheinen.
+- C2 **Anfragen-Zähler** in der Navigation (Abfrage alle 60 s), Bestätigen/Ablehnen mit WhatsApp-Text.
+- C3 **Plakat/Aufsteller A4** (druckbar, FR+AR): „Prenez rendez-vous en ligne“ mit QR-Code der Buchungsseite.
+
+### Epic D – Warteschlange
+- D1 Tickets, Aufrufen, Wartezimmer-Bildschirm, Ticket-Seite des Patienten (Spec 5/6) – nie Namen öffentlich.
+
+### Epic E – Patienten
+- E1 Liste/Suche/Akte (Spec 6); Zuverlässigkeit (gekommen / nicht gekommen / storniert).
+- E2 **Medizinischer Hinweis** (`patient.alerts`, z. B. Allergie, Antikoagulans) – rot oben in Akte, Termin-Dialog und
+  Warteschlange. Nur für eingeloggte Praxis.
+- E3 **Gleiche Telefonnummer**: Akte zeigt „Même numéro : …“ (Familien) mit Link.
+- E4 Export (JSON) und Löschen (Besitzer, mit Bestätigung durch Eintippen des Namens).
+
+### Epic F – Geld
+- F1 Leistungen/Behandlungsplan, Zahlungen in Raten, Saldo, Anzahlung je Termin, Quittung druckbar.
+- F2 Tageskasse nach Zahlart, offene Beträge.
+
+### Epic G – Erinnerungen
+- G1 Morgen-Liste mit WhatsApp/SMS-Knopf, Einwilligung beachtet, „envoyé“ markieren.
+
+### Epic H – Auswertung (Besitzer)
+- H1 **Statistik** `/app/statistiques`: je Monat Termine, Nichterscheinen-Quote, Umsatz (Zahlungen), Anteil Online-
+  Buchungen, Top-Leistungen; Vergleich zum Vormonat. Endpoint `GET /api/stats?month=YYYY-MM`.
+
+### Epic I – Abos & Admin
+- I1 Pläne, Rechnungen, „bezahlt bis“, Sperre (Spec 11.4); Flouci aus, bis Schlüssel da sind; manuelle Zahlung.
+- I2 Admin-Übersicht: Praxen, Status, Nutzung (letzte Aktivität, Termine/Woche), Pilot-Anfragen, Feedback.
+
+### Epic J – Vertrieb & Vertrauen
+- J1 Landing FR/AR, Demo je Fachrichtung, Pilot-Formular, Rechtstexte, Muster-AVV.
+- J2 **Feedback-Knopf** in der App („Une idée ? Un problème ?“) → `feedback(id, practice_id, user_id, message, page,
+  created_at)`, Admin sieht es, Metrik `daftar_feedback_total` (Alarm-Mail).
+
+### Epic K – Betrieb
+- K1 Deploy, Monitoring (Probes, Alarme inkl. Pilot-Anfrage/Feedback), Metriken.
+- K2 **Datensicherung** vor dem ersten echten Piloten: tägliches `pg_dump` der DB `daftar`, 14 Tage aufbewahrt,
+  Wiederherstellung einmal getestet und im README beschrieben. (Kopie außerhalb des Servers: Release 1.1.)
+
+## Release 1.1 – nächste Tage
+- CSV-Import bestehender Patienten (Vorschau, Spaltenzuordnung, Dubletten-Hinweis).
+- **Sonderöffnungszeiten** für Zeiträume (Ramadan, Sommer) + Vorschlagsliste fester tunesischer Feiertage.
+- Änderungsprotokoll je Termin/Zahlung (wer, wann, was).
+- Wartebereich: Warteliste „früherer Termin gewünscht“, automatischer Vorschlag bei Stornierung.
+- Backup-Kopie außerhalb des Servers; Wiederherstellungsübung.
+- Tutorial (FR/AR, Seite + PDF) und Werbevideo (Hoch- und Querformat) – Omars Wunsch, mit echten Screenshots.
+
+## Release 2 – nach dem Pilot
+- WhatsApp-Business-API/SMS-Gateway für automatische Erinnerungen; Web-Push für neue Online-Anfragen.
+- Logo-Upload je Praxis; Flouci live (Händlerkonto); eine Windows-App (Tauri, signiert), eine Store-App (Capacitor).
+- Zwei-Faktor-Anmeldung, Sitzungsliste; Mehrere Standorte; Konsultationsnotizen (erst nach Rechtsprüfung).
+
+## Bewusst nicht
+- Patientennamen auf öffentlichen Seiten · Tracking/Cookies · Funktionen, die Werbung verspricht, aber nicht gibt ·
+  echte Telefonnummern in der Demo · Selbstregistrierung ohne Admin, solange kein Gewerbe/AVV-Prozess steht.
