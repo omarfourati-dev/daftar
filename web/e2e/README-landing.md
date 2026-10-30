@@ -27,7 +27,7 @@ cd web
 E2E_BASE_URL=http://localhost:18083 npx playwright test e2e/landing.spec.ts --workers=2
 ```
 
-Solange die Datei nur unter `landing/e2e/` liegt (kein `package.json` im Repo), mit Playwright aus einem
+
 temporären Ordner außerhalb des Repos:
 
 ```sh
