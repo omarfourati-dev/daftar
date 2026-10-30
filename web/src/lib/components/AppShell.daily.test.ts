@@ -7,7 +7,7 @@ import { auth } from '../auth.svelte';
 import { badges } from '../badges.svelte';
 import { i18n } from '../i18n.svelte';
 import { calls, json, mockApi } from '../test-utils';
-import { assistant, owner } from '../agenda/fixtures';
+import { assistant, owner, practice, practitioners, services } from '../agenda/fixtures';
 
 /** The daily-work additions to the app frame: patient search, shortcuts, badges, statistics for the owner. */
 const children = createRawSnippet(() => ({ render: () => '<p>Contenu</p>' }));
@@ -61,4 +61,21 @@ describe('AppShell – daily work', () => {
 		await vi.waitFor(() => expect(calls()).toContain('GET /api/auth/me'));
 		expect(calls()).not.toContain('GET /api/badges');
 	});
+
+	it('has the phone booking button in the header', async () => {
+		auth.set('tok', assistant);
+		mockApi({
+			'GET /api/auth/me': () => json(200, assistant),
+			'GET /api/badges': () => json(200, { onlineRequests: 0, overdue: 0 }),
+			'GET /api/practice': () => json(200, practice),
+			'GET /api/practitioners': () => json(200, practitioners),
+			'GET /api/services': () => json(200, services),
+			'GET /api/closures': () => json(200, [])
+		});
+		render(AppShell, { props: { path: '/app', children } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Rendez-vous par téléphone' }));
+		expect(await screen.findByRole('dialog', { name: 'Rendez-vous par téléphone' })).toBeInTheDocument();
+		badges.stop();
+	});
 });
+

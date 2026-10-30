@@ -1,10 +1,11 @@
 <script lang="ts">
 	/**
 	 * Keyboard shortcuts of the staff app (story B7): `/` → patient search in the header, `N` → new appointment
-	 * (on the agenda right away, elsewhere via /app/agenda?nouveau=1). Ignored while typing or with Ctrl/Alt/⌘.
+	 * (on the agenda right away, elsewhere via /app/agenda?nouveau=1), `T` → appointment on the phone (16.1).
+	 * Ignored while typing or with Ctrl/Alt/⌘.
 	 */
 	import { deps } from '../../api';
-	import { newAppointment } from '../../agenda/requests.svelte';
+	import { newAppointment, phoneBooking } from '../../agenda/requests.svelte';
 
 	let { path }: { path: string } = $props();
 
@@ -22,6 +23,9 @@
 			if (!search) return;
 			e.preventDefault();
 			search.focus();
+		} else if (e.key === 't' || e.key === 'T') {
+			e.preventDefault();
+			phoneBooking.open = true;
 		} else if (e.key === 'n' || e.key === 'N') {
 			e.preventDefault();
 			if (path === '/app/agenda' || path === '/app/agenda/') newAppointment.request();

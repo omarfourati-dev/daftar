@@ -2,7 +2,7 @@ import { fireEvent, render } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it } from 'vitest';
 import Shortcuts from './Shortcuts.svelte';
 import { deps } from '../../api';
-import { newAppointment } from '../../agenda/requests.svelte';
+import { newAppointment, phoneBooking } from '../../agenda/requests.svelte';
 import { mockApi } from '../../test-utils';
 
 describe('keyboard shortcuts of the app', () => {
@@ -37,5 +37,13 @@ describe('keyboard shortcuts of the app', () => {
 		await fireEvent.keyDown(window, { key: 'n', ctrlKey: true });
 		expect(deps.goto).not.toHaveBeenCalled();
 		expect(document.activeElement?.id).toBe('note');
+	});
+
+	it('"T" opens the phone booking', async () => {
+		phoneBooking.open = false;
+		render(Shortcuts, { props: { path: '/app/patients' } });
+		await fireEvent.keyDown(window, { key: 't' });
+		expect(phoneBooking.open).toBe(true);
+		phoneBooking.open = false;
 	});
 });

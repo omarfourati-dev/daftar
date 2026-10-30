@@ -8,7 +8,7 @@
 	import { onMount, untrack } from 'svelte';
 	import { api } from '#lib/api';
 	import { badges } from '#lib/badges.svelte';
-	import { newAppointment } from '#lib/agenda/requests.svelte';
+	import { agendaChanges, newAppointment } from '#lib/agenda/requests.svelte';
 	import { clock } from '#lib/clock';
 	import { loadAgendaBase, loadAppointments, type AgendaBase } from '#lib/agenda/data';
 	import { practitionerLabel } from '#lib/agenda/format';
@@ -45,6 +45,13 @@
 	let messageTimer: ReturnType<typeof setTimeout> | undefined;
 	/** `?nouveau=1[&patient=ID]`: open the dialog once the agenda is there. */
 	let pendingNew = params.get('nouveau') === '1';
+	/** Appointments booked elsewhere (phone booking in the header): reload the shown days. */
+	let seenChanges = untrack(() => agendaChanges.version);
+	$effect(() => {
+		if (agendaChanges.version === seenChanges) return;
+		seenChanges = agendaChanges.version;
+		if (untrack(() => base)) void load();
+	});
 	/** Shortcut `N` pressed while the agenda is open. */
 	let seenRequests = untrack(() => newAppointment.count);
 	$effect(() => {

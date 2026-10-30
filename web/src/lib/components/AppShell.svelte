@@ -14,6 +14,9 @@
 	import { badges } from '../badges.svelte';
 	import GlobalSearch from './daily/GlobalSearch.svelte';
 	import Shortcuts from './daily/Shortcuts.svelte';
+	import Icon from './daily/Icon.svelte';
+	import PhoneBooking from './agenda/PhoneBooking.svelte';
+	import { agendaChanges, phoneBooking } from '../agenda/requests.svelte';
 
 	let { path, children }: { path: string; children: Snippet } = $props();
 
@@ -75,6 +78,9 @@
 
 {#if auth.token}
 	{#if !isAdmin}<Shortcuts {path} />{/if}
+	{#if phoneBooking.open && !isAdmin}
+		<PhoneBooking onbooked={() => agendaChanges.bump()} onclose={() => (phoneBooking.open = false)} />
+	{/if}
 	<div class="min-h-screen md:flex">
 		<aside class="hidden w-60 shrink-0 flex-col gap-4 border-e border-slate-200 bg-white p-4 md:flex print:hidden">
 			<a href={isAdmin ? '/app/admin' : '/app'} class="flex items-center gap-2 text-lg font-bold text-brand-800">
@@ -99,7 +105,16 @@
 		<div class="flex min-w-0 flex-1 flex-col">
 			<header class="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2 print:hidden">
 				<span class="min-w-0 flex-1 truncate font-semibold text-slate-800">{practice?.name ?? t('common.appName')}</span>
-				{#if !isAdmin}<div class="hidden min-w-0 flex-1 sm:block"><GlobalSearch /></div>{/if}
+				{#if !isAdmin}
+					<div class="hidden min-w-0 flex-1 sm:block"><GlobalSearch /></div>
+					<button
+						type="button"
+						class="btn-secondary min-h-10 px-3 text-sm"
+						aria-label={t('agenda.phone.button')}
+						title="{t('agenda.phone.button')} (T)"
+						onclick={() => (phoneBooking.open = true)}><Icon name="phone" class="h-4 w-4" /><span class="hidden lg:inline">{t('agenda.phone.button')}</span></button
+					>
+				{/if}
 				<LanguageSwitch onchange={saveLanguage} />
 				<button type="button" class="btn-secondary min-h-9 px-3 py-1 text-sm" onclick={logout}>{t('common.logout')}</button>
 			</header>

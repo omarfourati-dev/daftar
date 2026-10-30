@@ -45,6 +45,21 @@ export const salle: Messages['salle'] = {
 		open: 'فتح صفحة الرقم'
 	},
 	message: 'مرحبًا، هذا رقمك في {practice}: رقم {number}. تابع دورك هنا: {url}',
+	next: {
+		title: 'المريض التالي',
+		link: 'المريض التالي',
+		now: 'الآن',
+		then: 'بعد ذلك',
+		late: 'متأخّرون',
+		lateHint: 'مواعيد بدأت منذ أكثر من 10 دقائق ولم يصل المريض بعد.',
+		reasonAppointment: 'موعد {time}',
+		reasonWaiting: 'قائمة الانتظار (الرقم {number})',
+		nobody: 'لا أحد في الانتظار.',
+		call: 'مناداة التالي',
+		called: 'تمّت مناداة الرقم {number}: {name}.',
+		everyone: 'كل الأطباء',
+		loadError: 'تعذّر تحميل قائمة الانتظار.'
+	},
 	preview: {
 		title: 'شاشة قاعة الانتظار',
 		called: 'الرقم المنادى',

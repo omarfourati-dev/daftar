@@ -44,6 +44,21 @@ export const salle = {
 		open: 'Ouvrir la page du ticket'
 	},
 	message: 'Bonjour, voici votre ticket au {practice} : n° {number}. Suivez votre tour ici : {url}',
+	next: {
+		title: 'Patient suivant',
+		link: 'Patient suivant',
+		now: 'Maintenant',
+		then: 'Ensuite',
+		late: 'En retard',
+		lateHint: 'Rendez-vous commencés depuis plus de 10 minutes, patient pas encore arrivé.',
+		reasonAppointment: 'Rendez-vous de {time}',
+		reasonWaiting: 'Liste d’attente (ticket {number})',
+		nobody: 'Personne n’attend.',
+		call: 'Appeler le suivant',
+		called: 'Ticket {number} appelé : {name}.',
+		everyone: 'Tous les praticiens',
+		loadError: 'La file n’a pas pu être chargée.'
+	},
 	preview: {
 		title: 'Écran de la salle d’attente',
 		called: 'Ticket appelé',
