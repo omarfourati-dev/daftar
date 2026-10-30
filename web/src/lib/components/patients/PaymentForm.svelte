@@ -3,8 +3,9 @@
 	 * "Nouveau paiement": cash in instalments (the amount due is proposed), payment method, date (today unless changed),
 	 * optionally the deposit of a coming appointment, a note. The page offers the receipt afterwards.
 	 */
+	import { errorText } from '../../agenda/errors';
 	import { untrack } from 'svelte';
-	import { api, apiErrorMessage } from '../../api';
+	import { api } from '../../api';
 	import { clock } from '../../clock';
 	import { shortDay } from '../../agenda/format';
 	import { millimesToInput, parseDinars } from '../../agenda/links';
@@ -43,7 +44,7 @@
 		try {
 			onsaved(await api<Payment>(`/api/patients/${patientId}/payments`, { method: 'POST', json: body }));
 		} catch (err) {
-			error = apiErrorMessage(err);
+			error = errorText(err);
 		} finally {
 			busy = false;
 		}

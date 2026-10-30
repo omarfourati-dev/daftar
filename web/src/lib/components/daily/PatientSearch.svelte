@@ -3,8 +3,9 @@
 	 * Search a patient by name or phone digits (`GET /api/patients?q=…&limit=8`, debounced) and pick one.
 	 * Used by the appointment dialog and the waiting room ("ticket for a patient").
 	 */
+	import { errorText } from '../../agenda/errors';
 	import Icon from './Icon.svelte';
-	import { api, apiErrorMessage } from '../../api';
+	import { api } from '../../api';
 	import { displayPhone } from '../../agenda/links';
 	import { personName } from '../../agenda/format';
 	import { t } from '../../i18n.svelte';
@@ -44,7 +45,7 @@
 			results = page.items;
 			error = '';
 		} catch (err) {
-			if (mine === seq) error = apiErrorMessage(err);
+			if (mine === seq) error = errorText(err);
 		} finally {
 			if (mine === seq) searched = true;
 		}

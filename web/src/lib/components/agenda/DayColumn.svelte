@@ -26,6 +26,8 @@
 		showPractitioner?: (a: Appointment) => string | null;
 		/** Narrow column (week): blocks show time and name only. */
 		minimal?: boolean;
+		/** Slots starting earlier are not offered (the server refuses the past with 422 in_past). */
+		notBefore?: number;
 		onslot?: (time: string) => void;
 		onopen?: (a: Appointment) => void;
 	};
@@ -41,6 +43,7 @@
 		practitioner = null,
 		showPractitioner,
 		minimal = false,
+		notBefore = -Infinity,
 		onslot,
 		onopen
 	}: Props = $props();
@@ -72,7 +75,7 @@
 		const free: number[] = [];
 		for (const [from, to] of windows) {
 			for (let m = from; m + slotMinutes <= to; m += slotMinutes) {
-				if (!blocking.some((b) => b.start < m + slotMinutes && b.end > m)) free.push(m);
+				if (m >= notBefore && !blocking.some((b) => b.start < m + slotMinutes && b.end > m)) free.push(m);
 			}
 		}
 		return free;

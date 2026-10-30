@@ -170,3 +170,42 @@ describe('AppointmentDetail – series', () => {
 		expect(sentJson('POST /api/appointments/series/abc/cancel')).toEqual({ from: '2026-10-30' });
 	});
 });
+
+describe('AppointmentDetail – only the steps the server accepts', () => {
+	beforeEach(() => {
+		auth.set('tok', assistant);
+		i18n.setLocale('fr');
+		clock.now = () => new Date(NOW);
+	});
+
+	it('offers neither arrival nor no-show for a coming day, but moving', () => {
+		mockApi({});
+		const { dialog } = open(appt({ id: 90, status: 'scheduled', startsAt: '2026-10-31T09:00:00+01:00' }));
+		expect(dialog.getByRole('button', { name: 'Confirmer' })).toBeInTheDocument();
+		expect(dialog.queryByRole('button', { name: 'Arrivé' })).not.toBeInTheDocument();
+		expect(dialog.queryByRole('button', { name: 'Absent' })).not.toBeInTheDocument();
+		expect(dialog.getByRole('button', { name: 'Déplacer / modifier' })).toBeInTheDocument();
+	});
+
+	it('offers no no-show before the start of today’s appointment', () => {
+		mockApi({});
+		const { dialog } = open(appt({ id: 91, status: 'confirmed', startsAt: '2026-10-30T11:00:00+01:00' }));
+		expect(dialog.getByRole('button', { name: 'Arrivé' })).toBeInTheDocument();
+		expect(dialog.queryByRole('button', { name: 'Absent' })).not.toBeInTheDocument();
+	});
+
+	it('does not move a patient who is already there', () => {
+		mockApi({});
+		const { dialog } = open(appt({ id: 92, status: 'arrived' }));
+		expect(dialog.queryByRole('button', { name: 'Déplacer / modifier' })).not.toBeInTheDocument();
+	});
+
+	it('explains the server’s refusal in plain words', async () => {
+		const a = appt({ id: 93, status: 'confirmed' });
+		mockApi({ 'POST /api/appointments/93/status': () => problem(409, 'not_today', 'Not today.') });
+		const { dialog } = open(a);
+		await fireEvent.click(dialog.getByRole('button', { name: 'Arrivé' }));
+		expect(await dialog.findByRole('alert')).toHaveTextContent('Ce statut n’est possible que le jour du rendez-vous.');
+	});
+});
+

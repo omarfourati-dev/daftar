@@ -16,6 +16,7 @@ export interface QueueEntry {
 	ticketToken: string;
 	/** Only for `waiting`, 1-based. */
 	position: number | null;
+	/** Waiting and called people before this ticket (0 when not waiting). */
 	peopleAhead: number | null;
 	estimatedWaitMin: number | null;
 	/** Medical alert of the linked patient (internal only). */
@@ -36,6 +37,7 @@ export interface PublicTicket {
 	practicePhone: string;
 	ticketNo: number;
 	status: QueueStatus;
+	position?: number | null;
 	peopleAhead: number | null;
 	estimatedWaitMin: number | null;
 	day: string;

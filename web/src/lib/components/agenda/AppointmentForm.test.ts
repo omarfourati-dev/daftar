@@ -281,3 +281,28 @@ describe('AppointmentForm – series of sessions (kiné, psy)', () => {
 		expect(screen.getByRole('button', { name: 'Vérifier les dates' })).toBeInTheDocument();
 	});
 });
+
+describe('AppointmentForm – refusals of the server in plain words', () => {
+	beforeEach(() => {
+		auth.set('tok', assistant);
+		i18n.setLocale('fr');
+		clock.now = () => new Date(NOW);
+	});
+
+	it.each([
+		['outside_hours', 'Ce rendez-vous sort des heures d’ouverture'],
+		['in_past', 'Cette heure est déjà passée.'],
+		['closed', 'Le cabinet est fermé ce jour-là.']
+	])('%s', async (code, text) => {
+		mockApi({
+			'GET /api/patients?q=Sami&limit=8': () => json(200, { items: [sami], total: 1 }),
+			'POST /api/appointments': () => problem(422, code, 'detail')
+		});
+		open();
+		await fireEvent.input(screen.getByLabelText('Nom ou téléphone'), { target: { value: 'Sami' } });
+		await fireEvent.click(await screen.findByRole('button', { name: /Sami Trabelsi/ }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Enregistrer le rendez-vous' }));
+		expect(await screen.findByRole('alert')).toHaveTextContent(text);
+	});
+});
+

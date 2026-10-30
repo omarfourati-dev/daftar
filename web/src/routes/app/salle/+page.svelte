@@ -4,8 +4,9 @@
 	 * finished), one big button for the next step, WhatsApp link and QR code to the patient's ticket page, a preview of
 	 * the waiting-room screen (numbers only) and the link to open that screen on the TV. Refreshes every 20 s.
 	 */
+	import { errorText } from '#lib/agenda/errors';
 	import { onMount } from 'svelte';
-	import { api, apiErrorMessage } from '#lib/api';
+	import { api } from '#lib/api';
 	import { auth } from '#lib/auth.svelte';
 	import { clock } from '#lib/clock';
 	import { byTicket, screenPath, ticketMessage } from '#lib/agenda/queue';
@@ -55,7 +56,7 @@
 			notice = t('salle.updated', { number: e.ticketNo, status: translate(`queueStatus.${status}`) ?? status });
 		} catch (err) {
 			notice = '';
-			error = apiErrorMessage(err);
+			error = errorText(err);
 		} finally {
 			busy = null;
 		}

@@ -1,7 +1,8 @@
 <script lang="ts">
 	/** "Nouvel acte": label (suggested from the practice's catalog, which also proposes the price), tooth for dentists, price, date. */
+	import { errorText } from '../../agenda/errors';
 	import { onMount } from 'svelte';
-	import { api, apiErrorMessage } from '../../api';
+	import { api } from '../../api';
 	import { clock } from '../../clock';
 	import { serviceLabel } from '../../agenda/format';
 	import { millimesToInput, parseDinars } from '../../agenda/links';
@@ -43,7 +44,7 @@
 			});
 			onsaved();
 		} catch (err) {
-			error = apiErrorMessage(err);
+			error = errorText(err);
 		} finally {
 			busy = false;
 		}

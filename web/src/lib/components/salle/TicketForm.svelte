@@ -3,7 +3,8 @@
 	 * "Nouveau ticket": for a patient of the practice (search) or just a name and phone (walk-in). After creation the
 	 * ticket number, its QR code and WhatsApp link are shown at once – the patient is standing at the desk.
 	 */
-	import { api, apiErrorMessage } from '../../api';
+	import { errorText } from '../../agenda/errors';
+	import { api } from '../../api';
 	import { personName } from '../../agenda/format';
 	import { displayPhone } from '../../agenda/links';
 	import { t } from '../../i18n.svelte';
@@ -36,7 +37,7 @@
 			created = await api<QueueEntry>('/api/queue', { method: 'POST', json: body });
 			oncreated(created);
 		} catch (err) {
-			error = apiErrorMessage(err);
+			error = errorText(err);
 		} finally {
 			busy = false;
 		}

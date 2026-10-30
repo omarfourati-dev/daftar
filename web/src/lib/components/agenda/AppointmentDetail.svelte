@@ -4,14 +4,16 @@
 	 * (requested → confirmed → arrived → in consultation → done, or no-show / cancelled). Online requests are confirmed
 	 * or declined with a ready WhatsApp message in the patient's language. Deposit can be collected here.
 	 */
+	import { errorText } from '../../agenda/errors';
 	import { untrack } from 'svelte';
-	import { api, apiErrorMessage } from '../../api';
+	import { api } from '../../api';
 	import type { AgendaBase } from '../../agenda/data';
 	import { money, personName, practitionerLabel, statusLabel } from '../../agenda/format';
 	import { telUrl, whatsappUrl, displayPhone } from '../../agenda/links';
 	import { appointmentMessage, dateAndTime, type PatientMessage } from '../../agenda/messages';
 	import { hhmm, minutesOfDay, tunisDayOf } from '../../agenda/time';
-	import { formatDate, formatDateTime, t, type MessageKey } from '../../i18n.svelte';
+	import { clock } from '../../clock';
+	import { formatDate, formatDateTime, t, todayTunis, type MessageKey } from '../../i18n.svelte';
 	import type { AppointmentStatus } from '../../status';
 	import type { Appointment } from '../../types/agenda';
 	import Icon from '../daily/Icon.svelte';
@@ -62,7 +64,18 @@
 		no_show: [{ status: 'scheduled', key: 'agenda.actions.reopen' }],
 		cancelled: [{ status: 'scheduled', key: 'agenda.actions.reopen' }]
 	};
-	const actions = $derived(NEXT[a.status] ?? []);
+	/** The server refuses arrival/consultation on another day (not_today), no-show before the start (not_started). */
+	function allowed(status: AppointmentStatus): boolean {
+		const today = todayTunis(clock.now());
+		const day = tunisDayOf(a.startsAt);
+		if (status === 'arrived' || status === 'in_treatment') return day === today;
+		if (status === 'no_show') return new Date(a.startsAt).getTime() <= clock.now().getTime();
+		if (status === 'done') return day <= today;
+		return true;
+	}
+	const actions = $derived((NEXT[a.status] ?? []).filter((x) => allowed(x.status)));
+	/** Time, duration and practitioner can change only before the patient is there (409 appointment_locked). */
+	const movable = $derived(['requested', 'scheduled', 'confirmed'].includes(a.status));
 	const start = $derived(minutesOfDay(a.startsAt));
 	const remaining = $derived(Math.max(a.depositRequiredMillimes - a.depositPaidMillimes, 0));
 	const practitioner = $derived.by(() => {
@@ -90,7 +103,7 @@
 			sendMessage = wasRequest ? (status === 'confirmed' ? 'confirmed' : status === 'cancelled' ? 'rejected' : null) : null;
 			confirmingCancel = null;
 		} catch (err) {
-			error = apiErrorMessage(err);
+			error = errorText(err);
 		} finally {
 			busy = false;
 		}
@@ -106,7 +119,7 @@
 			});
 			onseriescancelled?.(result.cancelled);
 		} catch (err) {
-			error = apiErrorMessage(err);
+			error = errorText(err);
 		} finally {
 			busy = false;
 		}
@@ -125,7 +138,7 @@
 			update({ ...a, depositPaidMillimes: a.depositPaidMillimes + amount });
 			notice = t('agenda.detail.depositCollected');
 		} catch (err) {
-			error = apiErrorMessage(err);
+			error = errorText(err);
 		} finally {
 			busy = false;
 		}
@@ -241,7 +254,7 @@
 		{#if cancellable && a.status !== 'requested'}
 			<button type="button" class="btn-secondary text-rose-800" onclick={() => (confirmingCancel = 'one')}>{t('agenda.detail.cancelAppointment')}</button>
 		{/if}
-		{#if a.status !== 'done' && a.status !== 'cancelled'}
+		{#if movable}
 			<button type="button" class="btn-secondary" onclick={() => onmove(a)}><Icon name="edit" />{t('agenda.detail.move')}</button>
 		{/if}
 	{/snippet}

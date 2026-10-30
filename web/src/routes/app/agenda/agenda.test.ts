@@ -62,10 +62,11 @@ describe('/app/agenda – day and week', () => {
 		expect(amira.getByText('Pause')).toBeInTheDocument(); // Friday 12:00–14:30
 		expect(screen.getByRole('img', { name: 'Maintenant, 10:10' })).toBeInTheDocument();
 		// free slots are offered inside the opening hours only, not where an appointment is
-		expect(amira.getByRole('button', { name: 'Nouveau rendez-vous à 08:00 avec Dr Amira Ben Salem' })).toBeInTheDocument();
-		expect(amira.queryByRole('button', { name: 'Nouveau rendez-vous à 09:00 avec Dr Amira Ben Salem' })).not.toBeInTheDocument();
-		expect(amira.queryByRole('button', { name: 'Nouveau rendez-vous à 13:00 avec Dr Amira Ben Salem' })).not.toBeInTheDocument();
-		expect(karim.getByRole('button', { name: 'Nouveau rendez-vous à 09:00 avec Dr Karim Jaziri' })).toBeInTheDocument();
+		expect(amira.getByRole('button', { name: 'Nouveau rendez-vous à 10:00 avec Dr Amira Ben Salem' })).toBeInTheDocument(); // running quarter
+		expect(amira.queryByRole('button', { name: 'Nouveau rendez-vous à 09:45 avec Dr Amira Ben Salem' })).not.toBeInTheDocument(); // past (422 in_past)
+		expect(amira.queryByRole('button', { name: 'Nouveau rendez-vous à 11:45 avec Dr Amira Ben Salem' })).not.toBeInTheDocument(); // taken
+		expect(amira.queryByRole('button', { name: 'Nouveau rendez-vous à 13:00 avec Dr Amira Ben Salem' })).not.toBeInTheDocument(); // pause
+		expect(karim.getByRole('button', { name: 'Nouveau rendez-vous à 10:15 avec Dr Karim Jaziri' })).toBeInTheDocument();
 	});
 
 	it('browses days and switches to the week', async () => {
@@ -86,6 +87,7 @@ describe('/app/agenda – day and week', () => {
 		const friday = within(await screen.findByRole('region', { name: /vendredi 30/ }));
 		expect(await friday.findByRole('button', { name: /11:00 Lina Zouari/ })).toBeInTheDocument();
 		expect(friday.getByRole('button', { name: /09:00 Sami Trabelsi/ })).toBeInTheDocument();
+		expect(within(screen.getByRole('region', { name: /mardi 27/ })).queryByRole('button', { name: /^Nouveau rendez-vous à/ })).not.toBeInTheDocument(); // past day
 		const sunday = within(screen.getByRole('region', { name: /dimanche 1/ }));
 		expect(sunday.getByText('Cabinet fermé')).toBeInTheDocument();
 		expect(calls()).toContain('GET /api/appointments?from=2026-10-26&to=2026-11-01');
@@ -150,25 +152,25 @@ describe('/app/agenda – day and week', () => {
 	it('opens the appointment dialog from a free slot and shows the saved appointment', async () => {
 		let saved = false;
 		agendaApi({
-			'GET /api/appointments?from=2026-10-30&to=2026-10-30': () => json(200, saved ? [sami, appt({ id: 9, practitionerId: 12, startsAt: '2026-10-30T09:15:00+01:00' })] : [sami]),
+			'GET /api/appointments?from=2026-10-30&to=2026-10-30': () => json(200, saved ? [sami, appt({ id: 9, practitionerId: 12, startsAt: '2026-10-30T10:15:00+01:00' })] : [sami]),
 			'GET /api/patients?q=Sami&limit=8': () => json(200, { items: [{ ...sami.patient, birthYear: null, lang: 'fr', reminderConsent: true, attended: 1, dueMillimes: 0, nextAppointmentAt: null }], total: 1 }),
 			'POST /api/appointments': () => {
 				saved = true;
-				return json(201, { appointment: appt({ id: 9, practitionerId: 12, startsAt: '2026-10-30T09:15:00+01:00' }), conflicts: [] });
+				return json(201, { appointment: appt({ id: 9, practitionerId: 12, startsAt: '2026-10-30T10:15:00+01:00' }), conflicts: [] });
 			}
 		});
 		render(Page);
 		const karim = within(await screen.findByRole('region', { name: 'Dr Karim Jaziri' }));
-		await fireEvent.click(karim.getByRole('button', { name: 'Nouveau rendez-vous à 09:15 avec Dr Karim Jaziri' }));
+		await fireEvent.click(karim.getByRole('button', { name: 'Nouveau rendez-vous à 10:15 avec Dr Karim Jaziri' }));
 		const dialog = within(screen.getByRole('dialog', { name: 'Nouveau rendez-vous' }));
-		expect(dialog.getByLabelText('Heure')).toHaveValue('09:15');
+		expect(dialog.getByLabelText('Heure')).toHaveValue('10:15');
 		expect(dialog.getByLabelText('Praticien')).toHaveValue('12');
 		await fireEvent.input(dialog.getByLabelText('Nom ou téléphone'), { target: { value: 'Sami' } });
 		await fireEvent.click(await dialog.findByRole('button', { name: /Sami Trabelsi/ }));
 		await fireEvent.click(dialog.getByRole('button', { name: 'Enregistrer le rendez-vous' }));
 		expect(await screen.findByRole('status')).toHaveTextContent('Rendez-vous enregistré.');
 		expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-		expect(await karim.findByRole('button', { name: /09:15 Sami Trabelsi/ })).toBeInTheDocument();
+		expect(await karim.findByRole('button', { name: /10:15 Sami Trabelsi/ })).toBeInTheDocument();
 	});
 
 	it('"Nouveau rendez-vous" proposes the next slot from now', async () => {
@@ -201,14 +203,18 @@ describe('/app/agenda – day and week', () => {
 		});
 		render(Page);
 		await fireEvent.click(await screen.findByRole('button', { name: /11:00 Lina Zouari/ }));
-		const dialog = within(screen.getByRole('dialog', { name: 'Lina Zouari' }));
-		await fireEvent.click(dialog.getByRole('button', { name: 'Arrivé' }));
-		const karim = within(screen.getByRole('region', { name: 'Dr Karim Jaziri' }));
-		await vi.waitFor(() => expect(karim.getByRole('button', { name: /11:00 Lina Zouari/ })).toHaveTextContent('Arrivé'));
-		await fireEvent.click(dialog.getByRole('button', { name: 'Déplacer / modifier' }));
+		await fireEvent.click(within(screen.getByRole('dialog', { name: 'Lina Zouari' })).getByRole('button', { name: 'Déplacer / modifier' }));
 		const move = within(screen.getByRole('dialog', { name: 'Modifier le rendez-vous' }));
 		expect(move.getByLabelText('Heure')).toHaveValue('11:00');
 		expect(screen.queryByRole('dialog', { name: 'Lina Zouari' })).not.toBeInTheDocument();
+		await fireEvent.click(move.getByRole('button', { name: 'Annuler' }));
+
+		const karim = within(screen.getByRole('region', { name: 'Dr Karim Jaziri' }));
+		await fireEvent.click(karim.getByRole('button', { name: /11:00 Lina Zouari/ }));
+		const dialog = within(screen.getByRole('dialog', { name: 'Lina Zouari' }));
+		await fireEvent.click(dialog.getByRole('button', { name: 'Arrivé' }));
+		await vi.waitFor(() => expect(karim.getByRole('button', { name: /11:00 Lina Zouari/ })).toHaveTextContent('Arrivé'));
+		expect(dialog.queryByRole('button', { name: 'Déplacer / modifier' })).not.toBeInTheDocument(); // 409 appointment_locked
 	});
 
 	it('opens a new appointment when the N shortcut is pressed on the agenda', async () => {

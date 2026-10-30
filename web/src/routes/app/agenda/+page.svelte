@@ -151,6 +151,14 @@
 		return { index, minutes };
 	});
 
+	/** First bookable minute of a day: none in the past, today the running quarter (15 min grace like the server). */
+	function notBefore(d: string): number {
+		void tick;
+		const t0 = today();
+		if (d < t0) return Infinity;
+		return d === t0 ? minutesOfDay(clock.now()) - 15 : -Infinity;
+	}
+
 	const closure = $derived(base ? closureOn(base.closures, day) : null);
 	const closureText = (d: string) => {
 		const c = base ? closureOn(base.closures, d) : null;
@@ -358,6 +366,7 @@
 									{ppm}
 									slotMinutes={base.practice.slotMinutes || 15}
 									practitioner={col.practitioner}
+									notBefore={notBefore(day)}
 									onslot={(time) => openSlot(day, time, col.id)}
 									onopen={openAppointment}
 								/>
@@ -375,6 +384,7 @@
 									slotMinutes={base.practice.slotMinutes || 15}
 									practitioner={filter ? (practitioners.find((p) => p.id === filter) ?? null) : null}
 									minimal
+									notBefore={notBefore(d)}
 									onslot={(time) => openSlot(d, time, filter || null)}
 									onopen={openAppointment}
 								/>

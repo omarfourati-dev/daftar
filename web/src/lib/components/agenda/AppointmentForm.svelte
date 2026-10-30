@@ -5,8 +5,9 @@
 	 * The medical alert is shown in red, ≥ 2 no-shows suggest a deposit. A taken slot (409) lists the conflict and
 	 * the next free start times – one click books one of them.
 	 */
+	import { errorText } from '../../agenda/errors';
 	import { tick, untrack } from 'svelte';
-	import { ApiError, api, apiErrorMessage } from '../../api';
+	import { ApiError, api } from '../../api';
 	import type { AgendaBase } from '../../agenda/data';
 	import { savedAppointment } from '../../agenda/data';
 	import { money, personName, practitionerLabel, serviceLabel, slotLabel } from '../../agenda/format';
@@ -164,7 +165,7 @@
 
 	function failed(err: unknown) {
 		if (err instanceof ApiError && err.status === 409 && err.body && typeof err.body === 'object') conflict = err.body as ConflictProblem;
-		else error = apiErrorMessage(err);
+		else error = errorText(err);
 	}
 
 	async function save(at?: string) {

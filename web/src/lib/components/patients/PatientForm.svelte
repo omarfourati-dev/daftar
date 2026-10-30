@@ -1,7 +1,8 @@
 <script lang="ts">
 	/** New patient or edit of a file: identity, phone (families may share one), language, consent, medical alert, notes. */
+	import { errorText } from '../../agenda/errors';
 	import { untrack } from 'svelte';
-	import { api, apiErrorMessage } from '../../api';
+	import { api } from '../../api';
 	import { clock } from '../../clock';
 	import { i18n, t } from '../../i18n.svelte';
 	import type { Patient } from '../../types/patients';
@@ -47,7 +48,7 @@
 				: await api<Patient>('/api/patients', { method: 'POST', json: body });
 			onsaved(saved);
 		} catch (err) {
-			error = apiErrorMessage(err);
+			error = errorText(err);
 		} finally {
 			busy = false;
 		}

@@ -4,7 +4,8 @@
 	 * same phone number (families), reliability (came / no-show / cancelled), appointments, treatments and payments
 	 * with receipts, balance; add treatment or payment; edit; delete (owner, by typing the name).
 	 */
-	import { api, apiErrorMessage, ApiError, deps } from '#lib/api';
+	import { errorText } from '#lib/agenda/errors';
+	import { api, ApiError, deps } from '#lib/api';
 	import { auth } from '#lib/auth.svelte';
 	import { clock } from '#lib/clock';
 	import { FREEING, initials, money, personName, shortDay } from '#lib/agenda/format';
@@ -101,7 +102,7 @@
 			confirming = null;
 			await load();
 		} catch (err) {
-			error = apiErrorMessage(err);
+			error = errorText(err);
 		} finally {
 			busy = false;
 		}
@@ -114,7 +115,7 @@
 			await api(`/api/patients/${patient.id}`, { method: 'DELETE' });
 			void deps.goto('/app/patients');
 		} catch (err) {
-			error = apiErrorMessage(err);
+			error = errorText(err);
 			dialog = null;
 		} finally {
 			busy = false;

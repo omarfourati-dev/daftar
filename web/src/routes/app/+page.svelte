@@ -4,8 +4,9 @@
 	 * WhatsApp message), appointments whose time has passed without arrival ("Non venus ?", story B5), the next
 	 * appointments, and for the owner the "Premiers pas" checklist (story A5) until it is done or hidden.
 	 */
+	import { errorText } from '#lib/agenda/errors';
 	import { onMount } from 'svelte';
-	import { api, apiErrorMessage } from '#lib/api';
+	import { api } from '#lib/api';
 	import { auth } from '#lib/auth.svelte';
 	import { badges } from '#lib/badges.svelte';
 	import { clock } from '#lib/clock';
@@ -73,7 +74,7 @@
 			handled = { ...handled, [a.id]: { text: t(doneKey, { patient: personName(a.patient), status: statusLabel(status) }), message, appointment: next } };
 			void badges.refresh();
 		} catch (err) {
-			rowError = apiErrorMessage(err);
+			rowError = errorText(err);
 		} finally {
 			busy = null;
 		}

@@ -3,8 +3,9 @@
 	 * Cash closing of a day (section 16.3): the desk counts the cash and enters it, the difference to the expected
 	 * cash shows at once; the owner verifies the closing (`POST /api/cash/{day}/verify`).
 	 */
+	import { errorText } from '../../agenda/errors';
 	import { untrack } from 'svelte';
-	import { api, apiErrorMessage } from '../../api';
+	import { api } from '../../api';
 	import { money } from '../../agenda/format';
 	import { parseDinars } from '../../agenda/links';
 	import { formatDateTime, formatTime, t } from '../../i18n.svelte';
@@ -33,7 +34,7 @@
 			});
 			editing = false;
 		} catch (err) {
-			error = apiErrorMessage(err);
+			error = errorText(err);
 		} finally {
 			busy = false;
 		}
@@ -47,7 +48,7 @@
 			const result = await api<{ verifiedBy: string; verifiedAt: string }>(`/api/cash/${day}/verify`, { method: 'POST' });
 			closing = { ...closing, ...result };
 		} catch (err) {
-			error = apiErrorMessage(err);
+			error = errorText(err);
 		} finally {
 			busy = false;
 		}
