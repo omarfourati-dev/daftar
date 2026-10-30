@@ -114,3 +114,12 @@ export function layoutLanes(items: readonly Span[]): Map<number, { lane: number;
 	if (cluster.length) flush();
 	return result;
 }
+
+/**
+ * Pixels per minute of the grid: `base`, or more when the shortest appointment (or the slot) would be lower than
+ * `minHeight` – blocks must not overlap their neighbours – but never more than `max`.
+ */
+export function pixelsPerMinute(durations: readonly number[], slotMinutes: number, o: { base: number; minHeight: number; max: number }): number {
+	const shortest = Math.min(slotMinutes || 15, ...durations.filter((d) => d > 0));
+	return Math.min(o.max, Math.max(o.base, Math.round((o.minHeight / shortest) * 100) / 100));
+}

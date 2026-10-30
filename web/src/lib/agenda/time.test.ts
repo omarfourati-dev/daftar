@@ -5,6 +5,7 @@ import {
 	hhmm,
 	isoWeekday,
 	layoutLanes,
+	pixelsPerMinute,
 	minutesOfDay,
 	parseHHMM,
 	roundUp,
@@ -95,4 +96,12 @@ describe('agenda time helpers (Africa/Tunis, UTC+1 all year)', () => {
 		expect(lanes.get(4)).toEqual({ lane: 2, lanes: 3 });
 		expect(lanes.get(3)).toEqual({ lane: 0, lanes: 1 });
 	});
+
+	it('scales the grid so the shortest appointment stays readable', () => {
+		expect(pixelsPerMinute([30, 45], 15, { base: 1.6, minHeight: 24, max: 3 })).toBe(1.6);
+		expect(pixelsPerMinute([10, 30], 15, { base: 1.6, minHeight: 24, max: 3 })).toBe(2.4);
+		expect(pixelsPerMinute([5], 5, { base: 1.6, minHeight: 24, max: 3 })).toBe(3);
+		expect(pixelsPerMinute([], 10, { base: 1.6, minHeight: 24, max: 3 })).toBe(2.4); // slots stay clickable
+	});
 });
+

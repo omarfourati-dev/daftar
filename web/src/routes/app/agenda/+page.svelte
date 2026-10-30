@@ -11,8 +11,8 @@
 	import { agendaChanges, newAppointment } from '#lib/agenda/requests.svelte';
 	import { clock } from '#lib/clock';
 	import { loadAgendaBase, loadAppointments, type AgendaBase } from '#lib/agenda/data';
-	import { practitionerLabel } from '#lib/agenda/format';
-	import { agendaRange, closureOn, hhmm, minutesOfDay, roundUp, tunisDayOf, weekDays, windowsOn } from '#lib/agenda/time';
+	import { FREEING, practitionerLabel } from '#lib/agenda/format';
+	import { agendaRange, closureOn, hhmm, minutesOfDay, pixelsPerMinute, roundUp, tunisDayOf, weekDays, windowsOn } from '#lib/agenda/time';
 	import { addDays, formatDay, i18n, t, todayTunis } from '#lib/i18n.svelte';
 	import type { Appointment, Practitioner } from '#lib/types/agenda';
 	import type { Patient } from '#lib/types/patients';
@@ -61,7 +61,14 @@
 	});
 
 	const days = $derived(view === 'day' ? [day] : weekDays(day));
-	const ppm = $derived(view === 'day' ? 1.6 : 1.2);
+	/** Taller grid when appointments are short (10 min), so blocks never overlap their neighbours. */
+	const ppm = $derived(
+		pixelsPerMinute(
+			appointments.filter((a) => !FREEING.includes(a.status)).map((a) => a.durationMin),
+			base?.practice.slotMinutes ?? 15,
+			view === 'day' ? { base: 1.6, minHeight: 24, max: 3 } : { base: 1.2, minHeight: 20, max: 2.4 }
+		)
+	);
 
 	async function load() {
 		const mine = ++seq;
