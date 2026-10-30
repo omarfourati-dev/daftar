@@ -1,12 +1,43 @@
 // E2E-Tests der Verkaufswebseite und der Rechtstexte (landing/).
 // Läuft gegen einen Server, der landing/ ausliefert: E2E_BASE_URL (Standard http://localhost:18083).
 // Das Backend wird für das Pilot-Formular mit page.route gemockt.
+// Google AdSense läuft nur auf / und /ar/. Die Google-Hosts werden in jedem Test per page.route blockiert
+// (wie ein Werbeblocker): Die Tests hängen nicht vom Netz ab und laden nie echte Werbung.
 import { test, expect, type Page, type Route } from "@playwright/test";
 
 const BASE = (process.env.E2E_BASE_URL ?? "http://localhost:18083").replace(/\/$/, "");
 const BASE_ORIGIN = new URL(BASE).origin;
 const SITE = "https://daftar.omarfourati.de";
 const API = "**/api/public/pilot-requests";
+
+const ADSENSE_CLIENT = "ca-pub-4072840905222883";
+const ADSENSE_LOADER = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`;
+/** Die einzigen Seiten mit Werbung: die beiden Startseiten. */
+const AD_PAGES = new Set(["/", "/ar/"]);
+/** Hosts von AdSense und Googles Einwilligungsfenster (fundingchoicesmessages.google.com fällt unter google.com). */
+const GOOGLE_AD_HOSTS = ["googlesyndication.com", "doubleclick.net", "google.com", "gstatic.com", "adtrafficquality.google"];
+const isGoogleAdHost = (hostname: string) => GOOGLE_AD_HOSTS.some((h) => hostname === h || hostname.endsWith("." + h));
+const isGoogleAdUrl = (url: string) => {
+  try {
+    return isGoogleAdHost(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+};
+
+/** Blockiert alle Google-Werbe-Hosts und merkt sich, was angefragt wurde. */
+async function blockGoogleAds(page: Page) {
+  const blocked: string[] = [];
+  await page.route((url) => isGoogleAdHost(url.hostname), async (route) => {
+    blocked.push(route.request().url());
+    await route.abort("blockedbyclient");
+  });
+  return blocked;
+}
+
+test.beforeEach(async ({ page }) => {
+  await blockGoogleAds(page);
+});
 
 type PageSpec = {
   path: string;
@@ -34,15 +65,25 @@ const VIEWPORTS = {
   mobile: { width: 390, height: 844 },
 };
 
-/** Sammelt Konsolenfehler (inkl. CSP-Verstöße), Skriptfehler und Requests an fremde Hosts. */
-function watch(page: Page) {
+/**
+ * Sammelt Konsolenfehler (inkl. CSP-Verstöße), Skriptfehler und Requests an fremde Hosts.
+ * Mit `ads` (nur / und /ar/) zählen Requests an Google-Werbe-Hosts nicht als fremd, und die Fehlermeldungen der im
+ * Test blockierten Google-Requests werden ausgenommen. Jeder andere fremde Host bleibt ein Fehler.
+ */
+function watch(page: Page, { ads = false } = {}) {
   const errors: string[] = [];
   const foreign: string[] = [];
-  page.on("console", (msg) => { if (msg.type() === "error") errors.push(msg.text()); });
+  page.on("console", (msg) => {
+    if (msg.type() !== "error") return;
+    if (ads && isGoogleAdUrl(msg.location().url) && msg.text().includes("ERR_BLOCKED_BY_CLIENT")) return;
+    errors.push(msg.text());
+  });
   page.on("pageerror", (err) => errors.push(err.message));
   page.on("request", (req) => {
     const url = new URL(req.url());
-    if ((url.protocol === "http:" || url.protocol === "https:") && url.origin !== BASE_ORIGIN) foreign.push(req.url());
+    if (url.protocol !== "http:" && url.protocol !== "https:") return;
+    if (url.origin === BASE_ORIGIN || (ads && isGoogleAdHost(url.hostname))) return;
+    foreign.push(req.url());
   });
   return { errors, foreign };
 }
@@ -90,9 +131,10 @@ for (const spec of PAGES) {
     });
 
     for (const [name, viewport] of Object.entries(VIEWPORTS)) {
-      test(`${name}: keine Konsolenfehler, keine Requests an fremde Hosts`, async ({ page }) => {
+      const ads = AD_PAGES.has(spec.path);
+      test(`${name}: keine Konsolenfehler, keine Requests an fremde Hosts${ads ? " außer Google-Werbung" : ""}`, async ({ page }) => {
         await page.setViewportSize(viewport);
-        const seen = watch(page);
+        const seen = watch(page, { ads });
         await page.goto(BASE + spec.path, { waitUntil: "networkidle" });
         await scrollThrough(page);
         await page.waitForLoadState("networkidle");
@@ -211,6 +253,125 @@ test.describe("Verkaufsseite", () => {
     const textBox = await page.locator(".hero h1").boundingBox();
     const visualBox = await page.locator(".hero-visual").boundingBox();
     expect(textBox && visualBox && textBox.x > visualBox.x).toBeTruthy();
+  });
+});
+
+// Google AdSense (Omar, 30.10.): nur auf den beiden Startseiten, mit Googles Einwilligungsfenster und einem Knopf zum
+// Widerruf. App, Buchungs-, Ticket- und Wartezimmerseiten sowie die Rechtstexte bleiben ohne Werbung und ohne fremde Hosts.
+test.describe("Werbung nur auf den beiden Startseiten", () => {
+  const PRIVACY_BUTTON = { "/": "Paramètres de confidentialité", "/ar/": "إعدادات الخصوصية" } as Record<string, string>;
+  const CONSENT_COOKIES = ["FCCDCF", "FCNEC"];
+
+  for (const path of AD_PAGES) {
+    test(`${path}: AdSense-Loader mit dem richtigen Client, gelockerte CSP, Knopf „${PRIVACY_BUTTON[path]}“`, async ({ page, request }) => {
+      const blocked: string[] = [];
+      page.on("requestfailed", (req) => { if (isGoogleAdUrl(req.url())) blocked.push(req.url()); });
+      const response = await page.goto(BASE + path, { waitUntil: "networkidle" });
+      const loader = page.locator(`head script[src="${ADSENSE_LOADER}"]`);
+      await expect(loader).toHaveCount(1);
+      await expect(loader).toHaveAttribute("async", "");
+      await expect(loader).toHaveAttribute("crossorigin", "anonymous");
+      await expect(page.locator('script[src*="adsbygoogle"]')).toHaveCount(1); // nur dieser eine Loader
+      await expect(page.locator('head script[src="/privacy-settings.js"]')).toHaveAttribute("defer", "");
+      expect(blocked).toContain(ADSENSE_LOADER); // der Browser hat ihn wirklich angefragt (im Test blockiert)
+
+      const csp = response?.headers()["content-security-policy"] ?? "";
+      expect(csp).toContain("script-src 'self' 'unsafe-inline' https:");
+      expect(csp).toContain("frame-src https:");
+      expect(csp).toContain("frame-ancestors 'none'");
+      expect(csp).not.toContain("sha256-"); // ein Hash würde 'unsafe-inline' abschalten
+
+      const button = page.locator(".site-footer").getByRole("button", { name: PRIVACY_BUTTON[path] });
+      await expect(button).toBeVisible();
+      await expect(button).toHaveAttribute("type", "button");
+      expect((await request.get(BASE + "/privacy-settings.js")).status()).toBe(200);
+    });
+
+    test(`${path}: „${PRIVACY_BUTTON[path]}“ löscht die Einwilligungs-Cookies FCCDCF und FCNEC und lädt neu`, async ({ page, context }) => {
+      await context.addCookies([
+        ...CONSENT_COOKIES.map((name) => ({ name, value: "entscheidung", url: BASE })),
+        { name: "anderes", value: "bleibt", url: BASE },
+      ]);
+      await page.goto(BASE + path);
+      expect(await page.evaluate(() => document.cookie)).toContain("FCCDCF=entscheidung");
+      await page.evaluate(() => { (window as unknown as { vorher: boolean }).vorher = true; });
+      const reloaded = page.waitForEvent("load");
+      await page.getByRole("button", { name: PRIVACY_BUTTON[path] }).click();
+      await reloaded;
+      expect(await page.evaluate(() => (window as unknown as { vorher?: boolean }).vorher)).toBeUndefined();
+      const names = (await context.cookies(BASE)).map((c) => c.name);
+      for (const name of CONSENT_COOKIES) expect(names).not.toContain(name);
+      expect(names).toContain("anderes"); // nur die Einwilligung wird vergessen
+    });
+  }
+
+  const WITHOUT_ADS = [
+    ...PAGES.map((p) => p.path).filter((p) => !AD_PAGES.has(p)),
+    "/app", "/app/demo", "/connexion", "/invitation", "/r/cabinet-test", "/rdv/abc123", "/salle/abc123", "/ticket/abc123",
+  ];
+  for (const path of WITHOUT_ADS) {
+    test(`${path}: kein Google-Code, kein Datenschutz-Knopf, strenge CSP ohne fremde Hosts`, async ({ request }) => {
+      const res = await request.get(BASE + path);
+      expect(res.status()).toBe(200);
+      const html = await res.text();
+      expect(html).not.toMatch(/googlesyndication|adsbygoogle|ca-pub-|privacy-settings/);
+      const csp = res.headers()["content-security-policy"] ?? "";
+      expect(csp).toContain("default-src 'self'");
+      expect(csp).not.toContain("http");
+      expect(csp).not.toContain("unsafe-inline' https");
+    });
+  }
+
+  test("/connexion lädt im Browser nichts von Google", async ({ page }) => {
+    const seen = watch(page);
+    await page.goto(BASE + "/connexion", { waitUntil: "networkidle" });
+    await expect(page.locator("form")).toHaveCount(1);
+    expect(seen.foreign).toEqual([]);
+  });
+
+  const PRIVACY_PAGES = [
+    { path: "/confidentialite/", button: "Paramètres de confidentialité", old: /Daftar n'utilise aucun cookie|aucune ressource n'est chargée chez des tiers\./ },
+    { path: "/ar/confidentialite/", button: "إعدادات الخصوصية", old: /لا يستعمل دفتر أي ملف تعريف ارتباط: لا في موقع التعريف|ولا يُحمَّل أي شيء من أطراف أخرى\./ },
+    { path: "/datenschutz/", button: "Paramètres de confidentialité", old: /Daftar setzt keine Cookies – weder auf der Website|es wird nichts von Dritten geladen\./ },
+  ];
+  for (const spec of PRIVACY_PAGES) {
+    test(`${spec.path} erklärt die Werbung auf den Startseiten (Google, Einwilligung, Widerruf, USA)`, async ({ page }) => {
+      await page.goto(BASE + spec.path);
+      const section = page.locator("#publicite");
+      await expect(section).toHaveCount(1);
+      const text = await page.evaluate(() => {
+        // Text vom Titel des Unterabschnitts bis zum nächsten Titel derselben oder einer höheren Ebene
+        const start = document.getElementById("publicite")!;
+        let all = start.textContent ?? "";
+        for (let el = start.nextElementSibling; el && !/^H[23]$/.test(el.tagName); el = el.nextElementSibling) all += " " + el.textContent;
+        return all.replace(/\s+/g, " ");
+      });
+      for (const fact of ["Google Ireland Limited", "Gordon House, Barrow Street, Dublin 4", "Data Privacy Framework", "TDDDG", "RGPD|DSGVO", spec.button]) {
+        expect(text).toMatch(new RegExp(fact));
+      }
+      for (const href of ["https://policies.google.com/privacy", "https://policies.google.com/technologies/ads", "https://adssettings.google.com"]) {
+        await expect(page.locator(`#publicite ~ * a[href^="${href}"]`).first()).toBeAttached();
+      }
+      await expect(page.locator("main")).not.toContainText(spec.old);
+      await expect(page.locator(".summary")).toContainText(/AdSense/);
+    });
+  }
+
+  for (const [path, old] of [["/", "Sans cookies ni traceurs."], ["/ar/", "دون ملفات تعريف الارتباط ودون تتبّع."]]) {
+    test(`${path}: keine Behauptung mehr „ohne Cookies“ für die Seite selbst, die App bleibt ohne Werbung`, async ({ page }) => {
+      await page.goto(BASE + path);
+      await expect(page.locator(".site-footer")).not.toContainText(old);
+      await expect(page.locator("#securite")).toContainText("Google");
+    });
+  }
+
+  test("llms.txt und Muster-AVV unterscheiden App (ohne Werbung) und Startseiten (Google AdSense)", async ({ page, request }) => {
+    const llms = await (await request.get(BASE + "/llms.txt")).text();
+    expect(llms).not.toContain("aucun cookie ni traceur.");
+    expect(llms).toContain("Google AdSense");
+    await page.goto(BASE + "/contrat-sous-traitance/");
+    await expect(page.locator("main")).toContainText("Google");
+    await expect(page.locator("main")).toContainText("Les pages de l'application, y compris les pages de réservation");
   });
 });
 
@@ -568,6 +729,13 @@ test.describe("Dateien für Suchmaschinen und Vorschauen", () => {
     expect(text).toContain(`Sitemap: ${SITE}/sitemap.xml`);
     expect(text).toMatch(/^Disallow: \/app\/$/m);
     expect(text).toMatch(/^Disallow: \/api\/$/m);
+  });
+
+  test("robots.txt: der AdSense-Crawler Mediapartners-Google darf alles crawlen", async ({ request }) => {
+    const text = (await (await request.get(BASE + "/robots.txt")).text()).replace(/\r/g, "");
+    const groups = text.split(/\n\s*\n/).map((g) => g.trim().split("\n").filter((line) => !line.startsWith("#")));
+    const group = groups.find((lines) => lines.includes("User-agent: Mediapartners-Google"));
+    expect(group).toEqual(["User-agent: Mediapartners-Google", "Allow: /"]);
   });
 
   test("sitemap.xml ist gültiges XML und listet genau die indexierbaren Seiten FR und AR", async ({ page, request }) => {

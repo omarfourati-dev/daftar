@@ -14,6 +14,12 @@ Dauer und Preis, Pause, Urlaub, keine Doppelbuchung), Preise mit „Flouci ou vi
 (Desktop 1440 × 900, Handy 390 : 844 – gilt auch für die späteren echten Screenshots), Rechtstexte mit
 Abschnitten `#reservation-en-ligne` und `#abonnement`, Muster-AVV mit Online-Buchung in den Anlagen.
 
+Google AdSense (seit 30.10.) nur auf `/` und `/ar/`: Loader mit dem richtigen Client, gelockerte CSP nur dort,
+Knopf „Paramètres de confidentialité“ / „إعدادات الخصوصية“ löscht die Einwilligungs-Cookies `FCCDCF`/`FCNEC` und lädt
+neu, Rechtstexte mit Abschnitt `#publicite`, `Mediapartners-Google` in `robots.txt`. Alle anderen Seiten (Rechtstexte,
+SPA-Routen) ohne Google-Code und mit strenger CSP. Die Google-Hosts werden in jedem Test per `page.route` blockiert;
+die Tests brauchen kein Internet und laden nie echte Werbung.
+
 Basis-URL: `E2E_BASE_URL` (Standard `http://localhost:18083`). Der Server muss `landing/` so ausliefern
 wie in Produktion (Datei → Verzeichnis mit `index.html`) und SPA-Routen (`/app/…`, `/connexion`) mit 200
 beantworten. Tests mit `request.get` erwarten für Verzeichnisse den Pfad mit abschließendem `/`.

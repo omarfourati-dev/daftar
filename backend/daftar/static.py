@@ -14,6 +14,8 @@ as usual; everything else 302 to the same path on the main domain. Manifests and
 daftar/branding.py (wired in app.py).
 
 Traversal attempts (``..``, backslashes, control characters, ``//``, ``:``) get a hard 404, never the SPA.
+Google AdSense: only the two home pages of the landing (``index.html`` and ``ar/index.html``, served for ``/`` and
+``/ar/``) carry their own, relaxed CSP (:data:`daftar.http.ADS_CSP`); every other response keeps the strict one.
 Caching: ``/_app/immutable/*`` one year immutable; fonts and images one day; everything else ``no-cache`` with
 an ETag (so HTML, ``200.html``, ``sw.js`` and ``manifest.webmanifest`` are always revalidated).
 """
@@ -31,9 +33,12 @@ from urllib.parse import unquote
 from fastapi import Request
 from fastapi.responses import RedirectResponse, Response
 
+from .http import ADS_CSP
 from .problems import problem_response
 
 SPA_SHELL = "200.html"
+#: The landing pages that show Google AdSense (design section 7): the French and the Arabic home page.
+AD_PAGES = ("index.html", "ar/index.html")
 SPA_PREFIXES = ("/app", "/connexion", "/invitation")
 SPA_PREFIXES_WITH_TOKEN = ("/salle/", "/ticket/", "/r/", "/rdv/")
 PRACTICE_SPA_PREFIXES = ("/app", "/connexion", "/invitation")
@@ -116,12 +121,14 @@ class StaticFile:
     content_type: str
     cache_control: str
     etag: str
+    csp: str | None = None  # own Content-Security-Policy (the AdSense home pages), else the middleware's strict one
 
 
 class StaticSite:
     def __init__(self, landing_dir: Path | None, web_dir: Path | None) -> None:
         self.landing = landing_dir.resolve() if landing_dir and landing_dir.is_dir() else None
         self.web = web_dir.resolve() if web_dir and web_dir.is_dir() else None
+        self._ad_pages = {(self.landing / rel).resolve() for rel in AD_PAGES} if self.landing else set()
         self._cache: dict[Path, StaticFile] = {}
         self._lock = threading.Lock()
 
@@ -146,7 +153,8 @@ class StaticSite:
         else:
             cache = NO_CACHE
         etag = '"' + hashlib.sha256(body).hexdigest()[:32] + '"'
-        made = StaticFile(body, CONTENT_TYPES.get(suffix, "application/octet-stream"), cache, etag)
+        csp = ADS_CSP if root == self.landing and candidate in self._ad_pages else None
+        made = StaticFile(body, CONTENT_TYPES.get(suffix, "application/octet-stream"), cache, etag, csp)
         with self._lock:
             self._cache[candidate] = made
         return made
@@ -214,6 +222,8 @@ class StaticSite:
     @staticmethod
     def _send(request: Request, file: StaticFile) -> Response:
         headers = {"Cache-Control": file.cache_control, "ETag": file.etag}
+        if file.csp:
+            headers["Content-Security-Policy"] = file.csp  # also on 304: browsers update stored headers from it
         if request.headers.get("if-none-match") == file.etag:
             return Response(status_code=304, headers=headers)
         return Response(file.body, media_type=file.content_type, headers=headers)
