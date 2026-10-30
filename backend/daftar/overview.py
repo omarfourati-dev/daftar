@@ -25,7 +25,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Query
 from sqlalchemy import Connection, func, select
 
-from .appointment_view import AppointmentOut, load_appointments
+from .appointments import AppointmentOut, load_appointments
 from .clock import TUNIS, now_tunis, today_tunis, tunis_day_bounds
 from .deps import Conn, Ctx, OwnerUser, StaffUser
 from .finance import UnverifiedDay, due_total, unverified_cash_days
@@ -121,10 +121,9 @@ def dashboard(user: StaffUser, ctx: Ctx, conn: Conn) -> DashboardOut:
     ):
         by_status[status] = n
     upcoming = load_appointments(
-        conn, pid, appointment.c.starts_at >= now, appointment.c.starts_at < end,
-        appointment.c.status.not_in(NOT_UPCOMING), limit=UPCOMING_LIMIT,
-    )
-    requests = load_appointments(conn, pid, *_open_requests(pid, now)[1:], limit=REQUESTS_LIMIT)
+        conn, pid, appointment.c.starts_at >= now, appointment.c.starts_at < end, appointment.c.status.not_in(NOT_UPCOMING)
+    )[:UPCOMING_LIMIT]
+    requests = load_appointments(conn, pid, *_open_requests(pid, now)[1:])[:REQUESTS_LIMIT]
     queue = dict(
         conn.execute(
             select(queue_entry.c.status, func.count())

@@ -19,10 +19,9 @@ from fastapi import APIRouter, Query, Response
 from pydantic import Field, model_validator
 from sqlalchemy import Connection, ColumnElement, and_, delete, func, insert, or_, select, update
 
-from .access import OwnerWriter
-from .appointment_view import AppointmentOut, load_appointments
+from .appointments import AppointmentOut, load_appointments
 from .clock import today_tunis
-from .deps import Conn, Ctx, StaffUser, StaffWriter
+from .deps import Conn, Ctx, OwnerWriter, StaffUser, StaffWriter
 from .finance import PaymentOut, TreatmentOut, load_payments, load_treatments, payments_total, treatments_total
 from .phone import Phone
 from .problems import not_found, unprocessable
@@ -290,9 +289,7 @@ def delete_patient(patient_id: int, user: OwnerWriter, conn: Conn) -> Response:
 @router.get("/{patient_id}/appointments")
 def patient_appointments(patient_id: int, user: StaffUser, conn: Conn) -> list[AppointmentOut]:
     find_patient(conn, user.pid, patient_id)
-    return load_appointments(
-        conn, user.pid, appointment.c.patient_id == patient_id, order_by=[appointment.c.starts_at.desc()]
-    )
+    return list(reversed(load_appointments(conn, user.pid, appointment.c.patient_id == patient_id)))
 
 
 @router.get("/{patient_id}/ledger")

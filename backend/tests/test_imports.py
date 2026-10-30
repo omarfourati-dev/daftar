@@ -14,7 +14,7 @@ from sqlalchemy import Engine, func, select, update
 
 from daftar import imports as imports_module
 from daftar.imports import delete_expired_imports
-from daftar.tables import appointment, import_job, patient, treatment
+from daftar.tables import appointment, import_job, patient, practice, treatment
 from tests.conftest import T0
 from tests.helpers import assert_problem
 from tests.import_helpers import csv_bytes, xlsx
@@ -257,6 +257,9 @@ def test_commit_creates_patients_with_opening_balances_and_deletes_the_file(
     assert [(b.label, b.price_millimes, b.performed_on, b.patient_id) for b in balances] == [
         ("Reprise de solde", 120_500, date(2026, 10, 30), amira.id)]
     assert job_row.committed_at == T0 and job_row.file_bytes is None
+    with db.connect() as conn:  # "Erste Schritte": the import step stays done after the job is deleted
+        assert conn.execute(select(practice.c.onboarding).where(practice.c.id == owner.practice_id)).scalar_one()["import"] is True
+    assert 'daftar_appointments_created_total{source="import"} 0.0' in client.get("/metrics").text
     body = {"kind": "patients", "mapping": MAPPING}
     assert_problem(client.post(f"/api/imports/{job}/commit", json=body, headers=h), 409, "import_already_committed")
     assert_problem(client.post(f"/api/imports/{job}/preview", json=body, headers=h), 409, "import_already_committed")
@@ -333,6 +336,7 @@ def test_appointments_import(client: TestClient, db: Engine, owner: Any, make_pa
 
     res = client.post(f"/api/imports/{job}/commit", json={"kind": "appointments", "mapping": APPT_MAPPING}, headers=h)
     assert res.json() == {"created": 3, "updated": 0, "skipped": 2, "errorCount": 2, "patientsCreated": 1}
+    assert 'daftar_appointments_created_total{source="import"} 3.0' in client.get("/metrics").text
     with db.connect() as conn:
         rows = conn.execute(select(appointment).where(appointment.c.id != 1).order_by(appointment.c.starts_at)).all()
         leila = conn.execute(select(patient).where(patient.c.first_name == "Leila")).one()

@@ -16,7 +16,7 @@ from typing import Any
 from fastapi import APIRouter
 from sqlalchemy import Connection, func, select
 
-from .appointment_view import AppointmentOut, load_appointments
+from .appointments import AppointmentOut, load_appointments
 from .clock import TUNIS, today_tunis, tunis_day_bounds
 from .deps import Conn, Ctx, StaffUser
 from .phone import phone_digits

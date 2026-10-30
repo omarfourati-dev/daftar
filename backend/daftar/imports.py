@@ -65,6 +65,7 @@ from .import_values import (
     split_full_name,
     suggest_mapping,
 )
+from .onboarding import flag
 from .problems import ApiError, conflict, not_found, unprocessable
 from .schemas import ApiModel, Lang, Name, TunisDateTime
 from .tables import (
@@ -783,6 +784,9 @@ def commit(job_id: uuid.UUID, body: MappingIn, user: ImportWriter, ctx: Ctx, con
         .where(import_job.c.id == job.id)
         .values(committed_at=now, file_bytes=None, report={"kind": plan.kind, "lines": plan.report_lines()})
     )
+    conn.execute(update(practice).where(practice.c.id == user.pid).values(onboarding=flag("import")))  # "Erste Schritte"
+    if plan.kind == "appointments" and plan.creates:
+        ctx.metrics.appointments_created.labels("import").inc(len(plan.creates))
     return CommitOut(created=len(plan.creates), updated=len(plan.updates), skipped=plan.skipped,
                      error_count=plan.error_rows, patients_created=patients_created)
 
