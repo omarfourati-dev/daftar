@@ -4,6 +4,8 @@ import {
 	ADMIN_EMAIL,
 	ADMIN_PASSWORD,
 	adminSession,
+	closeExtraPages,
+	extraPage,
 	apiContext,
 	createPractice,
 	expectAccessible,
@@ -23,6 +25,7 @@ let admin: Session;
 test.beforeAll(async () => {
 	admin = await adminSession();
 });
+test.afterEach(closeExtraPages);
 
 test('A1 – the admin signs in and creates a practice with the wizard, then the owner accepts the invitation', async ({ page, browser }) => {
 	const problems = watchConsole(page);
@@ -75,7 +78,7 @@ test('A1 – the admin signs in and creates a practice with the wizard, then the
 	expect(problems).toEqual([]);
 
 	// the owner opens the link on the practice's own address
-	const ownerPage = await (await browser.newContext({ extraHTTPHeaders: { 'X-Forwarded-For': freshIp() } })).newPage();
+	const ownerPage = await extraPage(browser, { extraHTTPHeaders: { 'X-Forwarded-For': freshIp() } });
 	await ownerPage.goto(invitation);
 	await ownerPage.getByLabel('Votre nom').fill('Dr Amira Ben Salah');
 	await ownerPage.getByLabel('E-mail').fill(`${slug}@cabinet.test`);
@@ -105,7 +108,7 @@ test('A1/I1 – the admin edits status, plan and notes; A3 – owner reset link 
 	const link = await page.getByRole('textbox', { name: 'Lien de réinitialisation' }).inputValue();
 	expect(link).toContain(`${practiceOrigin(slug)}/reinitialiser#`);
 
-	const ownerPage = await (await browser.newContext({ extraHTTPHeaders: { 'X-Forwarded-For': freshIp() } })).newPage();
+	const ownerPage = await extraPage(browser, { extraHTTPHeaders: { 'X-Forwarded-For': freshIp() } });
 	await ownerPage.goto(link);
 	await expect(ownerPage.getByText(`Choisissez un nouveau mot de passe pour ${owner.email}`, { exact: false })).toBeVisible();
 	await ownerPage.getByLabel('Nouveau mot de passe').fill('encore-un-nouveau-mot-de-passe');
@@ -134,7 +137,7 @@ test('I1 – subscriptions: the admin creates the next invoice and records a ban
 	await expectAccessible(page, 'admin billing');
 
 	// the owner sees the open invoice and how to pay without online payment
-	const ownerPage = await (await browser.newContext()).newPage();
+	const ownerPage = await extraPage(browser);
 	await signInAs(ownerPage, owner);
 	await ownerPage.goto('/app/abonnement');
 	await expect(ownerPage.getByText(number)).toBeVisible();
@@ -186,7 +189,7 @@ test('J2 – feedback from a practice reaches the admin', async ({ page, browser
 	await dialog.getByRole('button', { name: 'Envoyer' }).click();
 	await expect(dialog.getByText('Merci ! Votre message est envoyé.')).toBeVisible();
 
-	const adminPage = await (await browser.newContext()).newPage();
+	const adminPage = await extraPage(browser);
 	await signInAs(adminPage, admin);
 	await adminPage.goto('/app/admin/retours');
 	const item = adminPage.locator('article', { hasText: message });

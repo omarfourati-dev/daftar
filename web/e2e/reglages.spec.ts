@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test';
 import {
 	acceptInvitation,
 	adminSession,
+	closeExtraPages,
+	extraPage,
 	apiContext,
 	expectAccessible,
 	expectNoHorizontalScroll,
@@ -18,6 +20,7 @@ let admin: Session;
 test.beforeAll(async () => {
 	admin = await adminSession();
 });
+test.afterEach(closeExtraPages);
 
 test('practice data, hours and closures are saved', async ({ page }) => {
 	const { owner, practice } = await practiceWithOwner(admin);
@@ -95,7 +98,7 @@ test('A2/A3 – team: invitation link for an assistant, reset link for her, role
 	await page.getByLabel('Rôle de Salma Gharbi').selectOption('dentist');
 	await expect(page.getByText('Rôle enregistré.')).toBeVisible();
 
-	const salmaPage = await (await browser.newContext({ extraHTTPHeaders: { 'X-Forwarded-For': freshIp() } })).newPage();
+	const salmaPage = await extraPage(browser, { extraHTTPHeaders: { 'X-Forwarded-For': freshIp() } });
 	await salmaPage.goto(reset);
 	await expect(salmaPage.getByText(salma.email, { exact: false })).toBeVisible();
 	await salmaPage.getByLabel('Nouveau mot de passe').fill('mot-de-passe-de-salma');

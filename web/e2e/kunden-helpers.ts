@@ -7,7 +7,7 @@
  *   instead of logging in through the form (the form login is tested once in admin.spec.ts).
  */
 import AxeBuilder from '@axe-core/playwright';
-import { expect, request as playwrightRequest, type APIRequestContext, type Page } from '@playwright/test';
+import { expect, request as playwrightRequest, type APIRequestContext, type Browser, type BrowserContext, type BrowserContextOptions, type Page } from '@playwright/test';
 
 export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:18083';
 export const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@daftar.test';
@@ -143,4 +143,15 @@ export async function expectAccessible(page: Page, label: string) {
 export async function expectNoHorizontalScroll(page: Page, label: string) {
 	const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 	expect(overflow, `${label} – horizontal overflow in px`).toBeLessThanOrEqual(0);
+}
+
+/** A page in a second browser (another person: owner, assistant, admin); closed by `closeExtraPages` after the test. */
+const extraContexts: BrowserContext[] = [];
+export async function extraPage(browser: Browser, options: BrowserContextOptions = {}): Promise<Page> {
+	const context = await browser.newContext(options);
+	extraContexts.push(context);
+	return context.newPage();
+}
+export async function closeExtraPages(): Promise<void> {
+	while (extraContexts.length) await extraContexts.pop()!.close().catch(() => undefined);
 }
