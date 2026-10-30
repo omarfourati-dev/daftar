@@ -109,7 +109,7 @@
 					<div class="hidden min-w-0 flex-1 sm:block"><GlobalSearch /></div>
 					<button
 						type="button"
-						class="btn-secondary min-h-10 px-3 text-sm"
+						class="btn-secondary hidden min-h-10 px-3 text-sm sm:inline-flex"
 						aria-label={t('agenda.phone.button')}
 						title="{t('agenda.phone.button')} (T)"
 						onclick={() => (phoneBooking.open = true)}><Icon name="phone" class="h-4 w-4" /><span class="hidden lg:inline">{t('agenda.phone.button')}</span></button

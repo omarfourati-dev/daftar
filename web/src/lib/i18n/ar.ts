@@ -18,6 +18,7 @@ import { roles } from './ar/roles';
 import { salle } from './ar/salle';
 import { shell } from './ar/shell';
 import { appointmentStatus, paymentMethod, queueStatus } from './ar/status';
+import { statistiques } from './ar/statistiques';
 import { ticket } from './ar/ticket';
 import { today } from './ar/today';
 import { governorate, specialty } from './ar/vocabulary';
@@ -46,5 +47,6 @@ export const ar: Messages = {
 	demo,
 	display,
 	ticket,
-	recu
+	recu,
+	statistiques
 };
