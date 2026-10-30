@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mainUrl, practiceUrl, telUrl, whatsappUrl } from './links';
+import { appUrl, mainUrl, practiceUrl, telUrl, whatsappUrl } from './links';
 
 const at = (href: string) => new URL(href);
 
@@ -19,9 +19,24 @@ describe('links', () => {
 		expect(practiceUrl('cabinet-lac', '/invitation#x', at('http://127.0.0.1:4173/app'))).toBe('http://127.0.0.1:4173/invitation#x');
 	});
 
-	it('builds addresses on the main domain, also from a practice sub-domain', () => {
-		expect(mainUrl('/salle/tok', at('https://cabinet-lac.daftar.omarfourati.de/app'))).toBe('https://daftar.omarfourati.de/salle/tok');
-		expect(mainUrl('/salle/tok', at('http://localhost:18085/app'))).toBe('http://localhost:18085/salle/tok');
+	it('builds the address of a practice from the app host (not <slug>.app.<base>)', () => {
+		expect(practiceUrl('cabinet-lac', '/', at('https://app.daftar.omarfourati.de/app/admin'))).toBe('https://cabinet-lac.daftar.omarfourati.de/');
+		expect(practiceUrl('cabinet-lac', '/invitation#abc', at('http://app.localhost:18083/app/admin'))).toBe(
+			'http://cabinet-lac.localhost:18083/invitation#abc'
+		);
+	});
+
+	it('builds addresses on the main domain, also from a practice sub-domain and the app host', () => {
+		expect(mainUrl('/confidentialite/', at('https://cabinet-lac.daftar.omarfourati.de/app'))).toBe('https://daftar.omarfourati.de/confidentialite/');
+		expect(mainUrl('/confidentialite/', at('http://localhost:18085/app'))).toBe('http://localhost:18085/confidentialite/');
+		expect(mainUrl('/ar/confidentialite/', at('https://app.daftar.omarfourati.de/r/cabinet-lac'))).toBe('https://daftar.omarfourati.de/ar/confidentialite/');
+	});
+
+	it('builds addresses on the app host (waiting-room screen), from wherever the page runs', () => {
+		expect(appUrl('/salle/tok', at('https://app.daftar.omarfourati.de/app/reglages/ecran'))).toBe('https://app.daftar.omarfourati.de/salle/tok');
+		expect(appUrl('/salle/tok', at('https://cabinet-lac.daftar.omarfourati.de/app'))).toBe('https://app.daftar.omarfourati.de/salle/tok');
+		expect(appUrl('/salle/tok', at('http://cabinet-lac.localhost:18083/app'))).toBe('http://app.localhost:18083/salle/tok');
+		expect(appUrl('/salle/tok', at('http://127.0.0.1:4173/app'))).toBe('http://127.0.0.1:4173/salle/tok');
 	});
 
 	it('opens WhatsApp with a ready message, to a number or to any contact', () => {

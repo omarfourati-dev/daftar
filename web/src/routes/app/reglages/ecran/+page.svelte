@@ -4,7 +4,7 @@
 	import { api, apiErrorMessage } from '#lib/api';
 	import { auth } from '#lib/auth.svelte';
 	import { t } from '#lib/i18n.svelte';
-	import { mainUrl } from '#lib/links';
+	import { appUrl } from '#lib/links';
 	import type { Practice } from '#lib/types/practice';
 	import ConfirmDialog from '../../../../lib/components/ConfirmDialog.svelte';
 	import CopyLink from '../../../../lib/components/CopyLink.svelte';
@@ -57,7 +57,7 @@
 		<LoadState {loading} {error} onretry={load} />
 		{#if token}
 			<div class="card flex flex-col gap-4">
-				<CopyLink label={t('reglages.ecran.link')} url={mainUrl(`/salle/${token}`)} openable />
+				<CopyLink label={t('reglages.ecran.link')} url={appUrl(`/salle/${token}`)} openable />
 				<button type="button" class="btn-secondary self-start" onclick={() => (confirming = true)}>{t('reglages.ecran.regenerate')}</button>
 				<p role="status" class="text-sm font-medium text-brand-800">{notice}</p>
 			</div>

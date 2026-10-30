@@ -1,6 +1,6 @@
 <script lang="ts">
 	/** QR code + WhatsApp link of one ticket: the patient photographs it and follows their turn (numbers only). */
-	import { ticketMessage, ticketPath, ticketUrl } from '../../agenda/queue';
+	import { ticketMessage, ticketUrl } from '../../agenda/queue';
 	import { whatsappUrl } from '../../agenda/links';
 	import { t } from '../../i18n.svelte';
 	import type { QueueEntry } from '../../types/queue';
@@ -19,6 +19,6 @@
 				><Icon name="chat" />{t('salle.actions.whatsapp')}</a
 			>
 		{/if}
-		<a class="btn-secondary min-h-11" href={ticketPath(entry.ticketToken)} target="_blank" rel="noopener noreferrer"><Icon name="external" />{t('salle.qr.open')}</a>
+		<a class="btn-secondary min-h-11" href={ticketUrl(entry.ticketToken)} target="_blank" rel="noopener noreferrer"><Icon name="external" />{t('salle.qr.open')}</a>
 	</div>
 </div>

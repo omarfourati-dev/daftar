@@ -9,7 +9,7 @@
 	import { api } from '#lib/api';
 	import { auth } from '#lib/auth.svelte';
 	import { clock } from '#lib/clock';
-	import { byTicket, screenPath, ticketMessage } from '#lib/agenda/queue';
+	import { byTicket, screenUrl, ticketMessage } from '#lib/agenda/queue';
 	import { whatsappUrl } from '#lib/agenda/links';
 	import { formatDay, formatTime, t, todayTunis, translate, type MessageKey } from '#lib/i18n.svelte';
 	import type { PracticeSettings } from '#lib/types/agenda';
@@ -124,7 +124,7 @@
 		</div>
 		<div class="flex flex-wrap gap-2">
 			{#if practice?.displayToken}
-				<a class="btn-secondary" href={screenPath(practice.displayToken)} target="_blank" rel="noopener noreferrer"><Icon name="screen" />{t('salle.screen')}</a>
+				<a class="btn-secondary" href={screenUrl(practice.displayToken)} target="_blank" rel="noopener noreferrer"><Icon name="screen" />{t('salle.screen')}</a>
 			{/if}
 			<a class="btn-secondary" href="/app/salle/suivant"><Icon name="users" />{t('salle.next.link')}</a>
 			<button type="button" class="btn-primary" onclick={() => (creating = true)}><Icon name="plus" />{t('salle.newTicket')}</button>

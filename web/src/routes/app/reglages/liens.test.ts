@@ -49,17 +49,17 @@ describe('/app/reglages/ecran', () => {
 		auth.set('tok', owner);
 	});
 
-	it('shows the waiting-room screen address and makes a new one', async () => {
+	it('shows the waiting-room screen address on the app host and makes a new one', async () => {
 		mockApi({
 			'GET /api/practice': () => json(200, practice()),
 			'POST /api/practice/display-token': () => json(200, { displayToken: 'disp-token-2' })
 		});
 		render(Ecran);
-		expect(await screen.findByRole('textbox', { name: 'Adresse de l’écran' })).toHaveValue(`http://${location.host}/salle/disp-token-1`);
+		expect(await screen.findByRole('textbox', { name: 'Adresse de l’écran' })).toHaveValue(`http://app.${location.host}/salle/disp-token-1`);
 		await fireEvent.click(screen.getByRole('button', { name: 'Générer une nouvelle adresse' }));
 		await fireEvent.click(within(screen.getByRole('dialog', { name: 'Générer une nouvelle adresse ?' })).getByRole('button', { name: 'Générer la nouvelle adresse' }));
 		expect(await screen.findByText('Nouvelle adresse créée.')).toBeInTheDocument();
-		expect(screen.getByRole('textbox', { name: 'Adresse de l’écran' })).toHaveValue(`http://${location.host}/salle/disp-token-2`);
+		expect(screen.getByRole('textbox', { name: 'Adresse de l’écran' })).toHaveValue(`http://app.${location.host}/salle/disp-token-2`);
 	});
 });
 

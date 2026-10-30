@@ -72,7 +72,7 @@ describe('/app/salle – the waiting room at the desk', () => {
 		const preview = within(screen.getByRole('region', { name: 'Écran de la salle d’attente' }));
 		expect(preview.getByText('13')).toBeInTheDocument();
 		expect(preview.queryByText(/Leila/)).not.toBeInTheDocument();
-		expect(screen.getByRole('link', { name: /Écran de la salle/ })).toHaveAttribute('href', '/salle/ecran-0123456789abcdef');
+		expect(screen.getByRole('link', { name: /Écran de la salle/ })).toHaveAttribute('href', `http://app.${location.host}/salle/ecran-0123456789abcdef`);
 		expect(screen.getByRole('link', { name: 'Patient suivant' })).toHaveAttribute('href', '/app/salle/suivant');
 	});
 
@@ -92,7 +92,7 @@ describe('/app/salle – the waiting room at the desk', () => {
 		expect(sentJson('POST /api/queue/14/status')).toEqual({ status: 'called' });
 		expect(await screen.findByText('Ticket 14 : Appelé.')).toBeInTheDocument();
 		await fireEvent.click(await (await card()).findByRole('button', { name: 'En consultation' }));
-		expect(await screen.findByText('Ticket 14 : En soins.')).toBeInTheDocument();
+		expect(await screen.findByText('Ticket 14 : En consultation.')).toBeInTheDocument();
 		await fireEvent.click(await (await card()).findByRole('button', { name: 'Terminé' }));
 		expect(await screen.findByText('Ticket 14 : Terminé.')).toBeInTheDocument();
 	});
@@ -112,14 +112,14 @@ describe('/app/salle – the waiting room at the desk', () => {
 		const link = card.getByRole('link', { name: 'WhatsApp' });
 		const href = decodeURIComponent(link.getAttribute('href') ?? '');
 		expect(href).toContain('https://wa.me/21620000002?text=');
-		expect(href).toContain(`${location.origin}/ticket/tk-14`);
+		expect(href).toContain(`http://app.${location.host}/ticket/tk-14`); // the ticket page lives on the app host
 		expect(href).toContain('n° 14');
 		expect(within((screen.getByText('Mohamed Ali Kefi')).closest('li') as HTMLElement).queryByRole('link', { name: 'WhatsApp' })).not.toBeInTheDocument();
 		await fireEvent.click(card.getByRole('button', { name: 'QR code' }));
 		const dialog = within(await screen.findByRole('dialog', { name: 'Ticket 14' }));
 		const qr = await dialog.findByRole('img', { name: 'QR code du ticket 14' });
 		expect(qr.querySelector('svg')).not.toBeNull();
-		expect(dialog.getByRole('link', { name: 'Ouvrir la page du ticket' })).toHaveAttribute('href', '/ticket/tk-14');
+		expect(dialog.getByRole('link', { name: 'Ouvrir la page du ticket' })).toHaveAttribute('href', `http://app.${location.host}/ticket/tk-14`);
 	});
 
 	it('gives a ticket to a known patient and shows the QR code right away', async () => {

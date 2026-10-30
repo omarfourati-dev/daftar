@@ -1,12 +1,15 @@
-/** Links and texts of the waiting room: the patient's ticket page, the screen page, the WhatsApp message. */
+/**
+ * Links and texts of the waiting room: the patient's ticket page, the screen page, the WhatsApp message. Both public
+ * pages live on the app host (a practice sub-domain does not serve them), so the links are absolute.
+ */
 import { t } from '../i18n.svelte';
+import { appUrl } from '../links';
 import type { QueueEntry } from '../types/queue';
-
-const origin = () => (typeof location === 'undefined' ? '' : location.origin);
 
 export const ticketPath = (token: string) => `/ticket/${encodeURIComponent(token)}`;
 export const screenPath = (token: string) => `/salle/${encodeURIComponent(token)}`;
-export const ticketUrl = (token: string) => `${origin()}${ticketPath(token)}`;
+export const ticketUrl = (token: string) => appUrl(ticketPath(token));
+export const screenUrl = (token: string) => appUrl(screenPath(token));
 
 /** "Bonjour, voici votre ticket au … : n° 14. Suivez votre tour ici : https://…/ticket/…" */
 export function ticketMessage(entry: Pick<QueueEntry, 'ticketNo' | 'ticketToken'>, practice: string): string {

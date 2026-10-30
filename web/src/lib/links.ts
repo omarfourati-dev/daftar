@@ -1,9 +1,10 @@
 /**
  * Addresses we hand out (invitation, booking page, waiting-room screen) and click-to-chat links.
- * A practice lives on its own sub-domain `<slug>.<base>`; the base is taken from the page we are on, so the same
- * code works on daftar.omarfourati.de, on another practice's sub-domain and locally on `localhost:<port>`.
+ * A practice lives on its own sub-domain `<slug>.<base>`, the app on `app.<base>`, the landing on `<base>`; the base
+ * is taken from the page we are on, so the same code works on the app host, on a practice's sub-domain, on the main
+ * domain and locally on `[app.]localhost:<port>`.
  */
-import { practiceSlugFromHost } from './host';
+import { hostKind, practiceSlugFromHost } from './host';
 
 function here(): URL {
 	return new URL(typeof location === 'undefined' ? 'http://localhost/' : location.href);
@@ -11,8 +12,9 @@ function here(): URL {
 
 const IP = /^(?:\d{1,3}(?:\.\d{1,3}){3}|\[[0-9a-f:]+\])$/i;
 
-/** host[:port] of the main domain for the page at `at`. */
+/** host[:port] of the main domain for the page at `at` (`app.<base>` and `<slug>.<base>` → `<base>`). */
 function mainHost(at: URL): string {
+	if (hostKind(at.hostname) === 'app') return at.host.slice('app.'.length);
 	const slug = practiceSlugFromHost(at.hostname);
 	return slug ? at.host.slice(slug.length + 1) : at.host;
 }
@@ -26,9 +28,15 @@ export function practiceUrl(slug: string, path = '/', at: URL = here()): string 
 	return `${at.protocol}//${slug}.${mainHost(at)}${path}`;
 }
 
-/** An address on the main domain (waiting-room screen, landing pages). */
+/** An address on the main domain (landing, legal texts). */
 export function mainUrl(path: string, at: URL = here()): string {
 	return `${at.protocol}//${mainHost(at)}${path}`;
+}
+
+/** An address on the app host `app.<base>` (waiting-room screen, ticket pages); on an IP address the same origin. */
+export function appUrl(path: string, at: URL = here()): string {
+	if (IP.test(at.hostname)) return `${at.protocol}//${at.host}${path}`;
+	return `${at.protocol}//app.${mainHost(at)}${path}`;
 }
 
 /** Digits of an international number for wa.me (no +, no spaces); 8 Tunisian digits get the 216 prefix. */
