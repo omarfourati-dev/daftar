@@ -16,6 +16,7 @@
 - ``StaffWriter`` like StaffUser, but 402 ``subscription_suspended`` when the practice is suspended – use it for
   every endpoint that creates, changes or deletes business data
 - ``OwnerUser``  owner only · ``PractitionerUser`` owner or dentist · ``AdminUser`` admin only (403 otherwise)
+- ``OwnerWriter``  owner + subscription not suspended – owner-only changes (settings, team, catalog)
 - ``require_roles("owner", "dentist")`` for other combinations
 """
 
@@ -183,3 +184,14 @@ StaffWriter = Annotated[Principal, Depends(require_writable)]
 PractitionerUser = Annotated[Principal, Depends(require_roles("owner", "dentist"))]
 OwnerUser = Annotated[Principal, Depends(require_roles("owner"))]
 AdminUser = Annotated[Principal, Depends(require_roles("admin"))]
+
+
+def require_owner_writable(user: StaffWriter) -> Principal:
+    """The owner of a practice whose subscription is not suspended (402 first, then 403 for other roles)."""
+    if not user.is_owner:
+        raise forbidden()
+    return user
+
+
+#: Owner-only changes (practice settings, team, practitioners, services, closures): owner + not suspended.
+OwnerWriter = Annotated[Principal, Depends(require_owner_writable)]

@@ -92,7 +92,10 @@ def test_metrics_exposes_base_and_business_metrics(client: TestClient, make_prac
     assert 'daftar_practices{kind="demo"} 1.0' in text
     assert "daftar_users 1.0" in text  # the admin does not count
     assert "daftar_patients 0.0" in text
-    assert "daftar_appointments_created_total 0.0" in text
+    # labelled by source and exported with 0 from the start, so increase() sees the very first appointment
+    for source in ("staff", "online", "series", "import"):
+        assert f'daftar_appointments_created_total{{source="{source}"}} 0.0' in text, source
+    assert "daftar_appointments_created_total 0.0" not in text
     assert "daftar_demo_started_total 0.0" in text
     assert "daftar_pilot_requests_total 0.0" in text
     assert 'daftar_http_requests_total{method="GET",route="/api/auth/me",status="401"} 1.0' in text

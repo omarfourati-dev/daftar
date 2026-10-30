@@ -111,6 +111,12 @@ dafür zahlen“.
 
 ## Release 2 – nach dem Pilot
 - **Patientenportal** mit Rechnungen und Zahlung per Flouci direkt auf das Konto der Praxis (Spec 16.5).
+- Aus der Konkurrenzanalyse (30.10., MAW3DI/Olycab/MedOrdo/med.tn): automatische Erinnerungen (Zusatzpaket),
+  Konsultationsnotiz + Rezept/Attest (erst nach Rechtsprüfung), Telefon-Bestätigung bei Online-Buchung und Umbuchen
+  durch den Patienten über seinen Link, Zahnschema, CNAM-Formulare – jeweils erst nach Rückfrage bei Pilotpraxen.
+- **Hosting/Recht vor echten Patientendaten klären:** Datenübermittlung ins Ausland (Hosting in Deutschland) braucht
+  nach tunesischem Recht evtl. eine INPDP-Genehmigung (Loi 2004-63, Art. 52 – unbestätigt) → Anwalt/INPDP fragen;
+  Alternative: Produktivbetrieb bei einem Hoster in Tunesien.
 - WhatsApp-Business-API/SMS-Gateway für automatische Erinnerungen; Web-Push für neue Online-Anfragen.
 - Logo-Upload je Praxis; Flouci live (Händlerkonto); eine Windows-App (Tauri, signiert), eine Store-App (Capacitor).
 - **Praxis-Website als Zusatzleistung** („site vitrine“): eigene Website je Praxis (FR/AR, SEO lokal, Öffnungszeiten
