@@ -6,12 +6,10 @@ import Caisse from './caisse/+page.svelte';
 import Patients from './patients/+page.svelte';
 import Rappels from './rappels/+page.svelte';
 import Reglages from './reglages/+page.svelte';
-import Salle from './salle/+page.svelte';
 import { i18n } from '#lib/i18n.svelte';
 
 // Each page is replaced by its feature work; until then it shows its title in the current language.
 const pages: [string, Component, string, string][] = [
-	['/app/salle', Salle, 'Salle d’attente', 'قاعة الانتظار'],
 	['/app/patients', Patients, 'Patients', 'المرضى'],
 	['/app/caisse', Caisse, 'Caisse', 'الصندوق'],
 	['/app/rappels', Rappels, 'Rappels', 'التذكيرات'],
