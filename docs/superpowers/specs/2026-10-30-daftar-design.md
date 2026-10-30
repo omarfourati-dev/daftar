@@ -244,3 +244,114 @@ erfundenen Kundenzahlen oder Testimonials.
 
 Komponentenschnitt, genaue Texte der App (kurz, FR/AR), Seed-Details der Demo, Layout der Woche auf dem Handy
 (Liste statt Raster ist okay), Aussehen der Landing im Rahmen von Abschnitt 8.
+
+## 11. Erweiterung (Omar, 30.10. nachmittags): Kundenstamm, Online-Buchung, keine Doppelbuchungen
+
+**Dieser Abschnitt hat Vorrang vor 1–10, wo sie sich widersprechen.** Online-Buchung ist damit kein Nicht-Ziel mehr.
+
+### 11.1 Keine Doppelbuchungen (hart, in der Datenbank)
+- `appointment` bekommt `ends_at TIMESTAMPTZ NOT NULL` (von der App aus `starts_at + duration_min` berechnet,
+  `CHECK (ends_at > starts_at)`), damit ein Index-Ausdruck möglich ist (`timestamptz + interval` ist nicht IMMUTABLE).
+- Zwei Ausschluss-Constraints (Extension `btree_gist`, ist „trusted“, darf der DB-Besitzer anlegen), jeweils
+  `WHERE (status NOT IN ('cancelled','no_show'))`:
+  `EXCLUDE USING gist (practice_id WITH =, (coalesce(practitioner_id, 0)) WITH =, tstzrange(starts_at, ends_at) WITH &&)`
+  und dasselbe mit `patient_id` statt Behandler (ein Patient nie zweimal gleichzeitig).
+- API: Überschneidung → **409** `{title, detail, conflicts:[{id,startsAt,endsAt,patientName}]}` statt Warnung
+  (ersetzt „nur Warnung“ in Abschnitt 5). Die App zeigt dann freie Zeiten an. Notfälle laufen über die Warteschlange,
+  nicht über den Kalender.
+- `GET /api/availability?date=&durationMin=&practitionerId=` → `{date, slots:[{time:"09:15", practitionerIds:[…]}]}`:
+  Raster `slot_minutes` innerhalb der Öffnungszeiten des Wochentags, ohne Schließtage, ohne belegte Zeiten, ohne
+  Vergangenheit. Dieselbe Logik nutzt die Online-Buchung.
+
+### 11.2 Kundenstamm („Business Customer“ = Praxis) mit vollständigen Daten
+`practice` bekommt zusätzlich: `slug TEXT UNIQUE NOT NULL` (Subdomain, `^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$`,
+reserviert: www, app, api, admin, demo, mail, smtp, static, assets, daftar, status, monitoring, test; Demo-Praxen
+`demo-<8 Zeichen>`), `name_ar`, `contact_name` (verantwortliche Person), `whatsapp` (E.164), `email`, `postal_code`,
+`governorate` (eins der 24 Gouvernorate), `maps_url`, `description_fr`, `description_ar`, `tax_id` (Matricule fiscal),
+`status 'pilot'|'trial'|'active'|'suspended'` (Standard pilot), `pilot_until DATE`, `admin_notes` (nur Admin),
+`weekly_hours JSONB` (ISO-Wochentag → Liste von Zeitfenstern, z. B. `{"1":[["08:00","12:30"],["14:00","18:00"]],…,"7":[]}`;
+**ersetzt `day_start`/`day_end`** – Agenda-Bereich = früheste bis späteste Öffnungszeit), Online-Buchung:
+`online_booking_enabled` (false), `online_auto_confirm` (false), `booking_horizon_days` (30),
+`booking_min_notice_hours` (2), `booking_max_per_day` (20), `booking_block_no_shows` (2; 0 = aus).
+
+Neue Tabellen:
+- `practitioner(id, practice_id, name, title ('Dr.'), color, user_id NULL→app_user SET NULL, online_bookable BOOL true,
+  active BOOL true, sort INT)` – Behandler sind **keine** Benutzerkonten (der Zahnarzt arbeitet oft nicht selbst in der
+  Software). `appointment.practitioner_id` verweist hierauf (ON DELETE SET NULL); `/api/practitioners` liefert diese
+  Tabelle (Abschnitt 5 entsprechend).
+- `service(id, practice_id, name_fr, name_ar, duration_min, price_millimes NULL, online_bookable BOOL, color, active,
+  sort)` – Leistungskatalog. Neue Praxen bekommen einen Standardkatalog (Consultation 30, Contrôle 20, Détartrage 45,
+  Soin carie / composite 45, Extraction 30, Traitement de canal 60, Couronne – séance 60, Blanchiment 60,
+  Urgence / douleur 30; Preise leer, online buchbar: Consultation, Contrôle, Détartrage). `appointment.service_id NULL`.
+- `practice_closure(id, practice_id, starts_on DATE, ends_on DATE, label)` – Urlaub/Feiertage (keine Termine/Buchungen).
+
+`appointment` zusätzlich: `service_id`, `source 'staff'|'online'`, Status **`requested`** (Online-Anfrage, blockiert
+den Slot), `booking_token_hash TEXT UNIQUE NULL` (SHA-256 des Verwaltungslinks des Patienten), `patient_note`.
+
+Admin-API (ersetzt die schmale Version in Abschnitt 5):
+- `POST /api/admin/practices` mit vollständigen Daten `{name,nameAr?,slug,contactName,phone,whatsapp?,email?,address,
+  postalCode?,city,governorate,mapsUrl?,taxId?,status,pilotUntil?,adminNotes?,weeklyHours,practitioners:[{name,title?}],
+  services?:[…] (fehlt → Standardkatalog),onlineBooking:{enabled,autoConfirm,horizonDays,minNoticeHours,maxPerDay,
+  blockNoShows}}` → 201 `{practice, invitation:{token,expiresAt}}` (Besitzer-Einladung)
+- `GET /api/admin/practices/{id}` (alles) · `PATCH /api/admin/practices/{id}` (alles inkl. slug/status/adminNotes)
+- `GET /api/admin/slug-available?slug=` → `{available, reason?}`
+- Besitzer: `GET/PATCH /api/practice` (alle Felder außer slug, status, pilotUntil, adminNotes), CRUD
+  `/api/practitioners`, `/api/services`, `/api/closures`.
+
+App: `/app/admin/cabinets/nouveau` als Assistent in Schritten (1 Cabinet & contact · 2 Adresse & sous-domaine mit
+Live-Prüfung · 3 Horaires · 4 Praticiens · 5 Actes & tarifs · 6 Réservation en ligne · Zusammenfassung → Einladungslink
++ Buchungslink kopieren), `/app/admin/cabinets/[id]` zum Bearbeiten. In `/app/reglages` pflegt der Besitzer dieselben
+Daten (ohne Admin-Felder) plus Schließtage, Leistungen, Behandler und sieht seinen Buchungslink mit QR-Code.
+
+### 11.3 Online-Buchung für Patienten
+- Adresse: `https://<slug>.daftar.omarfourati.de` (Wildcard-DNS `*.daftar` → 212.132.95.145; Caddy On-Demand-TLS mit
+  `ask` → `GET /api/public/tls-check?domain=<host>`: 200 nur für bestehende, nicht gesperrte Nicht-Demo-Praxis, sonst
+  404) und immer auch `https://daftar.omarfourati.de/r/<slug>` (Tests, lokal, Fallback).
+- Host-Routing im Backend (Einstellung `BASE_DOMAIN`, Standard `daftar.omarfourati.de`): Host `<slug>.<BASE_DOMAIN>` →
+  `/` und `/rdv/<token>` liefern die SPA (`200.html`), `/api/*`, `/_app/*`, Icons, Manifest normal, alles andere 302
+  auf `https://<BASE_DOMAIN><pfad>`. Unbekannter Slug → 404-Seite. Die SPA-Route `/` (existiert nur für Subdomains;
+  auf der Hauptdomain liefert der Server die Landing) liest den Slug aus `location.hostname`, sonst
+  `location.replace('/')`. `/r/[slug]` zeigt dieselbe Buchungsseite, `/rdv/[token]` die Verwaltung des Patienten.
+- Öffentliche API (ohne Login, nie Daten anderer Patienten):
+  `GET /api/public/practices/{slug}` → Praxisprofil (Name FR/AR, Adresse, Gouvernorat, Telefon, WhatsApp, Karte,
+  Beschreibung, Öffnungszeiten, `onlineBookingEnabled`, online buchbare Leistungen mit Dauer und ggf. Preis, online
+  buchbare Behandler, `horizonDays`) · `GET /api/public/practices/{slug}/slots?date=&serviceId=&practitionerId=` →
+  `{date, slots:["09:00",…]}` · `POST /api/public/practices/{slug}/bookings {serviceId, practitionerId?, startsAt,
+  firstName, lastName, phone, lang, reminderConsent, note?, website}` → 201 `{status:'requested'|'confirmed', startsAt,
+  serviceName, practitionerName, manageToken}`; 409 Slot weg; 422 `blocked` wenn diese Telefonnummer in der Praxis
+  ≥ `booking_block_no_shows` Nichterscheinen hat („Merci d'appeler le cabinet“); 429 (3/h je IP, höchstens 2 künftige
+  Online-Buchungen je Telefonnummer und Praxis, `booking_max_per_day`). Patient wird über Telefon **und** Nachname
+  (ohne Groß/Klein) wiedererkannt, sonst neu angelegt.
+  `GET /api/public/bookings/{token}` → Termin, Status, Praxis-Kontakt · `POST /api/public/bookings/{token}/cancel` →
+  storniert (bis `booking_min_notice_hours` vorher).
+- Praxis-Seite: Online-Anfragen erscheinen im Dashboard („Nouvelles demandes en ligne“) und gestrichelt in der Agenda;
+  Bestätigen (→ `confirmed`) oder Ablehnen (→ `cancelled`) mit fertigem WhatsApp-Text an den Patienten.
+- Datenschutz: Die Rechtstexte erklären die Online-Buchung (Daten gehen an die Praxis als Verantwortliche, Daftar als
+  Auftragsverarbeiter).
+
+### 11.4 Abonnements der Praxen, Zahlung über Flouci
+Daftar verwaltet die Abos selbst; Flouci kassiert nur die einzelne Rechnung (Flouci bietet nach unserem Stand
+Einmalzahlungen per Zahlungslink, keine Abbuchung). Ohne Flouci-Schlüssel ist die Online-Zahlung ausgeschaltet und
+Omar trägt Zahlungen (Virement, espèces) als Admin von Hand ein.
+- `practice` statt `status`/`pilot_until`: `plan_code` (FK `plan`), `status 'pilot'|'trial'|'active'|'past_due'|
+  'suspended'|'canceled'` (Standard pilot), `paid_until DATE` (Ende Pilot/bezahlter Zeitraum).
+- `plan(code PK, name_fr, name_ar, price_millimes, period_months, active)`; Startwerte: `pilot` 0/1,
+  `cabinet_mensuel` 49 000/1, `cabinet_annuel` 490 000/12 (Admin kann Preise ändern).
+- `invoice(id, practice_id, number UNIQUE 'DAF-2026-0001', plan_code, period_start, period_end, amount_millimes,
+  status 'open'|'paid'|'void', due_on, paid_at, method 'flouci'|'virement'|'especes'|'autre', provider_payment_id,
+  created_at)`.
+- Täglicher Job: für `active`-Praxen 10 Tage vor `paid_until` die nächste Rechnung anlegen; nach `paid_until` →
+  `past_due`; 14 Tage danach → `suspended` (Anmeldung und Export gehen weiter, alle schreibenden Fach-Endpunkte
+  antworten 402 problem+json „Abonnement suspendu“, Banner in der App). Bezahlt → `active`, `paid_until` = Ende der
+  Rechnungsperiode. Pilot-Praxen bekommen keine Rechnungen, bis Omar den Plan umstellt.
+- Besitzer: `GET /api/billing` → `{plan, status, paidUntil, plans, invoices, onlinePaymentAvailable}` ·
+  `POST /api/billing/invoices/{id}/pay` → `{paymentUrl}` (Flouci-Zahlungslink, `developer_tracking_id` = Rechnungsnummer,
+  Erfolg/Fehler zurück nach `/app/abonnement`) · `POST /api/billing/invoices/{id}/verify` → fragt Flouci nach dem Status.
+  Webhook `POST /api/public/flouci/webhook` vertraut dem Body nie, sondern prüft immer per Flouci-Verify-API.
+- Admin: `GET /api/admin/billing` (alle Praxen mit Plan, Status, bezahlt bis, offene Beträge), `PATCH` des Plans/Status
+  über `/api/admin/practices/{id}`, `POST /api/admin/practices/{id}/invoices` (nächste Periode), 
+  `POST /api/admin/invoices/{id}/mark-paid {method}`, `POST /api/admin/invoices/{id}/void`.
+- Flouci-Anbindung als austauschbarer `PaymentProvider` (Fake in Tests); Schlüssel nur aus Umgebung
+  (`FLOUCI_APP_TOKEN`, `FLOUCI_APP_SECRET`), nie geloggt. API-Details aus der offiziellen Flouci-Entwicklerdoku
+  übernehmen, nicht raten.
+- App: `/app/abonnement` (Besitzer: Plan, Status, Rechnungen, „Payer avec Flouci“), Admin-Übersicht „Abonnements“.
