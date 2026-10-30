@@ -20,6 +20,20 @@ from . import overview  # be-patienten
 from . import patients  # be-patienten
 from . import pilot  # be-patienten
 from . import reminders  # be-patienten
+from . import practice_settings
+from . import practitioners
+from . import services
+from . import closures
+from . import staff
+from . import password_reset
+from . import admin_practices
+from . import onboarding
+from . import queue
+from . import availability
+from . import appointments
+from . import series
+from . import booking
+from . import queue_next
 
 ROUTERS: list[APIRouter] = [
     auth.router,
@@ -40,4 +54,19 @@ ROUTERS: list[APIRouter] = [
     billing.public_router,
     imports.router,
     imports.template_router,
+    practice_settings.router,
+    practitioners.router,
+    services.router,
+    closures.router,
+    staff.router,
+    password_reset.router,
+    admin_practices.router,
+    onboarding.router,
+    queue.router,
+    queue.public_router,
+    availability.router,
+    appointments.router,
+    series.router,
+    booking.router,
+    queue_next.router,
 ]
