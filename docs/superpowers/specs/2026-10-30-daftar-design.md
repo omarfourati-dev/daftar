@@ -398,3 +398,35 @@ Dateinamen `Daftar-<slug>.exe` selbst auf die Praxis einstellt, und **eine** Daf
 - **Installieren-Seite** `/app/installer` (auch in Réglages verlinkt): erkennt Gerät/Browser und zeigt den passenden
   Weg (Windows/Edge-Chrome „Installer“, Android-Chrome „Installer l'application“ bzw. `beforeinstallprompt`-Knopf,
   iPhone/iPad Safari „Partager → Sur l'écran d'accueil“), plus QR-Code des Praxis-Links für Handys im Team.
+
+## 14. Import aus Excel/CSV mit eigenem Mapping (Omar, 30.10.)
+
+Viele Praxen führen ihre Patienten (und manchmal Termine und offene Beträge) in Excel. Sie importieren das **selbst**
+und legen die Zuordnung der Spalten **selbst in der Oberfläche** fest.
+- Formate: `.xlsx` (openpyxl), `.xls` (xlrd), `.csv`/`.txt` (Trennzeichen `;` `,` Tab automatisch; Kodierung UTF-8
+  mit/ohne BOM, sonst Windows-1256 bei arabischen Zeichen, sonst Windows-1252). Max. 2 MB, max. 20 000 Zeilen.
+  Excel-Datumszahlen, `jj/mm/aaaa`, `aaaa-mm-jj`; Telefonnummern als Zahl (`20123456.0`, fehlende führende Null)
+  werden repariert und normalisiert.
+- Ablauf in der App `/app/import` (Besitzer und Assistenz): 1 Datei (Drag & Drop) → 2 Blatt + „erste Zeile =
+  Überschriften“ → 3 **Zuordnung**: je Daftar-Feld ein Auswahlfeld mit den Spalten der Datei und Beispielwerten,
+  automatisch vorgeschlagen anhand der Überschriften (FR/AR/EN: Nom, Prénom, Nom complet, Tél/Téléphone/GSM,
+  Date de naissance, الاسم, اللقب, الهاتف …), Pflichtfelder markiert, Optionen (Namensaufteilung „Nom Prénom“ /
+  „Prénom Nom“, Datumsformat, Standardsprache, Einwilligung Erinnerungen ja/nein, Umgang mit Dubletten
+  überspringen/aktualisieren/neu anlegen) → 4 **Prüfung** (Probe ohne Speichern: Anzahl neu/aktualisiert/übersprungen,
+  Tabelle der Fehler je Zeile und Feld, Dubletten mit vorhandenem Patienten) → 5 **Import** (eine Transaktion) →
+  Ergebnis + Fehlerbericht als CSV + „Modèle enregistrer“ (Zuordnung für das nächste Mal speichern).
+- Arten: **Patienten** (Felder lastName, firstName, fullName, phone, birthDate, birthYear, notes, alerts, lang,
+  reminderConsent, openingBalance → Leistung „Reprise de solde“ mit diesem Betrag, externalRef → an notes angehängt)
+  und **Termine** (date, time oder datetime, durationMin oder endTime, Patient über Name + Telefon – fehlt er, wird er
+  angelegt –, service per Name, practitioner per Name, notes; vergangene Termine → `done`; Überschneidungen werden
+  **nicht** importiert, sondern im Bericht gelistet).
+- API: `POST /api/imports` (multipart `file`) → 201 `{id, filename, sheets, sheet, headerRow, columns:[{index, header,
+  samples}], rowCount, suggestedMapping}` · `POST /api/imports/{id}/sheet {sheet, headerRow}` → dieselbe Form ·
+  `POST /api/imports/{id}/preview {kind, mapping:{feld: spaltenIndex|null}, options}` → `{willCreate, willUpdate,
+  willSkip, errors:[{row, field, message}], duplicates:[{row, patientId, name}], sample:[…10 normalisierte Zeilen]}` ·
+  `POST /api/imports/{id}/commit {…}` → `{created, updated, skipped, errorCount}` · `GET /api/imports/{id}/report.csv` ·
+  `GET/POST/DELETE /api/import-templates` (`{id, name, kind, mapping, options}`).
+- Tabelle `import_job(id UUID, practice_id, created_by, filename, file_bytes BYTEA, created_at, expires_at,
+  committed_at)` – die Datei wird beim Commit bzw. spätestens nach 24 h gelöscht (Aufräumjob); `import_template(id,
+  practice_id, name, kind, mapping JSONB, options JSONB, created_at)`. Mandantentrennung wie überall.
+- Die Checkliste „Erste Schritte“ bekommt „Importer vos patients (Excel)“; Landing und Rechtstexte erwähnen den Import.

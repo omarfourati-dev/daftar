@@ -64,6 +64,10 @@ dafür zahlen“.
   Warteschlange. Nur für eingeloggte Praxis.
 - E3 **Gleiche Telefonnummer**: Akte zeigt „Même numéro : …“ (Familien) mit Link.
 - E4 Export (JSON) und Löschen (Besitzer, mit Bestätigung durch Eintippen des Namens).
+- E5 **Import aus Excel/CSV mit eigener Spaltenzuordnung** (Spec 14): Patienten, Termine, Anfangssalden.
+  *AK*: arabische CSV in Windows-1256 wird korrekt gelesen; Telefonnummer als Excel-Zahl wird repariert; Probe zeigt
+  Fehler je Zeile ohne zu speichern; Dubletten-Regel wirkt; überschneidende Termine landen im Bericht statt in der
+  Datenbank; Zuordnung als Modell speicherbar; Datei nach Commit/24 h gelöscht.
 
 ### Epic F – Geld
 - F1 Leistungen/Behandlungsplan, Zahlungen in Raten, Saldo, Anzahlung je Termin, Quittung druckbar.
@@ -91,7 +95,6 @@ dafür zahlen“.
   Wiederherstellung einmal getestet und im README beschrieben. (Kopie außerhalb des Servers: Release 1.1.)
 
 ## Release 1.1 – nächste Tage
-- CSV-Import bestehender Patienten (Vorschau, Spaltenzuordnung, Dubletten-Hinweis).
 - **Sonderöffnungszeiten** für Zeiträume (Ramadan, Sommer) + Vorschlagsliste fester tunesischer Feiertage.
 - Änderungsprotokoll je Termin/Zahlung (wer, wann, was).
 - Wartebereich: Warteliste „früherer Termin gewünscht“, automatischer Vorschlag bei Stornierung.
