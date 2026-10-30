@@ -112,6 +112,12 @@ class AdminBillingRow(ApiModel):
     paid_until: date | None
     open_invoices: int
     open_millimes: int
+    #: the latest invoices (newest first) – the admin records transfers and voids invoices from this list
+    invoices: list[InvoiceOut] = []
+
+
+#: invoices per practice in the admin overview
+ADMIN_INVOICES_PER_PRACTICE = 12
 
 
 # --- invoices --------------------------------------------------------------------------------------------------
@@ -388,10 +394,24 @@ def admin_billing(_: AdminUser, conn: Conn) -> list[AdminBillingRow]:
         .where(practice.c.is_demo.is_(False))
         .order_by(practice.c.name, practice.c.id)
     )
+    numbered = (
+        select(
+            invoice,
+            func.row_number()
+            .over(partition_by=invoice.c.practice_id, order_by=(invoice.c.created_at.desc(), invoice.c.id.desc()))
+            .label("n"),
+        )
+        .subquery()
+    )
+    latest: dict[int, list[InvoiceOut]] = {}
+    for inv in conn.execute(
+        select(numbered).where(numbered.c.n <= ADMIN_INVOICES_PER_PRACTICE).order_by(numbered.c.practice_id, numbered.c.n)
+    ):
+        latest.setdefault(inv.practice_id, []).append(InvoiceOut.model_validate(inv, from_attributes=True))
     return [
         AdminBillingRow(
             practice_id=r.id, name=r.name, slug=r.slug, plan_code=r.plan_code, status=r.status, paid_until=r.paid_until,
-            open_invoices=r.n or 0, open_millimes=int(r.total or 0),
+            open_invoices=r.n or 0, open_millimes=int(r.total or 0), invoices=latest.get(r.id, []),
         )
         for r in rows
     ]

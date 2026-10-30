@@ -373,12 +373,29 @@ def test_admin_overview(client: TestClient, db: Engine, make_practice: Factory, 
     _invoice(db, a, "DAF-2026-0003", status="void")
     res = client.get("/api/admin/billing", headers=auth_headers(make_user(role="admin")))
     assert res.status_code == 200, res.text
-    assert res.json() == [
+    rows = res.json()
+    invoices = [row.pop("invoices") for row in rows]
+    assert rows == [
         {"practiceId": a.id, "name": "Cabinet A", "slug": a.slug, "planCode": "cabinet_mensuel", "status": "past_due",
          "paidUntil": "2026-10-20", "openInvoices": 1, "openMillimes": 49_000},
         {"practiceId": b.id, "name": "Cabinet B", "slug": b.slug, "planCode": "pilot", "status": "pilot",
          "paidUntil": None, "openInvoices": 0, "openMillimes": 0},
     ]
+    # the admin needs the invoices themselves to record a bank transfer or void one (web /app/admin/abonnements)
+    assert [(i["number"], i["status"]) for i in invoices[0]] == [
+        ("DAF-2026-0003", "void"), ("DAF-2026-0002", "paid"), ("DAF-2026-0001", "open")]
+    assert invoices[0][2]["amountMillimes"] == 49_000 and invoices[0][2]["dueOn"] == "2026-11-01"
+    assert invoices[1] == []
+
+
+def test_admin_overview_lists_at_most_twelve_invoices_per_practice(
+        client: TestClient, db: Engine, make_practice: Factory, make_user: Factory, auth_headers: Factory) -> None:
+    a = make_practice("Cabinet A", plan_code="cabinet_mensuel")
+    for n in range(1, 15):
+        _invoice(db, a, f"DAF-2026-{n:04d}", status="paid", paid_at=T0)
+    res = client.get("/api/admin/billing", headers=auth_headers(make_user(role="admin")))
+    numbers = [i["number"] for i in res.json()[0]["invoices"]]
+    assert numbers == [f"DAF-2026-{n:04d}" for n in range(14, 2, -1)]
 
 
 def test_admin_creates_the_next_invoice(client: TestClient, db: Engine, make_practice: Factory, make_user: Factory,
