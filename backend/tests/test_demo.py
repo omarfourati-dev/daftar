@@ -43,7 +43,9 @@ def test_start_returns_a_session_of_a_new_demo_practice(client: TestClient, db: 
     assert brief["name"] == "Cabinet Médical Démo"
     headers = {"Authorization": f"Bearer {body['token']}"}
     assert client.get("/api/auth/me", headers=headers).json()["id"] == user["id"]
-    assert client.get("/api/dashboard", headers=headers).status_code == 200
+    dashboard = client.get("/api/dashboard", headers=headers).json()
+    assert len(dashboard["unverifiedCashDays"]) == 1  # yesterday's closing waits for the owner (section 16.3)
+    assert client.get("/api/cash?day=2026-10-28", headers=headers).json()["closing"]["verifiedBy"] == "Dr. Démo"
     assert "daftar_demo_started_total 1.0" in client.get("/metrics").text
 
 

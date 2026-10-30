@@ -5,7 +5,7 @@ Dashboard (section 5, online requests from 11.3)::
     {today, appointments:{total, byStatus:{<every status>: n}}, upcoming:[Appointment] (today, from now, max 5),
      onlineRequests:[Appointment] (requested, not over yet, max 20), onlineRequestsCount,
      queue:{waiting, called, inTreatment}, cashTodayMillimes, remindersPending (tomorrow), dueTotalMillimes,
-     patientsCount}
+     patientsCount, unverifiedCashDays:[{day, differenceMillimes, closedBy}] (owner only, section 16.3; else [])}
 
 ``appointments.total`` leaves cancelled appointments out (``byStatus`` still lists them).
 
@@ -28,7 +28,7 @@ from sqlalchemy import Connection, func, select
 from .appointment_view import AppointmentOut, load_appointments
 from .clock import TUNIS, now_tunis, today_tunis, tunis_day_bounds
 from .deps import Conn, Ctx, OwnerUser, StaffUser
-from .finance import due_total
+from .finance import UnverifiedDay, due_total, unverified_cash_days
 from .reminders import pending_count
 from .schemas import ApiModel
 from .tables import APPOINTMENT_STATUSES, appointment, patient, payment, queue_entry, service
@@ -65,6 +65,7 @@ class DashboardOut(ApiModel):
     reminders_pending: int
     due_total_millimes: int
     patients_count: int
+    unverified_cash_days: list[UnverifiedDay]
 
 
 class BadgesOut(ApiModel):
@@ -151,6 +152,7 @@ def dashboard(user: StaffUser, ctx: Ctx, conn: Conn) -> DashboardOut:
         reminders_pending=pending_count(conn, pid, today + timedelta(days=1)),
         due_total_millimes=due_total(conn, pid),
         patients_count=_count(conn, patient, patient.c.practice_id == pid),
+        unverified_cash_days=unverified_cash_days(conn, pid) if user.is_owner else [],
     )
 
 

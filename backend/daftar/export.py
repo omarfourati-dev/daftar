@@ -21,6 +21,7 @@ from .deps import Conn, Ctx, OwnerUser
 from .tables import (
     app_user,
     appointment,
+    cash_closing,
     feedback,
     import_template,
     invitation,
@@ -42,7 +43,7 @@ FORMAT = "daftar-export/1"
 SECRET_COLUMNS = frozenset(
     {"password_hash", "token_version", "token_hash", "booking_token_hash", "ticket_token", "display_token", "admin_notes"}
 )
-#: Export key → table (each filtered on practice_id, ordered by id).
+#: Export key → table (each filtered on practice_id, ordered by its primary key).
 SECTIONS: tuple[tuple[str, Table], ...] = (
     ("users", app_user),
     ("invitations", invitation),
@@ -54,6 +55,7 @@ SECTIONS: tuple[tuple[str, Table], ...] = (
     ("queueEntries", queue_entry),
     ("treatments", treatment),
     ("payments", payment),
+    ("cashClosings", cash_closing),
     ("invoices", invoice),
     ("importTemplates", import_template),
     ("feedback", feedback),
@@ -72,7 +74,7 @@ def _value(value: Any) -> Any:
 
 def _rows(conn: Connection, table: Table, *conditions: Any) -> list[dict[str, Any]]:
     columns = [c for c in table.columns if c.name not in SECRET_COLUMNS]
-    rows = conn.execute(select(*columns).where(*conditions).order_by(table.c.id))
+    rows = conn.execute(select(*columns).where(*conditions).order_by(*table.primary_key.columns))
     return [{to_camel(k): _value(v) for k, v in row._mapping.items()} for row in rows]
 
 

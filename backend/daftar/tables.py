@@ -270,6 +270,21 @@ payment = Table(
     _ts("created_at"),
 )
 
+#: Cash closing of a day (section 16.3, migration 0004): counted drawer vs. cash payments, verified by the owner.
+cash_closing = Table(
+    "cash_closing",
+    metadata,
+    Column("practice_id", BigInteger, ForeignKey("practice.id", ondelete="CASCADE"), primary_key=True),
+    Column("day", Date, primary_key=True),
+    Column("expected_cash_millimes", BigInteger, nullable=False),
+    Column("counted_cash_millimes", BigInteger, nullable=False),
+    Column("note", Text, nullable=False),
+    Column("closed_by", BigInteger, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),
+    _ts("closed_at"),
+    Column("verified_by", BigInteger, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),
+    _ts("verified_at", nullable=True),
+)
+
 invoice = Table(
     "invoice",
     metadata,
@@ -357,7 +372,7 @@ feedback = Table(
 
 #: Child tables first – the order for TRUNCATE/DELETE in tests and tools (reference data not included).
 ALL_TABLES = (
-    feedback, password_reset, import_template, import_job,
+    feedback, password_reset, import_template, import_job, cash_closing,
     pilot_request, invoice, payment, treatment, queue_entry, appointment, patient, invitation,
     practice_closure, service, practitioner, app_user, practice,
 )

@@ -5,7 +5,12 @@ Balance of a patient = Σ treatment.price − Σ payment.amount (negative when o
 
 - ``POST /api/patients/{id}/treatments`` → 201 · ``PATCH/DELETE /api/treatments/{id}``
 - ``POST /api/patients/{id}/payments`` → 201 · ``GET /api/payments/{id}`` (receipt) · ``DELETE`` (owner)
-- ``GET /api/cash?day=`` (default today) · ``GET /api/balances?limit=100`` (only due > 0, largest first)
+- ``GET /api/cash?day=`` (default today, with the day's ``closing``) · ``GET /api/balances?limit=100`` (only due > 0,
+  largest first)
+- Cash closing (section 16.3): ``POST /api/cash/close {day, countedCashMillimes, note?}`` (staff) compares the counted
+  drawer with the day's **cash** payments (``differenceMillimes`` = counted − expected; negative = missing); it can be
+  repeated until the owner verifies it with ``POST /api/cash/{day}/verify`` (then 409). ``stale`` = cash payments of the
+  day changed after the closing. The owner's dashboard lists closed days that are not verified yet.
 """
 
 from __future__ import annotations
@@ -16,15 +21,16 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Query, Response
 from pydantic import Field, model_validator
 from sqlalchemy import Connection, ColumnElement, delete, func, insert, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.sql import Select
 
 from .access import OwnerWriter
 from .clock import today_tunis, tunis_day_bounds
 from .deps import Conn, Ctx, StaffUser, StaffWriter
 from .money import Millimes, PositiveMillimes
-from .problems import not_found, unprocessable
+from .problems import ApiError, conflict, not_found, unprocessable
 from .schemas import ApiModel, InstantIn, TunisDateTime
-from .tables import PAYMENT_METHODS, app_user, appointment, patient, payment, practice, treatment
+from .tables import PAYMENT_METHODS, app_user, appointment, cash_closing, patient, payment, practice, treatment
 
 
 class TreatmentOut(ApiModel):
@@ -150,6 +156,85 @@ def payments_of_day(conn: Connection, practice_id: int, day: date) -> list[Payme
     return load_payments(conn, practice_id, payment.c.paid_at >= start, payment.c.paid_at < end)
 
 
+# --- cash closing (section 16.3) ---------------------------------------------------------------------------------
+
+class CashClosingOut(ApiModel):
+    day: date
+    expected_cash_millimes: int
+    counted_cash_millimes: int
+    difference_millimes: int
+    note: str
+    closed_by: str | None
+    closed_at: TunisDateTime
+    verified_by: str | None
+    verified_at: TunisDateTime | None
+    stale: bool
+
+
+class UnverifiedDay(ApiModel):
+    day: date
+    difference_millimes: int
+    closed_by: str | None
+
+
+def cash_in_drawer(conn: Connection, practice_id: int, day: date) -> int:
+    """Σ of the day's payments in cash – what the drawer should contain."""
+    start, end = tunis_day_bounds(day)
+    return int(
+        conn.execute(
+            select(func.coalesce(func.sum(payment.c.amount_millimes), 0)).where(
+                payment.c.practice_id == practice_id, payment.c.method == "cash",
+                payment.c.paid_at >= start, payment.c.paid_at < end,
+            )
+        ).scalar_one()
+    )
+
+
+def _closing_select() -> Any:
+    closer, verifier = app_user.alias("closer"), app_user.alias("verifier")
+    return select(
+        cash_closing, closer.c.name.label("closed_by_name"), verifier.c.name.label("verified_by_name")
+    ).select_from(
+        cash_closing.outerjoin(closer, closer.c.id == cash_closing.c.closed_by).outerjoin(
+            verifier, verifier.c.id == cash_closing.c.verified_by
+        )
+    )
+
+
+def load_closing(conn: Connection, practice_id: int, day: date) -> CashClosingOut | None:
+    row = conn.execute(
+        _closing_select().where(cash_closing.c.practice_id == practice_id, cash_closing.c.day == day)
+    ).first()
+    if row is None:
+        return None
+    return CashClosingOut(
+        day=row.day,
+        expected_cash_millimes=row.expected_cash_millimes,
+        counted_cash_millimes=row.counted_cash_millimes,
+        difference_millimes=row.counted_cash_millimes - row.expected_cash_millimes,
+        note=row.note,
+        closed_by=row.closed_by_name,
+        closed_at=row.closed_at,
+        verified_by=row.verified_by_name,
+        verified_at=row.verified_at,
+        stale=cash_in_drawer(conn, practice_id, day) != row.expected_cash_millimes,
+    )
+
+
+def unverified_cash_days(conn: Connection, practice_id: int, limit: int = 31) -> list[UnverifiedDay]:
+    rows = conn.execute(
+        _closing_select()
+        .where(cash_closing.c.practice_id == practice_id, cash_closing.c.verified_at.is_(None))
+        .order_by(cash_closing.c.day.desc())
+        .limit(limit)
+    )
+    return [
+        UnverifiedDay(day=r.day, difference_millimes=r.counted_cash_millimes - r.expected_cash_millimes,
+                      closed_by=r.closed_by_name)
+        for r in rows
+    ]
+
+
 # --- API ---------------------------------------------------------------------------------------------------------
 
 router = APIRouter(tags=["finance"])
@@ -212,6 +297,13 @@ class CashOut(ApiModel):
     total_millimes: int
     by_method: dict[str, int]
     payments: list[PaymentOut]
+    closing: CashClosingOut | None
+
+
+class CashCloseIn(ApiModel):
+    day: date
+    counted_cash_millimes: Millimes
+    note: PaymentNote = ""
 
 
 class BalanceOut(ApiModel):
@@ -346,7 +438,64 @@ def cash(user: StaffUser, ctx: Ctx, conn: Conn, day: date | None = None) -> Cash
     by_method = dict.fromkeys(PAYMENT_METHODS, 0)
     for p in payments:
         by_method[p.method] += p.amount_millimes
-    return CashOut(day=day, total_millimes=sum(by_method.values()), by_method=by_method, payments=payments)
+    return CashOut(
+        day=day, total_millimes=sum(by_method.values()), by_method=by_method, payments=payments,
+        closing=load_closing(conn, user.pid, day),
+    )
+
+
+def _verified() -> ApiError:
+    return conflict("La caisse de ce jour a déjà été vérifiée.", code="cash_day_verified")
+
+
+@router.post("/api/cash/close")
+def close_cash(body: CashCloseIn, user: StaffWriter, ctx: Ctx, conn: Conn) -> CashClosingOut:
+    if body.day > today_tunis(ctx.clock):
+        raise unprocessable("On ne peut pas clôturer un jour futur.", code="day_in_future")
+    values = {
+        "expected_cash_millimes": cash_in_drawer(conn, user.pid, body.day),
+        "counted_cash_millimes": body.counted_cash_millimes,
+        "note": body.note,
+        "closed_by": user.user_id,
+        "closed_at": ctx.clock.now(),
+    }
+    # a verified closing is final – also against a parallel verification (the WHERE of the upsert)
+    written = conn.execute(
+        pg_insert(cash_closing)
+        .values(practice_id=user.pid, day=body.day, **values)
+        .on_conflict_do_update(
+            index_elements=[cash_closing.c.practice_id, cash_closing.c.day],
+            set_=values,
+            where=cash_closing.c.verified_at.is_(None),
+        )
+        .returning(cash_closing.c.day)
+    ).first()
+    if written is None:
+        raise _verified()
+    closing = load_closing(conn, user.pid, body.day)
+    assert closing is not None
+    return closing
+
+
+@router.post("/api/cash/{day}/verify")
+def verify_cash(day: date, user: OwnerWriter, ctx: Ctx, conn: Conn) -> CashClosingOut:
+    row = conn.execute(
+        select(cash_closing.c.verified_at)
+        .where(cash_closing.c.practice_id == user.pid, cash_closing.c.day == day)
+        .with_for_update()
+    ).first()
+    if row is None:
+        raise not_found("Cette journée n'est pas clôturée.")
+    if row.verified_at is not None:
+        raise _verified()
+    conn.execute(
+        update(cash_closing)
+        .where(cash_closing.c.practice_id == user.pid, cash_closing.c.day == day)
+        .values(verified_by=user.user_id, verified_at=ctx.clock.now())
+    )
+    closing = load_closing(conn, user.pid, day)
+    assert closing is not None
+    return closing
 
 
 @router.get("/api/balances")

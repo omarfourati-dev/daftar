@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, insert, select
 
-from daftar.tables import app_user, feedback, import_template, invoice, practice
+from daftar.tables import app_user, cash_closing, feedback, import_template, invoice, practice
 from tests.conftest import T0
 from tests.helpers import assert_problem
 
@@ -37,6 +37,8 @@ def filled(
         conn.execute(insert(invoice).values(practice_id=lac.id, number="DAF-2026-0001", plan_code="cabinet_mensuel",
                                             period_start=T0.date(), period_end=T0.date().replace(month=11),
                                             amount_millimes=49_000, due_on=T0.date(), created_at=T0))
+        conn.execute(insert(cash_closing).values(practice_id=lac.id, day=T0.date(), expected_cash_millimes=50_000,
+                                                 counted_cash_millimes=49_000, closed_by=owner.id, closed_at=T0))
         hashes = [r[0] for r in conn.execute(select(app_user.c.password_hash))]
         display_token = conn.execute(select(practice.c.display_token).where(practice.c.id == lac.id)).scalar_one()
     other = make_practice("Cabinet Autre")
@@ -66,6 +68,9 @@ def test_owner_downloads_everything_of_the_practice(client: TestClient, filled: 
     assert [t["name"] for t in data["importTemplates"]] == ["Mon Excel"]
     assert [i["number"] for i in data["invoices"]] == ["DAF-2026-0001"]
     assert data["closures"] == []
+    assert data["cashClosings"] == [{"practiceId": filled.practice.id, "day": "2026-10-30", "expectedCashMillimes": 50_000, "countedCashMillimes": 49_000,
+                                     "note": "", "closedBy": filled.owner.id, "closedAt": "2026-10-30T09:00:00+01:00",
+                                     "verifiedBy": None, "verifiedAt": None}]
 
 
 def test_export_contains_no_secrets_and_nothing_of_other_practices(client: TestClient, filled: Any, auth_headers: Factory) -> None:

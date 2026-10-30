@@ -4,8 +4,9 @@ Every visitor gets an own practice (``is_demo``, slug ``demo-<8>``, expires afte
 ``demo-<random>@demo.daftar.invalid`` and filled with invented data relative to today: 25 patients with Tunisian
 names (Arabic script in an Arabic demo) and phone numbers ``+21600000001…`` (the prefix 00 does not exist),
 a family sharing one number, medical alerts, appointments from −14 to +7 days (done, no-show, cancelled, confirmed,
-online requests), today's waiting room (3 waiting, 1 in treatment), acts, instalments and a deposit, tomorrow's
-reminders, and recurring sessions for physiotherapists and psychologists. Appointments are written directly
+online requests), today's waiting room (3 waiting, 1 in treatment), acts, instalments and a deposit, cash closings
+(one verified, yesterday's waiting for the owner), tomorrow's reminders, and recurring sessions for physiotherapists
+and psychologists. Appointments are written directly
 into the tables and never overlap (the database's EXCLUDE constraints would refuse them).
 
 Limits: 5 demos per IP and hour, 300 per day in total → 429. The job ``demo-cleanup`` (every 30 min) deletes expired
@@ -36,7 +37,19 @@ from .passwords import hash_password
 from .problems import too_many_requests
 from .schemas import ApiModel, Lang
 from .slugs import demo_slug
-from .tables import app_user, appointment, patient, payment, practice, practitioner, queue_entry, service, treatment
+from .finance import cash_in_drawer
+from .tables import (
+    app_user,
+    appointment,
+    cash_closing,
+    patient,
+    payment,
+    practice,
+    practitioner,
+    queue_entry,
+    service,
+    treatment,
+)
 
 router = APIRouter(prefix="/api/demo", tags=["demo"])
 
@@ -430,6 +443,19 @@ class DemoSeeder:
         self.conn.execute(insert(treatment), treatments)
         self.conn.execute(insert(payment), payments)
 
+    def cash_closings(self) -> None:
+        """The day before yesterday closed and verified, yesterday closed with 1 DT missing – for the owner to check."""
+        verified, last = self._open_days(range(-6, 0))[-2:]
+        for day, missing, checked in ((verified, 0, True), (last, 1_000, False)):
+            expected = cash_in_drawer(self.conn, self.practice_id, day)
+            self.conn.execute(insert(cash_closing).values(
+                practice_id=self.practice_id, day=day, expected_cash_millimes=expected,
+                counted_cash_millimes=max(0, expected - missing), closed_by=self.user_id,
+                closed_at=at_tunis(day, time(18, 30)),
+                verified_by=self.user_id if checked else None,
+                verified_at=at_tunis(day + timedelta(days=1), time(8, 30)) if checked else None,
+            ))
+
     def waiting_room(self) -> None:
         entries = []
         for p in self.plans:
@@ -467,6 +493,7 @@ def seed_demo(conn: Connection, *, now: datetime, lang: str, specialty: str, rng
     seeder.requests()
     seeder.write_appointments()
     seeder.money()
+    seeder.cash_closings()
     seeder.waiting_room()
     return seeder.user_id
 
