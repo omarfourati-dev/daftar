@@ -407,7 +407,8 @@
 					</div>
 				</div>
 				{#if sheetError}<p role="alert" class="font-medium text-red-700">{sheetError}</p>{/if}
-				<div aria-busy={sheetBusy} class="overflow-x-auto rounded-xl border border-slate-200">
+				<!-- svelte-ignore a11y_no_noninteractive_tabindex -- scrollable region must be reachable by keyboard (WCAG 2.1.1, axe scrollable-region-focusable) -->
+				<div aria-busy={sheetBusy} class="overflow-x-auto rounded-xl border border-slate-200" role="region" aria-label={t('importer.columnsFound')} tabindex="0">
 					<table class="w-full min-w-[32rem] text-start text-sm">
 						<caption class="px-3 pt-3 text-start font-semibold text-ink">{t('importer.columnsFound')}</caption>
 						<thead class="text-slate-600">
@@ -562,7 +563,8 @@
 							<button type="button" class="btn-secondary min-h-9 py-1 text-sm" onclick={downloadErrors}>{t('importer.downloadErrors')}</button>
 						</div>
 						<p class="text-sm text-slate-600">{t('importer.errorsHint')}</p>
-						<div class="max-h-96 overflow-auto rounded-xl border border-slate-200">
+						<!-- svelte-ignore a11y_no_noninteractive_tabindex -- scrollable region must be reachable by keyboard (WCAG 2.1.1, axe scrollable-region-focusable) -->
+						<div class="max-h-96 overflow-auto rounded-xl border border-slate-200" role="region" aria-label={t('importer.errorsTitle')} tabindex="0">
 							<table class="w-full min-w-[36rem] text-start text-sm" aria-label={t('importer.errorsTitle')}>
 								<thead class="sticky top-0 bg-white text-slate-600">
 									<tr class="border-b border-slate-200">
@@ -591,7 +593,8 @@
 				{#if preview.duplicates.length}
 					<div class="flex flex-col gap-1">
 						<h3 class="font-semibold text-ink">{t('importer.duplicatesTitle')}</h3>
-						<ul class="flex max-h-60 flex-col gap-1 overflow-auto text-sm">
+						<!-- svelte-ignore a11y_no_noninteractive_tabindex -- scrollable region must be reachable by keyboard (WCAG 2.1.1, axe scrollable-region-focusable) -->
+						<ul class="flex max-h-60 flex-col gap-1 overflow-auto text-sm" aria-label={t('importer.duplicatesTitle')} tabindex="0">
 							{#each preview.duplicates.slice(0, 100) as d, i (i)}
 								<li class="flex flex-wrap gap-x-3">
 									<span>{t('importer.duplicateLine', { row: d.row, name: d.name })}</span>
@@ -607,14 +610,16 @@
 				{#if preview.conflicts.length}
 					<div class="flex flex-col gap-1">
 						<h3 class="font-semibold text-ink">{t('importer.conflictsTitle')}</h3>
-						<ul class="flex max-h-60 flex-col gap-1 overflow-auto text-sm">
+						<!-- svelte-ignore a11y_no_noninteractive_tabindex -- scrollable region must be reachable by keyboard (WCAG 2.1.1, axe scrollable-region-focusable) -->
+						<ul class="flex max-h-60 flex-col gap-1 overflow-auto text-sm" aria-label={t('importer.conflictsTitle')} tabindex="0">
 							{#each preview.conflicts.slice(0, 100) as c, i (i)}<li>{t('importer.row')} {c.row} : {c.message}</li>{/each}
 						</ul>
 					</div>
 				{/if}
 
 				{#if sampleColumns.length}
-					<div class="overflow-x-auto rounded-xl border border-slate-200">
+					<!-- svelte-ignore a11y_no_noninteractive_tabindex -- scrollable region must be reachable by keyboard (WCAG 2.1.1, axe scrollable-region-focusable) -->
+					<div class="overflow-x-auto rounded-xl border border-slate-200" role="region" aria-label={t('importer.sampleTitle')} tabindex="0">
 						<table class="w-full text-start text-sm">
 							<caption class="px-3 pt-3 text-start font-semibold text-ink">{t('importer.sampleTitle')}</caption>
 							<thead class="text-slate-600">

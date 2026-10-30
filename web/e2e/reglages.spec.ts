@@ -37,8 +37,8 @@ test('practice data, hours and closures are saved', async ({ page }) => {
 	await page.getByRole('checkbox', { name: 'Samedi' }).uncheck();
 	await page.getByRole('button', { name: 'Enregistrer les horaires' }).click();
 	await expect(page.getByText('Modifications enregistrées.')).toBeVisible();
-	await page.getByLabel('Du').fill('2027-08-01');
-	await page.getByLabel('Au').fill('2027-08-15');
+	await page.getByLabel('Du', { exact: true }).fill('2027-08-01');
+	await page.getByLabel('Au', { exact: true }).fill('2027-08-15');
 	await page.getByLabel(/^Motif/).fill('Congés d’été');
 	await page.getByRole('button', { name: 'Ajouter la fermeture' }).click();
 	await expect(page.getByText('Du 01/08/2027 au 15/08/2027')).toBeVisible();
@@ -165,8 +165,9 @@ test('my account: name, language and password; other roles only see their accoun
 	await expect(page.getByRole('heading', { name: 'حسابي' })).toBeVisible();
 	await expectAccessible(page, 'compte ar');
 
-	// an assistant of the same practice sees only her account and the import
-	const api = await apiContext(freshIp(), owner.token);
+	// an assistant of the same practice sees only her account and the import (the password change issued a new token)
+	const token = await page.evaluate(() => localStorage.getItem('daftar.token'));
+	const api = await apiContext(freshIp(), token ?? '');
 	const inv = await (await api.post('/api/staff/invitations', { data: { role: 'assistant' } })).json();
 	await api.dispose();
 	const salma = await acceptInvitation(inv.token, 'Salma');
