@@ -50,12 +50,12 @@ describe('/app/abonnement (I1)', () => {
 	});
 
 	it('checks the payment when coming back from Flouci', async () => {
-		history.replaceState(null, '', '/app/abonnement?invoice=31&payment=success&payment_id=xyz');
+		history.replaceState(null, '', '/app/abonnement?invoice=31&result=success&payment_id=xyz');
 		let verified = false;
 		mockApi({
 			'POST /api/billing/invoices/31/verify': () => {
 				verified = true;
-				return json(200, { ...open, status: 'paid', paidAt: '2026-10-30T10:00:00+01:00', method: 'flouci' });
+				return json(200, { invoice: { ...open, status: 'paid', paidAt: '2026-10-30T10:00:00+01:00', method: 'flouci' }, providerStatus: 'SUCCESS' });
 			},
 			'GET /api/billing': () => json(200, verified ? { ...billing, status: 'active', paidUntil: '2026-11-30', invoices: [{ ...open, status: 'paid' }, paid] } : billing)
 		});

@@ -2,7 +2,7 @@
 	/**
 	 * `/app/abonnement` (section 11.4, story I1) – the owner's plan, status, paid-until and invoices; "Payer avec
 	 * Flouci" only when online payment is available (otherwise bank transfer). Back from Flouci
-	 * (`?invoice=<id>&payment=success|fail`) the payment is verified with the server, never trusted from the URL.
+	 * (`?invoice=<id>&result=success|fail`) the payment is verified with the server, never trusted from the URL.
 	 */
 	import { onMount } from 'svelte';
 	import { api, apiErrorMessage } from '#lib/api';
@@ -23,7 +23,7 @@
 	let verifying = $state(false);
 	let paying = $state<number | null>(null);
 	let payError = $state('');
-	let returned: { id: string; failed: boolean } | null = null;
+	let returned = $state<{ id: string; failed: boolean } | null>(null);
 
 	async function load() {
 		loading = true;
@@ -40,7 +40,10 @@
 	async function verify(id: string, failed: boolean) {
 		verifying = true;
 		try {
-			const invoice = await api<Invoice>(`/api/billing/invoices/${encodeURIComponent(id)}/verify`, { method: 'POST' });
+			const answer = await api<{ invoice: Invoice; providerStatus?: string }>(`/api/billing/invoices/${encodeURIComponent(id)}/verify`, {
+				method: 'POST'
+			});
+			const invoice = answer?.invoice;
 			notice =
 				invoice?.status === 'paid'
 					? { kind: 'ok', text: t('billing.paidOk') }
@@ -60,7 +63,7 @@
 		const params = new URLSearchParams(location.search);
 		const invoice = params.get('invoice');
 		if (invoice && /^\d+$/.test(invoice)) {
-			returned = { id: invoice, failed: params.get('payment') === 'fail' };
+			returned = { id: invoice, failed: params.get('result') === 'fail' };
 			history.replaceState(history.state, '', '/app/abonnement'); // no payment ids in the address bar
 			await verify(returned.id, returned.failed);
 		}

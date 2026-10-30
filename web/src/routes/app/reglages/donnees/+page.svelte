@@ -16,7 +16,7 @@
 		error = '';
 		try {
 			const blob = await apiBlob('/api/practice/export');
-			saveBlob(blob, `daftar-${auth.user?.practice?.slug ?? 'cabinet'}-${todayTunis()}.json`);
+			saveBlob(blob, `daftar-export-${auth.user?.practice?.slug ?? 'cabinet'}-${todayTunis()}.json`);
 			notice = t('reglages.donnees.exported');
 		} catch (err) {
 			error = apiErrorMessage(err);

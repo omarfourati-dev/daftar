@@ -19,12 +19,13 @@ const open: Invoice = {
 };
 const paid: Invoice = { ...open, id: 30, number: 'DAF-2026-0003', periodStart: '2026-10-01', periodEnd: '2026-10-31', status: 'paid', paidAt: '2026-10-02T10:00:00+01:00', method: 'virement' };
 const lac: AdminBillingRow = {
-	id: 7,
+	practiceId: 7,
 	name: 'Cabinet du Lac',
 	slug: 'cabinet-lac',
 	planCode: 'cabinet_mensuel',
 	status: 'past_due',
 	paidUntil: '2026-10-31',
+	openInvoices: 1,
 	openMillimes: 49000,
 	invoices: [open, paid]
 };
@@ -53,7 +54,7 @@ describe('/app/admin/abonnements', () => {
 			'GET /api/admin/billing': () => json(200, rows),
 			'POST /api/admin/invoices/31/mark-paid': () => {
 				rows = [{ ...lac, status: 'active', paidUntil: '2026-11-30', openMillimes: 0, invoices: [{ ...open, status: 'paid', paidAt: '2026-10-30T10:00:00+01:00', method: 'virement' }, paid] }];
-				return json(200, rows[0].invoices[0]);
+				return json(200, rows[0].invoices![0]);
 			}
 		});
 		render(Page);

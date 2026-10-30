@@ -13,7 +13,8 @@
 	import Modal from '../../../../lib/components/Modal.svelte';
 	import StatusBadge from '../../../../lib/components/practice/StatusBadge.svelte';
 
-	let rows = $state<AdminBillingRow[]>([]);
+	type Row = AdminBillingRow & { id: number; invoices: Invoice[] };
+	let rows = $state<Row[]>([]);
 	let loading = $state(true);
 	let error = $state('');
 	let notice = $state('');
@@ -28,7 +29,7 @@
 		error = '';
 		try {
 			const answer = await api<AdminBillingRow[] | { practices: AdminBillingRow[] }>('/api/admin/billing');
-			rows = (Array.isArray(answer) ? answer : (answer.practices ?? [])).map((r) => ({ ...r, invoices: r.invoices ?? [] }));
+			rows = (Array.isArray(answer) ? answer : (answer.practices ?? [])).map((r) => ({ ...r, id: r.practiceId, invoices: r.invoices ?? [] }));
 		} catch (err) {
 			error = apiErrorMessage(err);
 		} finally {
@@ -56,7 +57,7 @@
 
 	const markPaid = () => paying && act(`/api/admin/invoices/${paying.id}/mark-paid`, { method }, () => t('admin.billing.paidDone'));
 	const voidInvoice = () => voiding && act(`/api/admin/invoices/${voiding.id}/void`, undefined, () => t('admin.billing.voidDone'));
-	const nextInvoice = (row: AdminBillingRow) =>
+	const nextInvoice = (row: Row) =>
 		act(`/api/admin/practices/${row.id}/invoices`, undefined, (inv) => t('admin.billing.invoiceCreated', { number: inv.number }));
 
 	const methodName = (m: string | null) => (m ? (translate(`admin.billing.methods.${m}`) ?? m) : '');

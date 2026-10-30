@@ -26,6 +26,7 @@ export interface Invoice {
 	dueOn: string;
 	paidAt: string | null;
 	method: InvoiceMethod | string | null;
+	createdAt?: string;
 }
 
 /** `GET /api/billing` (owner). `plan` may come as the plan object or just its code. */
@@ -38,14 +39,15 @@ export interface Billing {
 	onlinePaymentAvailable: boolean;
 }
 
-/** One practice of `GET /api/admin/billing` (contract addition: invoices included, newest first). */
+/** One practice of `GET /api/admin/billing`; `invoices` (newest first) is a contract addition of this web part. */
 export interface AdminBillingRow {
-	id: number;
+	practiceId: number;
 	name: string;
 	slug?: string;
 	planCode: string;
 	status: PracticeStatus | string;
 	paidUntil: string | null;
+	openInvoices?: number;
 	openMillimes: number;
-	invoices: Invoice[];
+	invoices?: Invoice[];
 }

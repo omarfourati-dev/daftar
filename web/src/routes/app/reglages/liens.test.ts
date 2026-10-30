@@ -83,7 +83,7 @@ describe('/app/reglages/donnees', () => {
 		expect(await screen.findByText('Export téléchargé.')).toBeInTheDocument();
 		expect(click).toHaveBeenCalled();
 		const anchor = click.mock.contexts[0] as HTMLAnchorElement;
-		expect(anchor.download).toMatch(/^daftar-cabinet-lac-\d{4}-\d{2}-\d{2}\.json$/);
+		expect(anchor.download).toMatch(/^daftar-export-cabinet-lac-\d{4}-\d{2}-\d{2}\.json$/);
 		expect(screen.getByRole('link', { name: 'Importer depuis Excel' })).toHaveAttribute('href', '/app/import');
 	});
 });
