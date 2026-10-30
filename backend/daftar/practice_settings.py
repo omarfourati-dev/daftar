@@ -24,6 +24,7 @@ from sqlalchemy import Connection, Row, select, update
 from .catalog import Specialty
 from .deps import Conn, OwnerWriter, StaffUser
 from .hours import WeeklyHours, agenda_range
+from .onboarding import flag
 from .phone import OptionalPhone, Phone
 from .problems import not_found
 from .schemas import ApiModel, Email, Name, TunisDateTime
@@ -134,12 +135,15 @@ class PracticePatch(PracticeFields):
 
 
 def practice_columns(body: PracticeFields) -> dict[str, Any]:
-    """The table columns a (partial) input sets – ``onlineBooking`` flattened into its columns."""
+    """The table columns a (partial) input sets – ``onlineBooking`` flattened into its columns; saving the opening
+    hours ticks the getting-started step "hours"."""
     values = body.model_dump(exclude_unset=True, by_alias=False)
     booking = values.pop("online_booking", None) or {}
     for key, value in booking.items():
         if value is not None:
             values[BOOKING_COLUMNS[key]] = value
+    if "weekly_hours" in values:
+        values["onboarding"] = flag("hours")
     return values
 
 

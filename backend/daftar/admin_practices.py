@@ -314,6 +314,8 @@ def create_practice(body: AdminPracticeIn, user: AdminUser, ctx: Ctx, conn: Conn
     values = body.model_dump(by_alias=False, exclude={"slug", "practitioners", "services", "online_booking"}, exclude_none=False)
     if values["weekly_hours"] is None:
         del values["weekly_hours"]  # the database default (Monday–Saturday with a lunch break)
+    else:
+        values["onboarding"] = {"hours": True}  # the admin wizard asked for them
     booking = body.online_booking.model_dump(by_alias=False)
     values.update({column: booking[key] for key, column in BOOKING_COLUMNS.items()})
     now = ctx.clock.now()
