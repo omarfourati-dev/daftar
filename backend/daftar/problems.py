@@ -30,6 +30,7 @@ class ApiError(Exception):
         code: str | None = None,
         title: str | None = None,
         headers: dict[str, str] | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(detail or "")
         self.status = status
@@ -37,6 +38,8 @@ class ApiError(Exception):
         self.code = code
         self.title = title or HTTPStatus(status).phrase
         self.headers = headers
+        #: Additional members of the problem body, e.g. ``{"conflicts": [...], "suggestions": [...]}`` of a 409.
+        self.extra = extra
 
 
 def problem_response(
@@ -104,7 +107,9 @@ def _field(loc: tuple[Any, ...]) -> str:
 def install_problem_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def _api_error(_: Request, exc: ApiError) -> JSONResponse:
-        return problem_response(exc.status, exc.detail, code=exc.code, title=exc.title, headers=exc.headers)
+        return problem_response(
+            exc.status, exc.detail, code=exc.code, title=exc.title, headers=exc.headers, extra=exc.extra
+        )
 
     @app.exception_handler(StarletteHTTPException)
     async def _http_error(_: Request, exc: StarletteHTTPException) -> JSONResponse:

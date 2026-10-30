@@ -19,6 +19,8 @@ from . import password_reset
 from . import admin_practices
 from . import onboarding
 from . import queue
+from . import availability
+from . import appointments
 
 ROUTERS: list[APIRouter] = [
     auth.router,
@@ -34,4 +36,6 @@ ROUTERS: list[APIRouter] = [
     onboarding.router,
     queue.router,
     queue.public_router,
+    availability.router,
+    appointments.router,
 ]
