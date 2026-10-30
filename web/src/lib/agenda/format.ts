@@ -1,5 +1,5 @@
 /** Display names shared by the agenda, the waiting room and the patient file. */
-import { i18n, t, translate } from '../i18n.svelte';
+import { formatMillimes, i18n, t, translate } from '../i18n.svelte';
 import type { AppointmentStatus } from '../status';
 import type { Practitioner, Service } from '../types/agenda';
 
@@ -54,3 +54,27 @@ export const STATUS_ACCENT: Record<string, string> = {
 	no_show: 'border-s-rose-500',
 	cancelled: 'border-s-zinc-300'
 };
+
+function intl(options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+	return new Intl.DateTimeFormat(i18n.locale === 'ar' ? 'ar-TN-u-nu-latn' : 'fr-TN', { timeZone: 'Africa/Tunis', ...options });
+}
+
+/** "lun. 2 nov." – a short day for buttons and lists. */
+export function shortDay(value: string | Date): string {
+	const date = typeof value === 'string' && value.length === 10 ? new Date(`${value}T12:00:00+01:00`) : new Date(value);
+	return intl({ weekday: 'short', day: 'numeric', month: 'short' }).format(date);
+}
+
+/** "lun. 2 nov. 08:00" – a proposed start time. */
+export function slotLabel(iso: string): string {
+	return `${shortDay(iso)} ${intl({ hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso))}`;
+}
+
+/**
+ * Money for display: "12,500 DT". In Arabic the amount is wrapped in a first-strong isolate so a Latin "DT" after
+ * the number stays on its side ("50 DT", not "DT 50") inside right-to-left sentences.
+ */
+export function money(millimes: number): string {
+	const text = formatMillimes(millimes);
+	return i18n.locale === 'ar' ? `⁨${text}⁩` : text;
+}

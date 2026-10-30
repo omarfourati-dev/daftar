@@ -144,4 +144,51 @@ describe('/app/agenda – day and week', () => {
 		expect(await screen.findByRole('button', { name: /09:00 Sami Trabelsi/ })).toHaveTextContent('وصل');
 		expect(screen.getByRole('button', { name: 'اليوم التالي' })).toBeInTheDocument();
 	});
+
+	it('opens the appointment dialog from a free slot and shows the saved appointment', async () => {
+		let saved = false;
+		agendaApi({
+			'GET /api/appointments?from=2026-10-30&to=2026-10-30': () => json(200, saved ? [sami, appt({ id: 9, practitionerId: 12, startsAt: '2026-10-30T09:15:00+01:00' })] : [sami]),
+			'GET /api/patients?q=Sami&limit=8': () => json(200, { items: [{ ...sami.patient, birthYear: null, lang: 'fr', reminderConsent: true, attended: 1, dueMillimes: 0, nextAppointmentAt: null }], total: 1 }),
+			'POST /api/appointments': () => {
+				saved = true;
+				return json(201, { appointment: appt({ id: 9, practitionerId: 12, startsAt: '2026-10-30T09:15:00+01:00' }), conflicts: [] });
+			}
+		});
+		render(Page);
+		const karim = within(await screen.findByRole('region', { name: 'Dr Karim Jaziri' }));
+		await fireEvent.click(karim.getByRole('button', { name: 'Nouveau rendez-vous à 09:15 avec Dr Karim Jaziri' }));
+		const dialog = within(screen.getByRole('dialog', { name: 'Nouveau rendez-vous' }));
+		expect(dialog.getByLabelText('Heure')).toHaveValue('09:15');
+		expect(dialog.getByLabelText('Praticien')).toHaveValue('12');
+		await fireEvent.input(dialog.getByLabelText('Nom ou téléphone'), { target: { value: 'Sami' } });
+		await fireEvent.click(await dialog.findByRole('button', { name: /Sami Trabelsi/ }));
+		await fireEvent.click(dialog.getByRole('button', { name: 'Enregistrer le rendez-vous' }));
+		expect(await screen.findByRole('status')).toHaveTextContent('Rendez-vous enregistré.');
+		expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+		expect(await karim.findByRole('button', { name: /09:15 Sami Trabelsi/ })).toBeInTheDocument();
+	});
+
+	it('"Nouveau rendez-vous" proposes the next slot from now', async () => {
+		agendaApi({ 'GET /api/appointments?from=2026-10-30&to=2026-10-30': () => json(200, []) });
+		render(Page);
+		await screen.findByText('Aucun rendez-vous ce jour.');
+		await fireEvent.click(screen.getByRole('button', { name: 'Nouveau rendez-vous' }));
+		const dialog = within(screen.getByRole('dialog', { name: 'Nouveau rendez-vous' }));
+		expect(dialog.getByLabelText('Date')).toHaveValue('2026-10-30');
+		expect(dialog.getByLabelText('Heure')).toHaveValue('10:15');
+		expect(dialog.getByLabelText('Praticien')).toHaveValue('');
+	});
+
+	it('opens a new appointment for the patient given in the address (from the patient file)', async () => {
+		agendaApi({
+			'GET /api/appointments?from=2026-10-30&to=2026-10-30': () => json(200, []),
+			'GET /api/patients/7': () =>
+				json(200, { id: 7, firstName: 'Amel', lastName: 'Gharbi', phone: '+21620555666', noShows: 0, alerts: '', birthYear: null, lang: 'fr', reminderConsent: true, attended: 0, dueMillimes: 0, nextAppointmentAt: null, notes: '', createdAt: '', cancelled: 0, totalMillimes: 0, paidMillimes: 0 })
+		});
+		history.replaceState(null, '', '/app/agenda?nouveau=1&patient=7');
+		render(Page);
+		const dialog = within(await screen.findByRole('dialog', { name: 'Nouveau rendez-vous' }));
+		expect(await dialog.findByText('Amel Gharbi')).toBeInTheDocument();
+	});
 });

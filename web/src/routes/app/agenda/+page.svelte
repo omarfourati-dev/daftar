@@ -6,14 +6,17 @@
 	 * Address: `?date=YYYY-MM-DD`, `?vue=semaine`.
 	 */
 	import { onMount } from 'svelte';
+	import { api } from '#lib/api';
 	import { clock } from '#lib/clock';
 	import { loadAgendaBase, loadAppointments, type AgendaBase } from '#lib/agenda/data';
 	import { practitionerLabel } from '#lib/agenda/format';
-	import { agendaRange, closureOn, hhmm, minutesOfDay, tunisDayOf, weekDays, windowsOn } from '#lib/agenda/time';
+	import { agendaRange, closureOn, hhmm, minutesOfDay, roundUp, tunisDayOf, weekDays, windowsOn } from '#lib/agenda/time';
 	import { addDays, formatDay, i18n, t, todayTunis } from '#lib/i18n.svelte';
 	import type { Appointment, Practitioner } from '#lib/types/agenda';
+	import type { Patient } from '#lib/types/patients';
 	import { viewport } from '#lib/viewport.svelte';
 	import AgendaList from '../../../lib/components/agenda/AgendaList.svelte';
+	import AppointmentForm from '../../../lib/components/agenda/AppointmentForm.svelte';
 	import DayColumn from '../../../lib/components/agenda/DayColumn.svelte';
 	import Icon from '../../../lib/components/daily/Icon.svelte';
 
@@ -31,6 +34,12 @@
 	let error = $state('');
 	let tick = $state(0);
 	let seq = 0;
+	/** The open appointment dialog (new or move). */
+	let form = $state<{ appointment?: Appointment; day?: string; time?: string; practitionerId?: number | null; patient?: Patient } | null>(null);
+	let message = $state('');
+	let messageTimer: ReturnType<typeof setTimeout> | undefined;
+	/** `?nouveau=1[&patient=ID]`: open the dialog once the agenda is there. */
+	let pendingNew = params.get('nouveau') === '1';
 
 	const days = $derived(view === 'day' ? [day] : weekDays(day));
 	const ppm = $derived(view === 'day' ? 1.6 : 1.2);
@@ -44,6 +53,10 @@
 			if (mine !== seq) return;
 			base = b;
 			appointments = list;
+			if (pendingNew) {
+				pendingNew = false;
+				void openNew(Number(params.get('patient')) || null);
+			}
 		} catch {
 			if (mine === seq) error = t('agenda.loadError');
 		} finally {
@@ -147,9 +160,39 @@
 		go(addDays(day, direction * (view === 'day' ? 1 : 7)));
 	}
 
-	// The appointment dialogs come with the next stories; the grid already offers the targets.
-	function openSlot(_day: string, _time: string, _practitionerId: number | null) {}
+	function say(text: string) {
+		message = text;
+		clearTimeout(messageTimer);
+		messageTimer = setTimeout(() => (message = ''), 5000);
+	}
+
+	function openSlot(slotDay: string, time: string, practitionerId: number | null) {
+		form = { day: slotDay, time, practitionerId };
+	}
+
+	/** The next free-looking time: from now on today, else the first opening of the shown day. */
+	function nextTime(): string {
+		const slot = base?.practice.slotMinutes || 15;
+		const windows = windowsOn(base?.practice.weeklyHours, day);
+		if (day === today()) return hhmm(Math.min(roundUp(minutesOfDay(clock.now()), slot), 23 * 60 + 45));
+		return hhmm(windows[0]?.[0] ?? range.start);
+	}
+
+	async function openNew(patientId: number | null = null) {
+		let patient: Patient | undefined;
+		if (patientId) patient = await api<Patient>(`/api/patients/${patientId}`).catch(() => undefined);
+		form = { day, time: nextTime(), practitionerId: filter || null, patient };
+	}
+
 	function openAppointment(_a: Appointment) {}
+
+	function saved(a: Appointment) {
+		form = null;
+		say(t('agenda.form.saved'));
+		const target = tunisDayOf(a.startsAt);
+		if (!days.includes(target)) go(target);
+		else void load();
+	}
 </script>
 
 <svelte:head><title>{t('agenda.title')} · Daftar</title></svelte:head>
@@ -183,6 +226,7 @@
 			<label class="sr-only" for="agenda-date">{t('agenda.pickDate')}</label>
 			<input id="agenda-date" type="date" class="input w-auto" value={day} onchange={(e) => go(e.currentTarget.value)} />
 			<a href="/app/agenda/imprimer?date={day}" class="btn-secondary"><Icon name="print" />{t('agenda.printDay')}</a>
+			<button type="button" class="btn-primary" onclick={() => openNew()} disabled={!base}><Icon name="plus" />{t('agenda.newAppointment')}</button>
 		</div>
 	</div>
 
@@ -208,6 +252,10 @@
 				>
 			{/each}
 		</div>
+	{/if}
+
+	{#if message}
+		<p role="status" class="rounded-lg bg-emerald-50 px-4 py-2 font-medium text-emerald-900 ring-1 ring-emerald-200">{message}</p>
 	{/if}
 
 	{#if error}
@@ -325,3 +373,7 @@
 		{/if}
 	{/if}
 </div>
+
+{#if form && base}
+	<AppointmentForm {base} {...form} onsaved={saved} onclose={() => (form = null)} />
+{/if}

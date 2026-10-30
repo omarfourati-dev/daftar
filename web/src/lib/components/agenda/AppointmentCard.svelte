@@ -4,8 +4,8 @@
 	 * row in the phone list. Shows time, patient, reason, status and the warnings that matter at the desk:
 	 * medical alert, ≥ 2 no-shows, unpaid deposit, online request (dashed). Short blocks (`dense`) keep one line.
 	 */
-	import { FREEING, personName, STATUS_ACCENT, STATUS_TINT } from '../../agenda/format';
-	import { formatMillimes, formatTime, t } from '../../i18n.svelte';
+	import { FREEING, money, personName, STATUS_ACCENT, STATUS_TINT } from '../../agenda/format';
+	import { formatTime, t } from '../../i18n.svelte';
 	import type { Appointment } from '../../types/agenda';
 	import StatusPill from './StatusPill.svelte';
 
@@ -55,7 +55,7 @@
 	{/if}
 	{#if depositDue && !dense}
 		<span class="rounded-full bg-amber-100 px-2 text-xs font-semibold text-amber-900"
-			>{t('agenda.depositDue', { amount: formatMillimes(a.depositRequiredMillimes - a.depositPaidMillimes) })}</span
+			>{t('agenda.depositDue', { amount: money(a.depositRequiredMillimes - a.depositPaidMillimes) })}</span
 		>
 	{:else if depositPaid && !dense}
 		<span class="rounded-full bg-emerald-100 px-2 text-xs font-semibold text-emerald-900">{t('agenda.depositPaid')}</span>
