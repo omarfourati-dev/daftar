@@ -5,8 +5,10 @@
 	 * opens the appointment dialog. Phones get a list per day instead of the grid.
 	 * Address: `?date=YYYY-MM-DD`, `?vue=semaine`.
 	 */
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { api } from '#lib/api';
+	import { badges } from '#lib/badges.svelte';
+	import { newAppointment } from '#lib/agenda/requests.svelte';
 	import { clock } from '#lib/clock';
 	import { loadAgendaBase, loadAppointments, type AgendaBase } from '#lib/agenda/data';
 	import { practitionerLabel } from '#lib/agenda/format';
@@ -43,6 +45,13 @@
 	let messageTimer: ReturnType<typeof setTimeout> | undefined;
 	/** `?nouveau=1[&patient=ID]`: open the dialog once the agenda is there. */
 	let pendingNew = params.get('nouveau') === '1';
+	/** Shortcut `N` pressed while the agenda is open. */
+	let seenRequests = untrack(() => newAppointment.count);
+	$effect(() => {
+		if (newAppointment.count === seenRequests) return;
+		seenRequests = newAppointment.count;
+		if (untrack(() => base && !form && !detail)) void openNew();
+	});
 
 	const days = $derived(view === 'day' ? [day] : weekDays(day));
 	const ppm = $derived(view === 'day' ? 1.6 : 1.2);
@@ -193,6 +202,7 @@
 
 	function changed(a: Appointment) {
 		appointments = appointments.map((x) => (x.id === a.id ? a : x));
+		void badges.refresh();
 	}
 
 	function move(a: Appointment) {

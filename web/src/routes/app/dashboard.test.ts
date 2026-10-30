@@ -37,6 +37,7 @@ function dashboardApi(extra: Record<string, Handler> = {}) {
 		'GET /api/appointments/overdue': () => json(200, [late]),
 		'GET /api/appointments?from=2026-10-30&to=2026-12-29': () => json(200, [request, dashboard.upcoming[0]]),
 		'GET /api/practice': () => json(200, practice),
+		'GET /api/badges': () => json(200, { onlineRequests: 0, overdue: 0 }),
 		...extra
 	});
 }

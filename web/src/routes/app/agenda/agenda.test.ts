@@ -7,6 +7,7 @@ import { i18n } from '#lib/i18n.svelte';
 import { calls, json, mockApi, problem, type Handler } from '#lib/test-utils';
 import { viewport } from '#lib/viewport.svelte';
 import { appt, assistant, NOW, practice, practitioners, services } from '#lib/agenda/fixtures';
+import { newAppointment } from '#lib/agenda/requests.svelte';
 
 /** The four requests every agenda load makes, plus the appointments of the shown range. */
 export function agendaApi(extra: Record<string, Handler> = {}) {
@@ -15,6 +16,7 @@ export function agendaApi(extra: Record<string, Handler> = {}) {
 		'GET /api/practitioners': () => json(200, practitioners),
 		'GET /api/services': () => json(200, services),
 		'GET /api/closures': () => json(200, []),
+		'GET /api/badges': () => json(200, { onlineRequests: 0, overdue: 0 }),
 		...extra
 	});
 }
@@ -207,5 +209,14 @@ describe('/app/agenda – day and week', () => {
 		const move = within(screen.getByRole('dialog', { name: 'Modifier le rendez-vous' }));
 		expect(move.getByLabelText('Heure')).toHaveValue('11:00');
 		expect(screen.queryByRole('dialog', { name: 'Lina Zouari' })).not.toBeInTheDocument();
+	});
+
+	it('opens a new appointment when the N shortcut is pressed on the agenda', async () => {
+		agendaApi({ 'GET /api/appointments?from=2026-10-30&to=2026-10-30': () => json(200, []) });
+		render(Page);
+		await screen.findByText('Aucun rendez-vous ce jour.');
+		expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+		newAppointment.request();
+		expect(await screen.findByRole('dialog', { name: 'Nouveau rendez-vous' })).toBeInTheDocument();
 	});
 });

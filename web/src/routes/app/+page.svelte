@@ -7,6 +7,7 @@
 	import { onMount } from 'svelte';
 	import { api, apiErrorMessage } from '#lib/api';
 	import { auth } from '#lib/auth.svelte';
+	import { badges } from '#lib/badges.svelte';
 	import { clock } from '#lib/clock';
 	import { money, personName, practitionerLabel, shortDay, statusLabel } from '#lib/agenda/format';
 	import { whatsappUrl } from '#lib/agenda/links';
@@ -70,6 +71,7 @@
 			const next = await api<Appointment>(`/api/appointments/${a.id}/status`, { method: 'POST', json: { status } });
 			const message: PatientMessage | undefined = wasRequest ? (status === 'confirmed' ? 'confirmed' : 'rejected') : undefined;
 			handled = { ...handled, [a.id]: { text: t(doneKey, { patient: personName(a.patient), status: statusLabel(status) }), message, appointment: next } };
+			void badges.refresh();
 		} catch (err) {
 			rowError = apiErrorMessage(err);
 		} finally {
