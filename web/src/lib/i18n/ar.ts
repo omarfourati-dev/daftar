@@ -9,8 +9,10 @@ import { demo } from './ar/demo';
 import { display } from './ar/display';
 import { errors } from './ar/errors';
 import { invitation } from './ar/invitation';
+import { kit } from './ar/kit';
 import { nav } from './ar/nav';
 import { patients } from './ar/patients';
+import { practice } from './ar/practice';
 import { rappels } from './ar/rappels';
 import { recu } from './ar/recu';
 import { reglages } from './ar/reglages';
@@ -46,5 +48,7 @@ export const ar: Messages = {
 	demo,
 	display,
 	ticket,
-	recu
+	recu,
+	kit,
+	practice
 };

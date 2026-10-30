@@ -14,8 +14,10 @@ import { demo } from './fr/demo';
 import { display } from './fr/display';
 import { errors } from './fr/errors';
 import { invitation } from './fr/invitation';
+import { kit } from './fr/kit';
 import { nav } from './fr/nav';
 import { patients } from './fr/patients';
+import { practice } from './fr/practice';
 import { rappels } from './fr/rappels';
 import { recu } from './fr/recu';
 import { reglages } from './fr/reglages';
@@ -51,7 +53,9 @@ export const fr = {
 	demo,
 	display,
 	ticket,
-	recu
+	recu,
+	kit,
+	practice
 };
 
 export type Messages = typeof fr;

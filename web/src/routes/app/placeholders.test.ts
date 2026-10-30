@@ -2,7 +2,6 @@ import { render, screen } from '@testing-library/svelte';
 import type { Component } from 'svelte';
 import { beforeEach, describe, expect, it } from 'vitest';
 import Today from './+page.svelte';
-import Admin from './admin/+page.svelte';
 import Agenda from './agenda/+page.svelte';
 import Caisse from './caisse/+page.svelte';
 import Patients from './patients/+page.svelte';
@@ -19,8 +18,7 @@ const pages: [string, Component, string, string][] = [
 	['/app/patients', Patients, 'Patients', 'المرضى'],
 	['/app/caisse', Caisse, 'Caisse', 'الصندوق'],
 	['/app/rappels', Rappels, 'Rappels', 'التذكيرات'],
-	['/app/reglages', Reglages, 'Réglages', 'الإعدادات'],
-	['/app/admin', Admin, 'Administration', 'الإدارة']
+	['/app/reglages', Reglages, 'Réglages', 'الإعدادات']
 ];
 
 describe('app pages', () => {
