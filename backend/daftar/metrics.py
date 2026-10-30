@@ -67,6 +67,9 @@ class Metrics:
         self.appointments_created = self.counter("daftar_appointments_created_total", "Appointments created")
         self.demo_started = self.counter("daftar_demo_started_total", "Demo practices started")
         self.pilot_requests = self.counter("daftar_pilot_requests_total", "Pilot requests received")
+        # Created here (not on first use), so the series exists with 0 from the start – the alert
+        # ``increase(daftar_feedback_total[15m]) > 0`` would otherwise miss the very first feedback.
+        self.feedback = self.counter("daftar_feedback_total", "Feedback messages sent from the app")
 
     # --- get-or-create -------------------------------------------------------------------------------------------
 
