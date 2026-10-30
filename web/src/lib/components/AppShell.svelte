@@ -10,6 +10,7 @@
 	import { t, type MessageKey } from '../i18n.svelte';
 	import { pwa } from '../pwa.svelte';
 	import type { Me } from '../types';
+	import FeedbackButton from './FeedbackButton.svelte';
 	import LanguageSwitch from './LanguageSwitch.svelte';
 	import { badges } from '../badges.svelte';
 	import GlobalSearch from './daily/GlobalSearch.svelte';
@@ -114,6 +115,7 @@
 						title="{t('agenda.phone.button')} (T)"
 						onclick={() => (phoneBooking.open = true)}><Icon name="phone" class="h-4 w-4" /><span class="hidden lg:inline">{t('agenda.phone.button')}</span></button
 					>
+					<FeedbackButton {path} />
 				{/if}
 				<LanguageSwitch onchange={saveLanguage} />
 				<button type="button" class="btn-secondary min-h-9 px-3 py-1 text-sm" onclick={logout}>{t('common.logout')}</button>
@@ -123,6 +125,11 @@
 			{/if}
 			{#if practice?.status === 'suspended'}
 				<p class="bg-rose-100 px-4 py-2 text-center text-sm text-rose-900 print:hidden">{t('shell.suspended')}</p>
+			{:else if practice?.status === 'past_due'}
+				<p class="bg-amber-100 px-4 py-2 text-center text-sm text-amber-950 print:hidden">
+					{auth.user?.role === 'owner' ? t('billing.pastDue') : t('billing.pastDueStaff')}
+					{#if auth.user?.role === 'owner'}<a class="ms-1 font-semibold underline" href="/app/abonnement">{t('billing.pastDueLink')}</a>{/if}
+				</p>
 			{/if}
 			{#if pwa.offline}
 				<p class="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900 print:hidden">
@@ -167,6 +174,7 @@
 						>{t(item.key)}</a
 					>
 				{/each}
+				<FeedbackButton {path} variant="menu" />
 			</div>
 		{/if}
 	</div>

@@ -1,0 +1,72 @@
+import type { Messages } from '../fr';
+
+export const practice: Messages['practice'] = {
+	fields: {
+		specialty: 'الاختصاص',
+		name: 'اسم العيادة',
+		nameHint: 'كما يراه المرضى، مثلًا «Cabinet Dr Ben Salah».',
+		nameAr: 'الاسم بالعربية',
+		contactName: 'الشخص المسؤول',
+		contactHint: 'الطبيب صاحب العيادة أو الشخص الذي نتواصل معه.',
+		phone: 'هاتف العيادة',
+		whatsapp: 'واتساب',
+		whatsappHint: 'إذا كان مختلفًا عن الهاتف. يمكن للمرضى المراسلة على هذا الرقم.',
+		email: 'البريد الإلكتروني',
+		taxId: 'المعرّف الجبائي',
+		address: 'العنوان',
+		postalCode: 'الترقيم البريدي',
+		city: 'المدينة',
+		governorate: 'الولاية',
+		choose: 'اختر…',
+		mapsUrl: 'رابط خرائط Google',
+		mapsHint: 'في خرائط Google: صفحة العيادة ← مشاركة ← نسخ الرابط.',
+		descriptionFr: 'التقديم بالفرنسية',
+		descriptionAr: 'التقديم بالعربية',
+		descriptionHint: 'بضعة أسطر تظهر في صفحة الحجز (الوصول، موقف السيارات، اللغات…).',
+		brandColor: 'لون أيقونة العيادة',
+		brandColorHint: 'يُستعمل لأيقونة التطبيق وصفحة الحجز.',
+		slotMinutes: 'تقسيم الأجندة',
+		defaultDuration: 'المدة الافتراضية للموعد',
+		reminderFr: 'رسالة التذكير بالفرنسية',
+		reminderAr: 'رسالة التذكير بالعربية',
+		reminderHint: 'المتغيّرات: {patient} {date} {time} {practice} {phone}'
+	},
+	online: {
+		enabled: 'الحجز عبر الإنترنت مفعّل',
+		enabledHint: 'يرى المرضى المواعيد الشاغرة ويطلبون موعدًا من هواتفهم.',
+		autoConfirm: 'تأكيد الطلبات تلقائيًا',
+		autoConfirmHint: 'وإلا ينتظر كل طلب تأكيدك في الأجندة.',
+		horizonDays: 'الحجز ممكن حتى … يومًا مسبقًا',
+		minNoticeHours: 'أدنى مهلة قبل الموعد (بالساعات)',
+		maxPerDay: 'أقصى عدد للحجوزات عبر الإنترنت في اليوم',
+		blockNoShows: 'حظر الرقم بعد … غيابات',
+		blockHint: '0 = بدون حظر أبدًا. يُطلب من المريض المحظور الاتصال بالعيادة.'
+	},
+	practitioners: {
+		title: 'اللقب',
+		name: 'الاسم',
+		specialty: 'الاختصاص',
+		samePractice: 'نفس اختصاص العيادة',
+		add: 'إضافة طبيب/معالج',
+		remove: 'حذف {name}',
+		unnamed: 'هذا الطبيب',
+		hint: 'الأشخاص الذين يستقبلون المرضى. لا يحتاجون إلى حساب.',
+		atLeastOne: 'أضف طبيبًا أو معالجًا واحدًا على الأقل.'
+	},
+	services: {
+		nameFr: 'الخدمة (بالفرنسية)',
+		nameAr: 'الخدمة (بالعربية)',
+		duration: 'المدة (دقيقة)',
+		price: 'السعر (د.ت)',
+		pricePlaceholder: 'اختياري',
+		online: 'عبر الإنترنت',
+		onlineLong: 'قابلة للحجز عبر الإنترنت',
+		add: 'إضافة خدمة',
+		remove: 'حذف {name}',
+		unnamed: 'هذه الخدمة',
+		reload: 'استرجاع قائمة «{specialty}»',
+		hint: 'قائمة مقترحة لاختصاص «{specialty}». اترك السعر فارغًا إن لم تكن تعرفه.',
+		atLeastOne: 'أضف خدمة واحدة على الأقل.',
+		durationInvalid: 'المدة بين 5 و480 دقيقة.'
+	}
+};
