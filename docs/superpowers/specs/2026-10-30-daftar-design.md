@@ -355,3 +355,22 @@ Omar trägt Zahlungen (Virement, espèces) als Admin von Hand ein.
   (`FLOUCI_APP_TOKEN`, `FLOUCI_APP_SECRET`), nie geloggt. API-Details aus der offiziellen Flouci-Entwicklerdoku
   übernehmen, nicht raten.
 - App: `/app/abonnement` (Besitzer: Plan, Status, Rechnungen, „Payer avec Flouci“), Admin-Übersicht „Abonnements“.
+
+## 12. Alle Fachrichtungen, nicht nur Zahnärzte (Omar, 30.10.)
+
+**Hat Vorrang vor allem davor.** Daftar ist die Terminverwaltung für **Arztpraxen aller Fachrichtungen** in Tunesien
+(Allgemeinmedizin, Zahnmedizin, Kinderheilkunde, Gynäkologie, Dermatologie, Augenheilkunde, Kardiologie, HNO,
+Physiotherapie/Kiné, Psychologie, …). Zahnärzte bleiben ein Beispiel, nicht die Zielgruppe allein.
+- `practice.specialty` (Pflicht) ∈ `generaliste | dentiste | pediatre | gynecologue | dermatologue | ophtalmologue |
+  cardiologue | orl | kinesitherapeute | psychologue | autre`; `practitioner.specialty` optional (Gemeinschaftspraxen).
+- Standard-Leistungskatalog **je Fachrichtung** (Konstante im Code, FR + AR, Dauer, online buchbar ja/nein; Preise leer),
+  z. B. Généraliste: Consultation 20, Contrôle 15, Certificat médical 10, Vaccination 15, Urgence 20; Pédiatre:
+  Consultation 30, Suivi croissance 20, Vaccination 15; Kiné: Séance 45, Bilan 60; Psychologue: Séance 50, Premier
+  entretien 60; Dentiste wie in 11.2; `autre`: Consultation 30, Contrôle 20.
+- Feld `treatment.tooth` bleibt, die App zeigt es nur bei `dentiste` („Dent“).
+- Texte neutral: „cabinet“, „praticien“, „patient“, „acte / consultation“ statt zahnspezifischer Begriffe; Manifest-Name
+  „Daftar – agenda du cabinet médical“.
+- Demo: `POST /api/demo {lang?, specialty?}` (Standard `generaliste`); `/app/demo` lässt vorher kurz wählen
+  (Généraliste, Dentiste, Pédiatre, Kiné, Autre) und seedet passende Leistungen, Gründe und Namen.
+- Admin-Assistent: Fachrichtung im ersten Schritt; der Katalog im Schritt „Actes & tarifs“ wird daraus vorbelegt.
+- Landing: spricht alle Praxen an („médecins, dentistes, kinés, psychologues…“), Beispiele aus mehreren Fachrichtungen.
