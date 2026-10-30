@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import {
 	acceptInvitation,
 	adminSession,
+	APP,
 	closeExtraPages,
 	extraPage,
 	apiContext,
@@ -25,7 +26,7 @@ test.afterEach(closeExtraPages);
 test('practice data, hours and closures are saved', async ({ page }) => {
 	const { owner, practice } = await practiceWithOwner(admin);
 	await signInAs(page, owner);
-	await page.goto('/app/reglages');
+	await page.goto(APP + '/app/reglages');
 	await expect(page.getByLabel('Nom du cabinet')).toHaveValue(practice.name);
 	await page.getByLabel('Nom du cabinet').fill(`${practice.name} – Sousse`);
 	await page.getByLabel('Pas de l’agenda').selectOption('20');
@@ -36,7 +37,7 @@ test('practice data, hours and closures are saved', async ({ page }) => {
 	await expect(page.getByLabel('Pas de l’agenda')).toHaveValue('20');
 	await expectAccessible(page, 'reglages cabinet');
 
-	await page.goto('/app/reglages/horaires');
+	await page.goto(APP + '/app/reglages/horaires');
 	await page.getByRole('checkbox', { name: 'Samedi' }).uncheck();
 	await page.getByRole('button', { name: 'Enregistrer les horaires' }).click();
 	await expect(page.getByText('Modifications enregistrées.')).toBeVisible();
@@ -54,7 +55,7 @@ test('practice data, hours and closures are saved', async ({ page }) => {
 test('acts and practitioners are managed by the owner', async ({ page }) => {
 	const { owner } = await practiceWithOwner(admin);
 	await signInAs(page, owner);
-	await page.goto('/app/reglages/actes');
+	await page.goto(APP + '/app/reglages/actes');
 	await expect(page.getByRole('heading', { name: 'Consultation' })).toBeVisible(); // catalog of the specialty
 	await page.getByRole('button', { name: 'Nouvel acte' }).click();
 	const dialog = page.getByRole('dialog', { name: 'Nouvel acte' });
@@ -66,7 +67,7 @@ test('acts and practitioners are managed by the owner', async ({ page }) => {
 	await expect(row.getByText('35,500 DT')).toBeVisible();
 	await expectAccessible(page, 'reglages actes');
 
-	await page.goto('/app/reglages/praticiens');
+	await page.goto(APP + '/app/reglages/praticiens');
 	await page.getByRole('button', { name: 'Nouveau praticien' }).click();
 	const p = page.getByRole('dialog', { name: 'Nouveau praticien' });
 	await p.getByLabel('Nom').fill('Karim Trabelsi');
@@ -82,7 +83,7 @@ test('acts and practitioners are managed by the owner', async ({ page }) => {
 test('A2/A3 – team: invitation link for an assistant, reset link for her, role change', async ({ page, browser }) => {
 	const { owner, slug } = await practiceWithOwner(admin);
 	await signInAs(page, owner);
-	await page.goto('/app/reglages/equipe');
+	await page.goto(APP + '/app/reglages/equipe');
 	await page.getByLabel('Rôle', { exact: true }).selectOption('assistant');
 	await page.getByRole('button', { name: 'Créer le lien d’invitation' }).click();
 	const link = await page.getByRole('textbox', { name: 'Lien d’invitation (Assistant(e))' }).inputValue();
@@ -110,7 +111,7 @@ test('A2/A3 – team: invitation link for an assistant, reset link for her, role
 test('C1/C3 – booking link with QR code, online booking switched on, A4 poster', async ({ page }) => {
 	const { owner, slug } = await practiceWithOwner(admin);
 	await signInAs(page, owner);
-	await page.goto('/app/reglages/reservation');
+	await page.goto(APP + '/app/reglages/reservation');
 	await expect(page.getByRole('textbox', { name: 'Adresse de la page' })).toHaveValue(`${practiceOrigin(slug)}/`);
 	await expect(page.getByRole('img', { name: 'QR code de la page de réservation' }).locator('svg')).toBeVisible();
 	await page.getByRole('checkbox', { name: 'Réservation en ligne activée' }).check();
@@ -132,7 +133,7 @@ test('C1/C3 – booking link with QR code, online booking switched on, A4 poster
 test('E4 – waiting-room screen link and data export', async ({ page }) => {
 	const { owner, slug } = await practiceWithOwner(admin);
 	await signInAs(page, owner);
-	await page.goto('/app/reglages/ecran');
+	await page.goto(APP + '/app/reglages/ecran');
 	const before = await page.getByRole('textbox', { name: 'Adresse de l’écran' }).inputValue();
 	expect(before).toMatch(/\/salle\/[0-9a-f]{16,}$/);
 	await page.getByRole('button', { name: 'Générer une nouvelle adresse' }).click();
@@ -140,7 +141,7 @@ test('E4 – waiting-room screen link and data export', async ({ page }) => {
 	await expect(page.getByText('Nouvelle adresse créée.')).toBeVisible();
 	await expect(page.getByRole('textbox', { name: 'Adresse de l’écran' })).not.toHaveValue(before);
 
-	await page.goto('/app/reglages/donnees');
+	await page.goto(APP + '/app/reglages/donnees');
 	const download = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Télécharger l’export' }).click();
 	const file = await download;
@@ -153,7 +154,7 @@ test('E4 – waiting-room screen link and data export', async ({ page }) => {
 test('my account: name, language and password; other roles only see their account', async ({ page }) => {
 	const { owner } = await practiceWithOwner(admin);
 	await signInAs(page, owner);
-	await page.goto('/app/reglages/compte');
+	await page.goto(APP + '/app/reglages/compte');
 	await page.getByLabel('Nom affiché').fill('Dr Amira B. Salah');
 	await page.getByRole('button', { name: 'Enregistrer le nom' }).click();
 	await expect(page.getByText('Nom enregistré.')).toBeVisible();
@@ -175,11 +176,11 @@ test('my account: name, language and password; other roles only see their accoun
 	await api.dispose();
 	const salma = await acceptInvitation(inv.token, 'Salma');
 	await signInAs(page, salma);
-	await page.goto('/app/reglages');
+	await page.goto(APP + '/app/reglages');
 	await expect(page.getByRole('heading', { name: 'Mon compte' })).toBeVisible();
 	const nav = page.getByRole('navigation', { name: 'Rubriques des réglages' });
 	await expect(nav.getByRole('link')).toHaveText(['Mon compte', 'Importer depuis Excel', 'Installer l’application']);
-	await page.goto('/app/reglages/equipe');
+	await page.goto(APP + '/app/reglages/equipe');
 	await expect(page.getByText('Cette page est réservée au titulaire du cabinet.')).toBeVisible();
 });
 
@@ -190,7 +191,7 @@ test('settings work at 390 / 820 / 1440 px without horizontal scrolling, in Fren
 		for (const width of [390, 820, 1440]) {
 			await page.setViewportSize({ width, height: 900 });
 			for (const path of ['/app/reglages', '/app/reglages/horaires', '/app/reglages/actes', '/app/reglages/equipe', '/app/reglages/reservation']) {
-				await page.goto(path);
+				await page.goto(APP + path);
 				await expect(page.getByRole('navigation', { name: lang === 'ar' ? 'أقسام الإعدادات' : 'Rubriques des réglages' })).toBeVisible();
 				await expectNoHorizontalScroll(page, `${lang} ${width} ${path}`);
 			}

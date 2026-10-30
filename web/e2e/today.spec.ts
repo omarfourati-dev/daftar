@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { addDays, axe, iso, newPatient, newPractice, signIn, slot, tunisNow, watchConsole } from './daily';
+import { addDays, APP, axe, iso, newPatient, newPractice, onApp, signIn, slot, tunisNow, watchConsole } from './daily';
 
 /** Dashboard: tiles, online requests (C2) with the badge, first steps (A5), statistics for the owner (H1). */
 
@@ -11,15 +11,16 @@ test('C2 + A5 – the day at a glance, an online request with its badge, the fir
 
 	const service = p.services.find((s) => s.onlineBookable) ?? p.services[0];
 	const day = addDays(tunisNow().day, 3);
-	const slots = await (await request.get(`/api/public/practices/${p.slug}/slots?date=${day}&serviceId=${service.id}`)).json();
+	const slots = await (await request.get(`/api/public/practices/${p.slug}/slots?date=${day}&serviceId=${service.id}`, onApp())).json();
 	const booked = await request.post(`/api/public/practices/${p.slug}/bookings`, {
+		...onApp(),
 		data: { serviceId: service.id, startsAt: iso(day, slots.slots[0]), firstName: 'Salma', lastName: 'Demande', phone: '20 000 778', lang: 'fr', reminderConsent: true, website: '' }
 	});
 	const hasRequest = booked.status() === 201;
 
 	const problems = watchConsole(page);
 	await signIn(page, p);
-	await page.goto('/app');
+	await page.goto(APP + '/app');
 	await expect(page.getByRole('heading', { level: 1, name: 'Aujourd’hui' })).toBeVisible();
 	await expect(page.getByRole('list', { name: 'Résumé de la journée' }).getByRole('link', { name: /^Rendez-vous/ })).toBeVisible();
 	const steps = page.getByRole('region', { name: 'Premiers pas' });
@@ -45,7 +46,7 @@ test('C2 + A5 – the day at a glance, an online request with its badge, the fir
 test('H1 – the owner sees the month with the previous one; the statistics are in the navigation', async ({ page, request }) => {
 	const p = await newPractice(request);
 	await signIn(page, p);
-	await page.goto('/app');
+	await page.goto(APP + '/app');
 	await page.getByRole('navigation', { name: 'Navigation principale' }).getByRole('link', { name: 'Statistiques' }).click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Statistiques' })).toBeVisible();
 	const kpis = page.getByRole('list', { name: 'Statistiques' });
@@ -68,7 +69,7 @@ test('Arabic – the daily pages read right to left', async ({ page, request }) 
 		['/app/rappels', 'التذكيرات'],
 		['/app/statistiques', 'الإحصائيات']
 	]) {
-		await page.goto(path);
+		await page.goto(APP + path);
 		await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
 		await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
 		await axe(page);

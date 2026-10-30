@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
 	adminSession,
 	apiContext,
-	BASE,
+	APP,
 	createPractice,
 	expectAccessible,
 	expectNoHorizontalScroll,
@@ -72,11 +72,12 @@ test.describe('on the phone', () => {
 		await expect(page.getByRole('heading', { name: 'Demande envoyée' })).toBeVisible();
 		await expect(page.getByText(time, { exact: true })).toBeVisible();
 		const manage = await page.getByRole('textbox', { name: 'Votre lien personnel' }).inputValue();
-		expect(manage).toMatch(new RegExp(`^${practiceOrigin(slug).replace(/[.]/g, '\\.')}/rdv/.+`));
+		expect(manage).toMatch(new RegExp(`^${practiceOrigin(slug).replace(/[.]/g, '\\.')}/rdv#.+`)); // the token stays in the fragment
 		await expectAccessible(page, 'booking done');
 		expect(day).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 
 		await page.getByRole('link', { name: 'Voir mon rendez-vous' }).click();
+		await expect(page).toHaveURL(manage);
 		await expect(page.getByRole('heading', { level: 1, name: 'Votre rendez-vous' })).toBeVisible();
 		await expect(page.getByText('En attente de confirmation')).toBeVisible();
 		await expect(page.locator('body')).not.toContainText('Mounia'); // no patient data on the public page
@@ -84,6 +85,8 @@ test.describe('on the phone', () => {
 		await page.getByRole('button', { name: 'Annuler ce rendez-vous' }).click();
 		await page.getByRole('dialog').getByRole('button', { name: 'Oui, annuler' }).click();
 		await expect(page.getByText('Votre rendez-vous est annulé.')).toBeVisible();
+		await expect(page.getByText('Annulé', { exact: true })).toBeVisible();
+		await page.reload(); // the personal link keeps working (the token is read from the fragment again)
 		await expect(page.getByText('Annulé', { exact: true })).toBeVisible();
 		expect(problems).toEqual([]);
 	});
@@ -129,10 +132,10 @@ test.describe('on the phone', () => {
 	});
 });
 
-test('in Arabic on the main domain (/r/<slug>), at 820 and 1440 px', async ({ page }) => {
+test('in Arabic on the app host (/r/<slug>), at 820 and 1440 px', async ({ page }) => {
 	const { slug } = await bookablePractice();
 	await page.context().setExtraHTTPHeaders({ 'X-Forwarded-For': freshIp() });
-	await page.goto(`${BASE}/r/${slug}?lang=ar`);
+	await page.goto(`${APP}/r/${slug}?lang=ar`);
 	await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
 	await expect(page.getByRole('heading', { level: 1, name: 'عيادة الاختبار' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'احجز موعدك عبر الإنترنت' })).toBeVisible();
@@ -157,8 +160,10 @@ test('a practice without online booking shows its contact details only', async (
 });
 
 test('an unknown practice and an unknown personal link are explained', async ({ page }) => {
-	await page.goto(`${BASE}/r/cabinet-qui-n-existe-pas`);
+	await page.goto(`${APP}/r/cabinet-qui-n-existe-pas`);
 	await expect(page.getByRole('alert')).toHaveText('Ce cabinet est introuvable. Vérifiez l’adresse reçue.');
-	await page.goto(`${BASE}/rdv/ceci-n-est-pas-un-lien`);
+	await page.goto(`${APP}/rdv#ceci-n-est-pas-un-lien`);
+	await expect(page.getByRole('alert')).toContainText('Ce lien n’est pas valide.');
+	await page.goto(`${APP}/rdv`); // a link without its token
 	await expect(page.getByRole('alert')).toContainText('Ce lien n’est pas valide.');
 });

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { axe, newPatient, newPractice, signIn } from './daily';
+import { APP, axe, newPatient, newPractice, signIn } from './daily';
 
 /** Story F2 (cash book, open balances) and 16.3 (cash closing verified by the owner). */
 
@@ -11,7 +11,7 @@ test('F2 + 16.3 – the cash of the day, the closing with its difference and the
 	await p.api.post(`/api/patients/${patient.id}/payments`, { amountMillimes: 20000, method: 'd17' });
 
 	await signIn(page, p);
-	await page.goto('/app/caisse');
+	await page.goto(APP + '/app/caisse');
 	await expect(page.getByText('Encaissé ce jour').locator('..')).toContainText('70 DT');
 	await expect(page.getByRole('list', { name: 'Par mode de paiement' })).toContainText('Espèces');
 	await expect(page.getByRole('table', { name: 'Paiements du jour' })).toContainText('Meriem Kasse');
@@ -35,7 +35,7 @@ test('16.3 – the owner’s dashboard lists closed days that are not verified y
 	const today = (await p.api.get('/api/cash')).day as string;
 	await p.api.post('/api/cash/close', { day: today, countedCashMillimes: 30000 });
 	await signIn(page, p);
-	await page.goto('/app');
+	await page.goto(APP + '/app');
 	const check = page.getByRole('region', { name: 'Caisses à vérifier' });
 	await expect(check.getByRole('link')).toContainText('caisse juste');
 	await check.getByRole('link').click();

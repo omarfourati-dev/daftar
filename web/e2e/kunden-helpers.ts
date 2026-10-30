@@ -5,36 +5,38 @@
  *   so the per-IP limits of logins, demo and online bookings never leak between tests or reruns.
  * - Practices are created through the admin API with a unique slug; sessions are put into localStorage
  *   instead of logging in through the form (the form login is tested once in admin.spec.ts).
+ * - The app lives on the app host `APP` (e2e/hosts.ts): pages open `APP + path`, sessions go into the localStorage of
+ *   the app's origin (or of a practice sub-domain, where a test means it), and API requests from Node go to BASE with
+ *   the Host header of the app (or of the practice sub-domain) – nobody signs in on the main domain.
  */
 import AxeBuilder from '@axe-core/playwright';
 import { expect, request as playwrightRequest, type APIRequestContext, type Browser, type BrowserContext, type BrowserContextOptions, type Page } from '@playwright/test';
+import { APP, APP_HOST, BASE, freshIp, practiceHost, practiceOrigin } from './hosts';
 
-export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:18083';
+export { APP, APP_HOST, BASE, freshIp, practiceHost, practiceOrigin };
 export const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@daftar.test';
 export const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'local-admin-password-123';
 
 export type Session = { token: string; user: { id: number; role: string; practice: { id: number; slug: string } | null; [k: string]: unknown } };
 
-export function freshIp(): string {
-	const n = () => Math.floor(Math.random() * 250) + 2;
-	return `10.${n()}.${n()}.${n()}`;
-}
-
 export function uniqueSlug(prefix = 'e2e'): string {
 	return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-/** The address of a practice sub-domain on the local stack: `http://<slug>.localhost:<port>`. */
-export function practiceOrigin(slug: string): string {
-	const url = new URL(BASE);
-	return `${url.protocol}//${slug}.${url.host}`;
-}
-
-export async function apiContext(ip = freshIp(), token?: string): Promise<APIRequestContext> {
+/** Node requests on `host` (default: the app host) from client IP `ip`, optionally with a bearer token. */
+export async function apiContext(ip = freshIp(), token?: string, host = APP_HOST): Promise<APIRequestContext> {
 	return playwrightRequest.newContext({
 		baseURL: BASE,
-		extraHTTPHeaders: { 'X-Forwarded-For': ip, ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+		extraHTTPHeaders: { host, 'X-Forwarded-For': ip, ...(token ? { Authorization: `Bearer ${token}` } : {}) }
 	});
+}
+
+/** `POST /api/auth/login` on `host` from a fresh IP – the status code (200, or 401 like a wrong password). */
+export async function loginStatus(host: string, email: string, password: string): Promise<number> {
+	const api = await apiContext(freshIp(), undefined, host);
+	const status = (await api.post('/api/auth/login', { data: { email, password } })).status();
+	await api.dispose();
+	return status;
 }
 
 export async function adminSession(): Promise<Session> {
@@ -105,8 +107,8 @@ export async function practiceWithOwner(admin: Session, setup: PracticeSetup = {
 	return { ...created, owner };
 }
 
-/** Puts a session into the localStorage of `origin` and gives the page its own client IP. */
-export async function signInAs(page: Page, session: Session, origin = BASE, lang = 'fr') {
+/** Puts a session into the localStorage of `origin` (the app host unless a test means a practice sub-domain) and gives the page its own client IP. */
+export async function signInAs(page: Page, session: Session, origin = APP, lang = 'fr') {
 	await page.context().setExtraHTTPHeaders({ 'X-Forwarded-For': freshIp() });
 	await page.goto(`${origin}/connexion`);
 	await page.evaluate(

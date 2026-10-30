@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { adminSession, apiContext, expectAccessible, expectNoHorizontalScroll, freshIp, practiceWithOwner, signInAs, type Session } from './kunden-helpers';
+import { adminSession, apiContext, APP, expectAccessible, expectNoHorizontalScroll, freshIp, practiceWithOwner, signInAs, type Session } from './kunden-helpers';
 
 /** Story E5 – Excel/CSV import with the practice's own column mapping (spec 14). Files are generated in the test. */
 
@@ -17,7 +17,7 @@ async function upload(page: Page, name: string, content: Buffer) {
 test('patients: upload, mapping, dry run with an error per row, import, report and template', async ({ page }) => {
 	const { owner } = await practiceWithOwner(admin);
 	await signInAs(page, owner);
-	await page.goto('/app/import');
+	await page.goto(APP + '/app/import');
 	await expectAccessible(page, 'import start');
 	await upload(
 		page,
@@ -79,7 +79,7 @@ test('appointments: future dates become appointments, missing patients are creat
 	const day = new Date(Date.now() + 3 * 86_400_000);
 	const ddmmyyyy = `${String(day.getDate()).padStart(2, '0')}/${String(day.getMonth() + 1).padStart(2, '0')}/${day.getFullYear()}`;
 	await signInAs(page, owner);
-	await page.goto('/app/import');
+	await page.goto(APP + '/app/import');
 	await page.getByRole('radio', { name: /Des rendez-vous/ }).check();
 	await upload(
 		page,
@@ -106,7 +106,7 @@ test('appointments: future dates become appointments, missing patients are creat
 test('a wrong file is refused before upload; required columns are explained; works at 390 px in Arabic', async ({ page }) => {
 	const { owner } = await practiceWithOwner(admin);
 	await signInAs(page, owner);
-	await page.goto('/app/import');
+	await page.goto(APP + '/app/import');
 	await page.getByLabel('Choisir un fichier').setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: Buffer.from('png') });
 	await expect(page.getByRole('alert')).toContainText('Format non reconnu.');
 	await upload(page, 'liste.csv', csv([['Colonne1', 'Colonne2'], ['x', 'y']]));
@@ -118,7 +118,7 @@ test('a wrong file is refused before upload; required columns are explained; wor
 
 	await page.setViewportSize({ width: 390, height: 844 });
 	await signInAs(page, owner, undefined, 'ar');
-	await page.goto('/app/import');
+	await page.goto(APP + '/app/import');
 	await expect(page.getByRole('heading', { level: 1, name: 'استيراد من Excel' })).toBeVisible();
 	await expectNoHorizontalScroll(page, 'import ar 390');
 });

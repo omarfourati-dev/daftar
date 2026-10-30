@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { axe, newPractice, signIn, watchConsole } from './daily';
+import { APP, axe, newPractice, signIn, watchConsole } from './daily';
 
 /** Story D1 (waiting room, screen, ticket page – never a name in public) and 16.2 ("Patient suivant"). */
 
@@ -7,7 +7,7 @@ test('D1 – walk-in ticket, call, consultation, done; screen and ticket page sh
 	const p = await newPractice(request);
 	const problems = watchConsole(page);
 	await signIn(page, p);
-	await page.goto('/app/salle');
+	await page.goto(APP + '/app/salle');
 	await expect(page.getByText('Personne en salle d’attente.')).toBeVisible();
 	await axe(page);
 
@@ -27,13 +27,13 @@ test('D1 – walk-in ticket, call, consultation, done; screen and ticket page sh
 	// the public pages: number yes, name never
 	const visitor = await browser.newContext({ locale: 'fr-FR', timezoneId: 'Africa/Tunis' });
 	const screenPage = await visitor.newPage();
-	await screenPage.goto(`/salle/${p.displayToken}`);
+	await screenPage.goto(`${APP}/salle/${p.displayToken}`);
 	await expect(screenPage.getByRole('heading', { level: 1, name: p.name })).toBeVisible();
 	await expect(screenPage.getByRole('region', { name: /Prochains tickets/ }).getByText('1', { exact: true })).toBeVisible();
 	await expect(screenPage.locator('body')).not.toContainText('Secrète');
 	await axe(screenPage);
 	const ticketPage = await visitor.newPage();
-	await ticketPage.goto(`/ticket/${entry.ticketToken}`);
+	await ticketPage.goto(`${APP}/ticket/${entry.ticketToken}`);
 	await expect(ticketPage.getByText('1', { exact: true }).first()).toBeVisible();
 	await expect(ticketPage.getByText('Vous êtes le prochain.')).toBeVisible();
 	await expect(ticketPage.locator('body')).not.toContainText('Secrète');
@@ -58,7 +58,7 @@ test('16.2 – "Patient suivant" shows now / then and calls the next one', async
 	await p.api.post('/api/queue', { name: 'Premier Arrivé', phone: '20 000 601' });
 	await p.api.post('/api/queue', { name: 'Second Arrivé' });
 	await signIn(page, p);
-	await page.goto('/app/salle');
+	await page.goto(APP + '/app/salle');
 	await page.getByRole('link', { name: 'Patient suivant' }).click();
 	await expect(page.getByRole('heading', { level: 1, name: 'Patient suivant' })).toBeVisible();
 	const now = page.getByRole('region', { name: 'Maintenant' });

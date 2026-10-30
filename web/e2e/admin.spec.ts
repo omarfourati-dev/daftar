@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import {
 	acceptInvitation,
 	ADMIN_EMAIL,
+	APP,
 	ADMIN_PASSWORD,
 	adminSession,
 	closeExtraPages,
@@ -31,7 +32,7 @@ test('A1 – the admin signs in and creates a practice with the wizard, then the
 	const problems = watchConsole(page);
 	const slug = uniqueSlug('lac');
 	await page.context().setExtraHTTPHeaders({ 'X-Forwarded-For': freshIp() });
-	await page.goto('/connexion');
+	await page.goto(APP + '/connexion'); // the form login happens on the app host
 	await page.getByLabel('E-mail').fill(ADMIN_EMAIL);
 	await page.getByLabel('Mot de passe').fill(ADMIN_PASSWORD);
 	await page.getByRole('button', { name: 'Se connecter' }).click();
@@ -91,7 +92,7 @@ test('A1 – the admin signs in and creates a practice with the wizard, then the
 test('A1/I1 – the admin edits status, plan and notes; A3 – owner reset link sets a new password', async ({ page, browser }) => {
 	const { practice, slug, owner } = await practiceWithOwner(admin);
 	await signInAs(page, admin);
-	await page.goto(`/app/admin/cabinets/${practice.id}`);
+	await page.goto(`${APP}/app/admin/cabinets/${practice.id}`);
 	await expect(page.getByRole('heading', { level: 1, name: practice.name })).toBeVisible();
 	await expect(page.getByText(`Titulaire : Dr Amira Ben Salah (${owner.email})`)).toBeVisible();
 	await page.getByLabel('Statut').selectOption('active');
@@ -128,7 +129,7 @@ test('I1 – subscriptions: the admin creates the next invoice and records a ban
 	await api.dispose();
 
 	await signInAs(page, admin);
-	await page.goto('/app/admin/abonnements');
+	await page.goto(APP + '/app/admin/abonnements');
 	const card = page.locator('article', { has: page.getByRole('heading', { name: practice.name }) });
 	await card.getByRole('button', { name: `Créer la facture suivante – ${practice.name}` }).click();
 	await expect(page.getByText(/^Facture DAF-\d{4}-\d{4} créée\.$/)).toBeVisible();
@@ -139,7 +140,7 @@ test('I1 – subscriptions: the admin creates the next invoice and records a ban
 	// the owner sees the open invoice and how to pay without online payment
 	const ownerPage = await extraPage(browser);
 	await signInAs(ownerPage, owner);
-	await ownerPage.goto('/app/abonnement');
+	await ownerPage.goto(APP + '/app/abonnement');
 	await expect(ownerPage.getByText(number)).toBeVisible();
 	await expect(ownerPage.getByText(/Règlement par virement/)).toBeVisible();
 	await expectAccessible(ownerPage, 'owner subscription');
@@ -163,7 +164,7 @@ test('I2 – a pilot request from the landing form starts a pre-filled wizard an
 	await api.dispose();
 
 	await signInAs(page, admin);
-	await page.goto('/app/admin/demandes');
+	await page.goto(APP + '/app/admin/demandes');
 	const card = page.locator('article', { has: page.getByRole('heading', { name: practiceName }) });
 	await expect(card.getByText('Trois médecins.')).toBeVisible();
 	await expect(card.getByRole('link', { name: 'Appeler' })).toHaveAttribute('href', 'tel:+21698111222');
@@ -172,7 +173,7 @@ test('I2 – a pilot request from the landing form starts a pre-filled wizard an
 	await expect(page.getByLabel('Nom du cabinet')).toHaveValue(practiceName);
 	await expect(page.getByLabel('Personne responsable')).toHaveValue('Dr Sami Gharbi');
 
-	await page.goto('/app/admin/demandes');
+	await page.goto(APP + '/app/admin/demandes');
 	await card.getByRole('button', { name: `Supprimer – ${practiceName}` }).click();
 	await page.getByRole('dialog').getByRole('button', { name: 'Supprimer la demande' }).click();
 	await expect(page.getByRole('heading', { name: practiceName })).toHaveCount(0);
@@ -182,7 +183,7 @@ test('J2 – feedback from a practice reaches the admin', async ({ page, browser
 	const { practice, owner } = await practiceWithOwner(admin);
 	const message = `Pouvez-vous ajouter les SMS ? ${uniqueSlug('fb')}`;
 	await signInAs(page, owner);
-	await page.goto('/app/reglages/compte');
+	await page.goto(APP + '/app/reglages/compte');
 	await page.getByRole('button', { name: 'Une idée ? Un problème ?' }).click();
 	const dialog = page.getByRole('dialog', { name: 'Une idée ? Un problème ?' });
 	await dialog.getByLabel('Votre message').fill(message);
@@ -191,7 +192,7 @@ test('J2 – feedback from a practice reaches the admin', async ({ page, browser
 
 	const adminPage = await extraPage(browser);
 	await signInAs(adminPage, admin);
-	await adminPage.goto('/app/admin/retours');
+	await adminPage.goto(APP + '/app/admin/retours');
 	const item = adminPage.locator('article', { hasText: message });
 	await expect(item.getByText(`${practice.name} · Dr Amira Ben Salah`)).toBeVisible();
 	await expect(item.getByText('Page : /app/reglages/compte')).toBeVisible();
@@ -203,7 +204,7 @@ test('the admin pages work on a phone and in Arabic without horizontal scrolling
 	await page.setViewportSize({ width: 390, height: 844 });
 	await signInAs(page, admin, undefined, 'ar');
 	for (const path of ['/app/admin', '/app/admin/cabinets/nouveau', '/app/admin/abonnements', '/app/admin/demandes', '/app/admin/retours']) {
-		await page.goto(path);
+		await page.goto(APP + path);
 		await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
 		await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 		await expectNoHorizontalScroll(page, path);

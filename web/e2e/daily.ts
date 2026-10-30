@@ -2,9 +2,15 @@
  * Helpers of the daily-work E2E tests (agenda, waiting room, patients, cash, reminders, statistics): each test gets
  * its own practice (created by the admin over the API, owner via the invitation), data is created over the API,
  * the browser starts signed in (token in localStorage – no UI login, so the login throttle is never hit).
+ *
+ * The app lives on the app host (e2e/hosts.ts): pages open `APP + path`, the token sits in the localStorage of the
+ * app's origin only, and API calls from Node go to BASE with the app's Host header (nobody signs in on the main domain).
  */
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
+import { APP, APP_HOST, BASE, freshIp, onApp } from './hosts';
+
+export { APP, onApp };
 
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@daftar.test';
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'local-admin-password-123';
@@ -13,10 +19,10 @@ const ALL_DAY = Object.fromEntries(['1', '2', '3', '4', '5', '6', '7'].map((d) =
 
 let adminToken: string | null = null;
 
-/** One admin login per worker process. */
+/** One admin login per worker process – on the app host, from a client IP of its own (the login throttle is per IP). */
 export async function admin(request: APIRequestContext): Promise<string> {
 	if (adminToken) return adminToken;
-	const res = await request.post('/api/auth/login', { data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD } });
+	const res = await request.post(`${BASE}/api/auth/login`, { data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD }, ...onApp() });
 	expect(res.status(), await res.text()).toBe(200);
 	adminToken = (await res.json()).token as string;
 	return adminToken;
@@ -28,18 +34,18 @@ export interface Api {
 	patch<T = any>(path: string, data: unknown): Promise<T>;
 }
 
-/** JSON calls with a bearer token; any non-2xx answer fails the test with the server's message. */
+/** JSON calls with a bearer token on the app host; any non-2xx answer fails the test with the server's message. */
 export function api(request: APIRequestContext, token: string): Api {
-	const headers = { Authorization: `Bearer ${token}` };
+	const headers = { Authorization: `Bearer ${token}`, host: APP_HOST };
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- test data of any endpoint
 	const read = async (res: Awaited<ReturnType<APIRequestContext['get']>>, what: string): Promise<any> => {
 		expect(res.ok(), `${what} → ${res.status()} ${await res.text()}`).toBeTruthy();
 		return res.status() === 204 ? undefined : res.json();
 	};
 	return {
-		get: async (path) => read(await request.get(path, { headers }), `GET ${path}`),
-		post: async (path, data) => read(await request.post(path, { headers, data: data ?? {} }), `POST ${path}`),
-		patch: async (path, data) => read(await request.patch(path, { headers, data }), `PATCH ${path}`)
+		get: async (path) => read(await request.get(BASE + path, { headers }), `GET ${path}`),
+		post: async (path, data) => read(await request.post(BASE + path, { headers, data: data ?? {} }), `POST ${path}`),
+		patch: async (path, data) => read(await request.patch(BASE + path, { headers, data }), `PATCH ${path}`)
 	};
 }
 
@@ -81,8 +87,9 @@ export async function newPractice(request: APIRequestContext, options: { onlineB
 		onlineBooking: { enabled: !!options.onlineBooking, autoConfirm: false, minNoticeHours: 0, horizonDays: 30, maxPerDay: 50, blockNoShows: 0 }
 	});
 	const email = `owner-${tag}@e2e.daftar.test`;
-	const accepted = await request.post('/api/invitations/accept', {
-		data: { token: created.invitation.token, name: 'Dr Amira Ben Salem', email, password: PASSWORD }
+	const accepted = await request.post(`${BASE}/api/invitations/accept`, {
+		data: { token: created.invitation.token, name: 'Dr Amira Ben Salem', email, password: PASSWORD },
+		...onApp()
 	});
 	expect(accepted.status(), await accepted.text()).toBe(201);
 	const session = await accepted.json();
@@ -149,15 +156,17 @@ export function currentQuarter(): { day: string; time: string; startsAt: string 
 	return { day: now.day, time: hhmm(start), startsAt: iso(now.day, hhmm(start)) };
 }
 
-/** The browser starts signed in as the owner of `p`, in French. */
+/** The browser starts signed in as the owner of `p` (on the app's origin only – never on the main domain), in French. */
 export async function signIn(page: Page, p: Practice, lang: 'fr' | 'ar' = 'fr') {
+	await page.context().setExtraHTTPHeaders({ 'X-Forwarded-For': freshIp() });
 	await page.addInitScript(
-		([token, user, l]) => {
+		([origin, token, user, l]) => {
+			if (location.origin !== origin) return;
 			localStorage.setItem('daftar.token', token as string);
 			localStorage.setItem('daftar.user', JSON.stringify(user));
 			localStorage.setItem('daftar.lang', l as string);
 		},
-		[p.token, p.user, lang] as const
+		[APP, p.token, p.user, lang] as const
 	);
 }
 

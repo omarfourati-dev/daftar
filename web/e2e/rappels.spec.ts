@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { addDays, axe, iso, newPatient, newPractice, signIn, tunisNow } from './daily';
+import { addDays, APP, axe, iso, newPatient, newPractice, signIn, tunisNow } from './daily';
 
 /** Story G1 – reminders of tomorrow by click (wa.me / sms:), consent respected, marked as sent. */
 
@@ -12,7 +12,7 @@ test('G1 – tomorrow’s reminders with WhatsApp/SMS links, no buttons without 
 	await p.api.post('/api/appointments', { patientId: no.id, startsAt: iso(tomorrow, '09:30'), durationMin: 20, reason: 'Contrôle' });
 
 	await signIn(page, p);
-	await page.goto('/app/rappels');
+	await page.goto(APP + '/app/rappels');
 	await expect(page.getByText('2 rendez-vous, 0 rappel(s) envoyé(s)')).toBeVisible();
 	const card = (name: string) => page.getByRole('listitem').filter({ has: page.getByRole('heading', { name: new RegExp(name) }) });
 	const whatsapp = card('Youssef Accord').getByRole('link', { name: 'WhatsApp' });
