@@ -181,7 +181,7 @@ test('installable app: manifest, icons and a stamped service worker that never c
 	expect(cached).toContain('/200.html');
 	expect(cached.filter((p) => p.startsWith('/api'))).toEqual([]);
 	expect(page.url().startsWith(APP + '/')).toBeTruthy(); // the token lives on the app's origin only
-	expect(await page.evaluate(() => navigator.serviceWorker.controller?.scriptURL)).toBe(`${APP}/sw.js`);
+	expect(await page.evaluate(async () => (await navigator.serviceWorker.ready).active?.scriptURL)).toBe(`${APP}/sw.js`);
 });
 
 test('the main domain stores no token and runs no service worker', async ({ page }) => {
