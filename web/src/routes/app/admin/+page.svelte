@@ -110,7 +110,11 @@
 						</dl>
 						<p class="text-sm text-slate-600">
 							<span class="sr-only">{t('admin.list.usage')} :</span>
-							<span>{t('admin.list.usageLine', { users: row.users, patients: row.patients, appointments: row.appointments })}</span>
+							<span
+								>{t('admin.list.usageLine', { users: row.users, patients: row.patients, appointments: row.appointments })}{row.appointmentsWeek !== undefined
+									? ` ${t('admin.list.usageWeek', { n: row.appointmentsWeek })}`
+									: ''}</span
+							>
 						</p>
 					</li>
 				{/each}

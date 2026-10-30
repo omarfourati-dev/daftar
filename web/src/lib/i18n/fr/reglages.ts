@@ -49,6 +49,7 @@ export const reglages = {
 		remove: 'Supprimer la fermeture {when}',
 		endBeforeStart: 'La date de fin doit être le même jour ou après le début.',
 		added: 'Fermeture ajoutée.',
+		affected: '{n} rendez-vous sont prévus ces jours-là : pensez à prévenir les patients.',
 		removed: 'Fermeture supprimée.'
 	},
 	actes: {

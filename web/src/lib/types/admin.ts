@@ -14,8 +14,11 @@ export interface AdminPracticeRow {
 	users: number;
 	patients: number;
 	appointments: number;
+	/** appointments of the last 7 days */
+	appointmentsWeek?: number;
 	lastActivityAt: string | null;
 	slug?: string;
+	governorate?: string | null;
 	specialty?: Specialty | string;
 	status?: PracticeStatus | string;
 	planCode?: string;
@@ -64,6 +67,10 @@ export interface AdminPractice extends PracticeProfileFields {
 	isDemo: boolean;
 	createdAt: string;
 	onlineBooking?: OnlineBooking;
+	/** the owner account, null until the invitation is accepted */
+	owner?: { id: number; name: string; email: string } | null;
+	pilotUntil?: string | null;
+	bookingUrl?: string;
 	[key: string]: unknown;
 }
 

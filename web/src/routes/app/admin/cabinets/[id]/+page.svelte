@@ -43,7 +43,7 @@
 	let loadError = $state('');
 	let problems = $state<Problems>({});
 	let slugState = $state<SlugState>('unchanged');
-	const refused = new Set<string>();
+	const refused = new Map<string, SlugState>();
 	let saving = $state(false);
 	let saveMessage = $state('');
 	let saveError = $state('');
@@ -145,9 +145,10 @@
 			form = toForm(original);
 			saveMessage = t('kit.saved');
 		} catch (err) {
-			if (err instanceof ApiError && err.code === 'slug_taken') {
-				refused.add(form.slug);
-				slugState = 'taken';
+			const refusal: Record<string, SlugState> = { slug_taken: 'taken', slug_reserved: 'reserved', slug_invalid: 'invalid' };
+			if (err instanceof ApiError && err.code && err.code in refusal) {
+				refused.set(form.slug, refusal[err.code]);
+				slugState = refusal[err.code];
 			}
 			saveError = apiErrorMessage(err);
 		} finally {
@@ -244,7 +245,14 @@
 
 		<section class={section} aria-labelledby="s-address">
 			<h2 id="s-address" class={sectionTitle}>{t('admin.edit.sections.address')}</h2>
-			<SlugField bind:value={form.slug} bind:state={slugState} original={original.slug} {refused} warning={t('admin.edit.slugWarning')} />
+			<SlugField
+				bind:value={form.slug}
+				bind:state={slugState}
+				original={original.slug}
+				practiceId={data.id}
+				{refused}
+				warning={t('admin.edit.slugWarning')}
+			/>
 			<PracticeFields bind:value={form.profile} {problems} groups={['address', 'presentation']} />
 		</section>
 
@@ -287,7 +295,12 @@
 			<div class="flex flex-col gap-3 rounded-xl bg-slate-50 p-4">
 				<h3 class="font-semibold text-ink">{t('admin.edit.resetTitle')}</h3>
 				<p class="text-sm text-slate-600">{t('admin.edit.resetText')}</p>
-				{#if reset}
+				{#if original.owner}
+					<p class="text-sm font-medium text-ink">{t('admin.edit.owner', { name: original.owner.name, email: original.owner.email })}</p>
+				{/if}
+				{#if original.owner === null}
+					<p class="text-sm font-medium text-amber-800">{t('admin.edit.noOwner')}</p>
+				{:else if reset}
 					<CopyLink
 						label={t('admin.edit.resetLink')}
 						url={reset.url}

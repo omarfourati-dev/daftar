@@ -1,4 +1,5 @@
 import type { Messages } from '../fr';
+import { errorsKunden } from './errors-kunden';
 
 export const errors: Messages['errors'] = {
 	network: 'لا يوجد اتصال بالخادم. يرجى التحقق من اتصال الإنترنت.',
@@ -20,5 +21,6 @@ export const errors: Messages['errors'] = {
 	email_taken: 'يوجد حساب مسجّل بهذا البريد الإلكتروني.',
 	invalid_phone: 'رقم الهاتف غير صالح.',
 	demo_expired: 'انتهت النسخة التجريبية. يمكنكم بدء نسخة جديدة.',
-	server_error: 'حدث خطأ.'
+	server_error: 'حدث خطأ.',
+	...errorsKunden
 };

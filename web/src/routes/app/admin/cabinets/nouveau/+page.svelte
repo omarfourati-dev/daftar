@@ -50,7 +50,7 @@
 	let slug = $state('');
 	let slugEdited = false;
 	/** sub-domains the server refused on create (taken in the meantime) – not checked again */
-	const refused = new Set<string>();
+	const refused = new Map<string, SlugState>();
 	let slugState = $state<SlugState>('idle');
 	let hours = $state(defaultWeeklyHours());
 	let practitioners = $state<PractitionerDraft[]>([]);
@@ -179,8 +179,9 @@
 			await tick();
 			heading?.focus();
 		} catch (err) {
-			if (err instanceof ApiError && (err.status === 409 || err.code === 'slug_taken')) {
-				refused.add(slug);
+			const refusal: Record<string, SlugState> = { slug_taken: 'taken', slug_reserved: 'reserved', slug_invalid: 'invalid' };
+			if (err instanceof ApiError && (err.status === 409 || (err.code && err.code in refusal))) {
+				refused.set(slug, refusal[err.code ?? ''] ?? 'taken');
 				await show(STEPS.indexOf('address'));
 			} else {
 				formError = apiErrorMessage(err);

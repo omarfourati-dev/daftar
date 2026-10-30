@@ -49,6 +49,8 @@ export interface Practitioner {
 	title: string;
 	specialty: Specialty | string | null;
 	color: string;
+	/** an account of the practice this practitioner works with (optional) */
+	userId?: number | null;
 	onlineBookable: boolean;
 	active: boolean;
 	sort: number;

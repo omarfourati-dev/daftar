@@ -14,6 +14,7 @@ const lac: AdminPracticeRow = {
 	users: 3,
 	patients: 120,
 	appointments: 412,
+	appointmentsWeek: 23,
 	lastActivityAt: '2026-10-30T08:15:00+01:00',
 	slug: 'cabinet-lac',
 	specialty: 'dentiste',
@@ -57,7 +58,7 @@ describe('/app/admin – practices', () => {
 		expect(within(row).getByText('Cabinet – mensuel')).toBeInTheDocument();
 		expect(within(row).getByText('30/11/2026')).toBeInTheDocument();
 		expect(within(row).getByText('30/10/2026 08:15')).toBeInTheDocument();
-		expect(within(row).getByText('3 compte(s) · 120 patients · 412 rendez-vous')).toBeInTheDocument();
+		expect(within(row).getByText('3 compte(s) · 120 patients · 412 rendez-vous (23 cette semaine)')).toBeInTheDocument();
 		const other = screen.getByRole('link', { name: 'Kiné Sousse' }).closest('li')!;
 		expect(within(other).getByText('jamais')).toBeInTheDocument();
 		expect(screen.getByText('2 cabinet(s)')).toBeInTheDocument();

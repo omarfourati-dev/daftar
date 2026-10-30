@@ -33,6 +33,7 @@ const practice: AdminPractice = {
 	weeklyHours: defaultWeeklyHours(),
 	isDemo: false,
 	createdAt: '2026-10-01T10:00:00+01:00',
+	owner: { id: 2, name: 'Amira Ben Salah', email: 'amira@cabinet.tn' },
 	onlineBooking: { enabled: true, autoConfirm: false, horizonDays: 30, minNoticeHours: 2, maxPerDay: 20, blockNoShows: 2 }
 };
 
@@ -70,7 +71,7 @@ describe('/app/admin/cabinets/[id]', () => {
 	it('checks a new sub-domain and warns about old links', async () => {
 		mockApi({
 			'GET /api/admin/practices/7': () => json(200, practice),
-			'GET /api/admin/slug-available?slug=lac-tunis': () => json(200, { available: true }),
+			'GET /api/admin/slug-available?slug=lac-tunis&practiceId=7': () => json(200, { available: true }),
 			'PATCH /api/admin/practices/7': () => json(200, { ...practice, slug: 'lac-tunis' })
 		});
 		render7();
@@ -125,6 +126,19 @@ describe('/app/admin/cabinets/[id]', () => {
 		await fireEvent.click(within(dialog).getByRole('button', { name: 'Supprimer définitivement' }));
 		await vi.waitFor(() => expect(deps.goto).toHaveBeenCalledWith('/app/admin'));
 		expect(calls()).toContain('DELETE /api/admin/practices/7');
+	});
+
+	it('shows the owner account, and without owner only the invitation', async () => {
+		mockApi({ 'GET /api/admin/practices/7': () => json(200, { ...practice, owner: null }) });
+		render7();
+		expect(await screen.findByText('Ce cabinet n’a pas encore de titulaire : envoyez d’abord une invitation.')).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Créer un lien de réinitialisation' })).not.toBeInTheDocument();
+	});
+
+	it('names the owner whose password is reset', async () => {
+		mockApi({ 'GET /api/admin/practices/7': () => json(200, practice) });
+		render7();
+		expect(await screen.findByText('Titulaire : Amira Ben Salah (amira@cabinet.tn)')).toBeInTheDocument();
 	});
 
 	it('says when the practice does not exist', async () => {

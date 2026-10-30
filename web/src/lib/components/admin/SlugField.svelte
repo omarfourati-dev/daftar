@@ -13,7 +13,8 @@
 		value = $bindable(),
 		state = $bindable('idle'),
 		original = '',
-		refused = new Set<string>(),
+		refused = new Map<string, SlugState>(),
+		practiceId,
 		onedit,
 		hint = t('admin.wizard.slugHint'),
 		warning = ''
@@ -22,8 +23,10 @@
 		state?: SlugState;
 		/** the current sub-domain of an existing practice: not checked again */
 		original?: string;
-		/** refused by the server on save (taken in the meantime) */
-		refused?: Set<string>;
+		/** refused by the server on save (taken in the meantime, reserved, invalid) – not checked again */
+		refused?: Map<string, SlugState>;
+		/** editing an existing practice: its own sub-domain counts as free */
+		practiceId?: number;
 		onedit?: () => void;
 		hint?: string;
 		warning?: string;
@@ -49,15 +52,17 @@
 			state = local;
 			return;
 		}
-		if (refused.has(slug)) {
-			state = 'taken';
+		const refusal = refused.get(slug);
+		if (refusal) {
+			state = refusal;
 			return;
 		}
 		state = 'checking';
 		let alive = true;
 		const timer = setTimeout(async () => {
 			try {
-				const check = await api<SlugCheck>(`/api/admin/slug-available?slug=${encodeURIComponent(slug)}`);
+				const query = `slug=${encodeURIComponent(slug)}${practiceId ? `&practiceId=${practiceId}` : ''}`;
+				const check = await api<SlugCheck>(`/api/admin/slug-available?${query}`);
 				if (!alive) return;
 				state = check.available ? 'available' : check.reason === 'reserved' ? 'reserved' : check.reason === 'invalid' ? 'invalid' : 'taken';
 			} catch {

@@ -50,6 +50,7 @@ export const reglages: Messages['reglages'] = {
 		remove: 'حذف الإغلاق {when}',
 		endBeforeStart: 'يجب أن يكون تاريخ النهاية في نفس يوم البداية أو بعده.',
 		added: 'تمّت إضافة الإغلاق.',
+		affected: '{n} موعد مبرمج في هذه الأيام: لا تنسَ إعلام المرضى.',
 		removed: 'تمّ حذف الإغلاق.'
 	},
 	actes: {

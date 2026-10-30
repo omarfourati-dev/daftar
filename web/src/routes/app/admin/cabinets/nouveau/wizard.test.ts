@@ -178,6 +178,24 @@ describe('/app/admin/cabinets/nouveau – wizard', () => {
 		expect(screen.getByText('Déjà utilisé par un autre cabinet.')).toBeInTheDocument();
 	});
 
+	it('goes back to the sub-domain when the server refuses its format', async () => {
+		mockApi({
+			'/api/admin/slug-available?slug=cabinet-du-lac': slugApi(),
+			'POST /api/admin/practices': () => problem(422, 'slug_reserved')
+		});
+		render(Page);
+		await fillIdentity();
+		await next();
+		await screen.findByText(/^Disponible/);
+		await input('Adresse', '12 rue du Lac');
+		await input('Ville', 'Tunis');
+		await pick('Gouvernorat', 'tunis');
+		for (let i = 0; i < 5; i++) await next();
+		await fireEvent.click(screen.getByRole('button', { name: 'Créer le cabinet' }));
+		expect(await screen.findByRole('heading', { level: 2, name: 'Adresse & sous-domaine' })).toBeInTheDocument();
+		expect(screen.getByText('Ce nom est réservé. Choisissez-en un autre.')).toBeInTheDocument();
+	});
+
 	it('refills the catalog when the specialty changes before the services were edited', async () => {
 		mockApi({ '/api/admin/slug-available?slug=cabinet-du-lac': slugApi() });
 		render(Page);

@@ -1,3 +1,5 @@
+import { errorsKunden } from './errors-kunden';
+
 /** Texts for the `code` of API problems (backend daftar/problems.py) and for client-side errors. Owner: foundation. */
 export const errors = {
 	network: 'Pas de connexion au serveur. Vérifiez votre connexion internet.',
@@ -19,5 +21,6 @@ export const errors = {
 	email_taken: 'Un compte existe déjà avec cette adresse e-mail.',
 	invalid_phone: 'Numéro de téléphone invalide.',
 	demo_expired: 'La démo est terminée. Vous pouvez en lancer une nouvelle.',
-	server_error: 'Une erreur est survenue.'
+	server_error: 'Une erreur est survenue.',
+	...errorsKunden
 };

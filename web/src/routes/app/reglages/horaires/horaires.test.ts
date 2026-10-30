@@ -52,7 +52,7 @@ describe('/app/reglages/horaires', () => {
 			'POST /api/closures': () => {
 				const created = { id: 3, startsOn: '2027-03-20', endsOn: '2027-03-21', label: 'Aïd' };
 				list = [...list, created];
-				return json(201, created);
+				return json(201, { ...created, affectedAppointments: 2 });
 			},
 			'DELETE /api/closures/2': () => {
 				list = list.filter((c) => c.id !== 2);
@@ -75,6 +75,7 @@ describe('/app/reglages/horaires', () => {
 		await fireEvent.input(screen.getByLabelText(/^Motif/), { target: { value: 'Aïd' } });
 		await fireEvent.click(screen.getByRole('button', { name: 'Ajouter la fermeture' }));
 		expect(await screen.findByText('Du 20/03/2027 au 21/03/2027')).toBeInTheDocument();
+		expect(screen.getByText('Fermeture ajoutée. 2 rendez-vous sont prévus ces jours-là : pensez à prévenir les patients.')).toBeInTheDocument();
 		expect(sentJson('POST /api/closures')).toEqual({ startsOn: '2027-03-20', endsOn: '2027-03-21', label: 'Aïd' });
 
 		await fireEvent.click(screen.getByRole('button', { name: 'Supprimer la fermeture le 31/12/2026' }));

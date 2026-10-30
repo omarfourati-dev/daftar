@@ -88,10 +88,16 @@
 		else if (end < from) closureErrors.to = t('reglages.horaires.endBeforeStart');
 		if (Object.keys(closureErrors).length) return;
 		try {
-			const created = await api<Closure>('/api/closures', { method: 'POST', json: { startsOn: from, endsOn: end, label: label.trim() } });
-			closures = [...closures, created];
+			const created = await api<Closure & { affectedAppointments?: number }>('/api/closures', {
+				method: 'POST',
+				json: { startsOn: from, endsOn: end, label: label.trim() }
+			});
+			const { affectedAppointments = 0, ...closure } = created;
+			closures = [...closures, closure];
 			from = to = label = '';
-			closureNotice = t('reglages.horaires.added');
+			closureNotice = affectedAppointments
+				? `${t('reglages.horaires.added')} ${t('reglages.horaires.affected', { n: affectedAppointments })}`
+				: t('reglages.horaires.added');
 		} catch (err) {
 			closureErrors = { form: apiErrorMessage(err) };
 		}
