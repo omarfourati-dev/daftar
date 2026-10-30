@@ -84,6 +84,11 @@ MUTATIONS: list[tuple[str, str, str, str]] = [
     ("migrations/versions/0001_initial.py", "user_id     BIGINT      NOT NULL REFERENCES app_user (id) ON DELETE CASCADE,", "user_id     BIGINT      NOT NULL REFERENCES app_user (id),", "tests/test_schema.py"),
     ("migrations/versions/0002_onboarding_alerts.py", "CHECK (char_length(alerts) <= 500)", "CHECK (char_length(alerts) <= 501)", "tests/test_schema.py"),
     ("daftar/auth.py", "            slug=row.slug,", "            slug=row.specialty,", "tests/test_auth.py"),
+    ("daftar/static.py", "csp = ADS_CSP if root == self.landing and candidate in self._ad_pages else None", "csp = None", "tests/test_http.py"),
+    ("daftar/static.py", "csp = ADS_CSP if root == self.landing and candidate in self._ad_pages else None", "csp = ADS_CSP", "tests/test_http.py"),
+    ("daftar/static.py", 'AD_PAGES = ("index.html", "ar/index.html")', 'AD_PAGES = ("index.html",)', "tests/test_http.py"),
+    ("daftar/static.py", '        if file.csp:\n            headers["Content-Security-Policy"] = file.csp', '        if file.csp and request.headers.get("if-none-match") != file.etag:\n            headers["Content-Security-Policy"] = file.csp', "tests/test_http.py"),
+    ("daftar/http.py", "\"script-src 'self' 'unsafe-inline' https:; \"", "\"script-src 'self' 'unsafe-inline'; \"", "tests/test_http.py"),
 ]
 
 

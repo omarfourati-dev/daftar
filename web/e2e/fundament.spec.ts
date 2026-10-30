@@ -150,7 +150,8 @@ test('installable app: manifest, icons and a stamped service worker that never c
 test('an unknown practice sub-domain is 404', async ({ request }) => {
 	const url = new URL(BASE);
 	test.skip(url.hostname !== 'localhost', 'needs BASE_DOMAIN=localhost (docker-compose.yml)');
-	const res = await request.get(`${url.protocol}//inconnu.localhost:${url.port}/app`);
+	// Host header instead of DNS: Node on Windows does not resolve *.localhost (getaddrinfo ENOTFOUND)
+	const res = await request.get('/app', { headers: { host: `inconnu.localhost:${url.port}` } });
 	expect(res.status()).toBe(404);
 	const tls = await request.get('/api/public/tls-check?domain=inconnu.localhost');
 	expect(tls.status()).toBe(404);
