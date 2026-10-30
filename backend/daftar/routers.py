@@ -22,6 +22,7 @@ from . import queue
 from . import availability
 from . import appointments
 from . import series
+from . import booking
 
 ROUTERS: list[APIRouter] = [
     auth.router,
@@ -40,4 +41,5 @@ ROUTERS: list[APIRouter] = [
     availability.router,
     appointments.router,
     series.router,
+    booking.router,
 ]
