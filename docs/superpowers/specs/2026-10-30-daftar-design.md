@@ -374,3 +374,27 @@ Physiotherapie/Kiné, Psychologie, …). Zahnärzte bleiben ein Beispiel, nicht 
   (Généraliste, Dentiste, Pédiatre, Kiné, Autre) und seedet passende Leistungen, Gründe und Namen.
 - Admin-Assistent: Fachrichtung im ersten Schritt; der Katalog im Schritt „Actes & tarifs“ wird daraus vorbelegt.
 - Landing: spricht alle Praxen an („médecins, dentistes, kinés, psychologues…“), Beispiele aus mehreren Fachrichtungen.
+
+## 13. Eigene App je Praxis (Omar, 30.10.)
+
+Jede Praxis bekommt **ihre eigene installierbare App** mit Voreinstellung – als PWA über ihre Subdomain (kein
+Store, keine Warnmeldungen, sofortige Updates). Native Store-Apps je Praxis gibt es bewusst **nicht** (Apple
+Guideline 4.2.6 lehnt Vorlagen-Apps ab, die nicht über das Konto der jeweiligen Praxis eingereicht werden; Google
+wertet viele fast gleiche Apps als Spam). Später möglich: **eine** signierte Windows-App (Tauri), die sich über ihren
+Dateinamen `Daftar-<slug>.exe` selbst auf die Praxis einstellt, und **eine** Daftar-App in Play Store/App Store
+(Capacitor), Praxis per QR-Code/Code. Heute nur die PWA.
+- **Ersetzt die Weiterleitung aus 11.3:** Auf `<slug>.<BASE_DOMAIN>` liefert der Server zusätzlich `/app/*`,
+  `/connexion`, `/invitation` als SPA (statt 302). Anmeldung auf einer Praxis-Subdomain akzeptiert nur Benutzer dieser
+  Praxis (sonst dieselbe 401-Meldung wie bei falschem Passwort); Admin meldet sich nur auf der Hauptdomain an. Die
+  Login-Seite zeigt dort Name und Icon der Praxis.
+- **Manifeste je Host:** `GET /manifest.webmanifest` auf einer Praxis-Subdomain → `name` „<Praxisname> – Daftar“,
+  `short_name` (Praxisname, max. 12 Zeichen), `start_url` `/app`, `scope` `/`, Icons der Praxis; `GET
+  /booking.webmanifest` → „<Praxisname> – Rendez-vous“, `start_url` `/` (Patienten installieren die Buchungsseite).
+  Hauptdomain behält das statische Manifest. Beide `no-cache`.
+- **Icons je Praxis:** `GET /icons/practice-192.png`, `-512.png`, `-maskable-512.png` auf der Subdomain → serverseitig
+  gerendert (Pillow): Initialen der Praxis (max. 2 Buchstaben, auch arabisch möglich → Latein-Initialen aus `name`) in
+  Weiß auf `practice.brand_color` (neue Spalte, Standard `#0f766e`, Format `#rrggbb`), im Speicher gecacht bis zur
+  nächsten Praxisänderung. Später Logo-Upload.
+- **Installieren-Seite** `/app/installer` (auch in Réglages verlinkt): erkennt Gerät/Browser und zeigt den passenden
+  Weg (Windows/Edge-Chrome „Installer“, Android-Chrome „Installer l'application“ bzw. `beforeinstallprompt`-Knopf,
+  iPhone/iPad Safari „Partager → Sur l'écran d'accueil“), plus QR-Code des Praxis-Links für Handys im Team.
