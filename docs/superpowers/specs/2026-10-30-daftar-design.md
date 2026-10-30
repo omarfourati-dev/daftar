@@ -465,5 +465,43 @@ als Migration 0002.
 - **Feedback** (J2): `POST /api/feedback {message ≤ 2000, page}` → 201 · `GET /api/admin/feedback` ·
   `DELETE /api/admin/feedback/{id}`; Zähler `daftar_feedback_total`.
 - **Demo** (12): `POST /api/demo {lang?, specialty?}`. Die SPA wertet `?lang=ar|fr` auf `/app/demo` und `/connexion` aus.
+## 16. Weitere Wünsche von Omar (30.10. abends)
+
+**16.1 Termin am Telefon (Schnellmodus, Release 1).** Knopf „Rendez-vous par téléphone“ in der Kopfzeile (Taste `T`):
+Telefonnummer zuerst (findet vorhandene Patienten, sonst neu), Leistung, dann sofort die **nächsten freien Zeiten**
+(heute, morgen, später) als Liste – ein Klick bucht, danach WhatsApp-/SMS-Bestätigungstext zum Kopieren.
+API: `GET /api/availability/next?serviceId=&practitionerId=&limit=8` → `[{startsAt, practitionerId}]` (über Tage
+hinweg, max. 14 Tage, gleiche Regeln wie `/api/availability`).
+
+**16.2 „Patient suivant“ – Ansicht für Empfang/Arzt (Release 1).** Regel: Ist der Patient des aktuellen bzw.
+fälligen Termins (Beginn ≤ jetzt + 5 min) anwesend (Warteschlange `waiting`), ist er dran; ist er nicht da, ist
+automatisch die **erste anwesende Person** der Warteschlange dran (nach Ticketnummer; früh gekommene Terminpatienten
+zählen wie alle anderen). Terminpatienten, die 10 min nach Beginn nicht da sind, werden als „en retard“ markiert
+(kein automatisches Nichterscheinen). API: `GET /api/queue/next?practitionerId=` → `{entry: QueueEntry|null,
+reason: 'appointment'|'waiting_list', lateAppointments:[Appointment], upcoming:[QueueEntry] (nächste 3)}` ·
+`POST /api/queue/call-next {practitionerId?}` → ruft genau diesen Eintrag auf (`called`, race-sicher) und gibt ihn
+zurück. Web: `/app/salle/suivant` (große Anzeige „Maintenant / Ensuite“, Knopf „Appeler le suivant“); der
+Wartezimmer-Bildschirm zeigt die aufgerufene Nummer.
+
+**16.3 Kassenabschluss und Prüfung durch den Besitzer (Release 1).** `POST /api/cash/close {day, countedCashMillimes,
+note?}` (Personal) → `{expectedCashMillimes, countedCashMillimes, differenceMillimes, closedBy, closedAt}`;
+`POST /api/cash/{day}/verify` (owner) → `verifiedBy, verifiedAt`; `/api/cash?day=` liefert den Abschluss mit; das
+Dashboard des Besitzers zeigt ungeprüfte Tage. Tabelle `cash_closing(practice_id, day, expected_cash_millimes,
+counted_cash_millimes, note, closed_by, closed_at, verified_by, verified_at, PRIMARY KEY(practice_id, day))`.
+
+**16.4 Rechnungen an Patienten mit Rabatt (Release 1.1).** „Note d'honoraires“ aus erfassten Leistungen, fortlaufend
+je Praxis (`F-2026-0001`), Praxis-Kopf mit Matricule fiscal, druckbar. Rabatt (Betrag oder %) mit Pflichtangaben
+„Grund“ und „genehmigt von Dr. …“ (Behandler), wer ihn eingetragen hat wird gespeichert; der Besitzer sieht alle Rabatte
+in der Tagesübersicht. Zahlungen können sich auf eine Rechnung beziehen; Status offen/teilweise/bezahlt/storniert
+(Storno nur owner). Steuerfelder konfigurierbar, Standard ohne MwSt (vor dem Einsatz mit einem Steuerberater klären).
+
+**16.5 Patientenportal und Zahlung direkt an die Praxis (Release 2, Konzept).** Patienten melden sich per Einmal-Link
+(von der Praxis per WhatsApp geschickt oder über den Buchungslink) an, sehen ihre Termine und Rechnungen und zahlen offene
+Beträge mit **Flouci über das eigene Händlerkonto der Praxis** – das Geld geht von Flouci direkt auf das Konto (RIB) der
+Praxis, Daftar hält nie Geld (deshalb keine Zahlungsdienst-Lizenz nötig). Jede Praxis eröffnet dafür selbst ein
+Flouci-Händlerkonto (mit ihrer Matricule fiscal und ihrem RIB); ihre API-Schlüssel speichert Daftar verschlüsselt je
+Praxis. Alternativ Barzahlung vor Ort; das Personal setzt die Rechnung auf bezahlt. Webhook nur mit Verify-API.
+Daftars eigene Abo-Rechnungen (11.4) laufen getrennt über Omars Flouci-Konto.
+
 - Reine Web-Seiten ohne neue API: `/app/agenda/imprimer?date=` (Druck), `/app/reglages/affiche` (A4-Plakat mit QR,
   QR lokal erzeugt, keine externen Dienste), `/app/installer`, `/app/import`, `/app/statistiques`, `/app/abonnement`.
