@@ -21,6 +21,7 @@ import anyio
 
 from .context import AppContext
 from .invitations import delete_stale_invitations
+from .pilot import cleanup_pilot_requests  # be-patienten
 
 log = logging.getLogger("daftar")
 
@@ -41,6 +42,7 @@ def cleanup_invitations(ctx: AppContext) -> None:
 
 JOBS: list[Job] = [
     Job("invitation-cleanup", timedelta(minutes=30), cleanup_invitations),
+    Job("pilot-request-cleanup", timedelta(hours=24), cleanup_pilot_requests),  # be-patienten
 ]
 
 

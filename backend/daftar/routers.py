@@ -13,6 +13,7 @@ from . import auth, hosts, invitations
 from . import finance  # be-patienten
 from . import overview  # be-patienten
 from . import patients  # be-patienten
+from . import pilot  # be-patienten
 from . import reminders  # be-patienten
 
 ROUTERS: list[APIRouter] = [
@@ -23,4 +24,6 @@ ROUTERS: list[APIRouter] = [
     finance.router,
     reminders.router,
     overview.router,
+    pilot.public_router,
+    pilot.admin_router,
 ]
