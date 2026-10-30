@@ -11,6 +11,8 @@ export const nav: Messages['nav'] = {
 	caisse: 'الصندوق',
 	rappels: 'التذكيرات',
 	reglages: 'الإعدادات',
+	statistiques: 'الإحصائيات',
+	toHandle: '{count} للمعالجة',
 	admin: 'الإدارة',
 	more: 'المزيد'
 };

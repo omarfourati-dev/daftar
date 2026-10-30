@@ -23,6 +23,7 @@ import { roles } from './fr/roles';
 import { salle } from './fr/salle';
 import { shell } from './fr/shell';
 import { appointmentStatus, paymentMethod, queueStatus } from './fr/status';
+import { statistiques } from './fr/statistiques';
 import { ticket } from './fr/ticket';
 import { today } from './fr/today';
 import { governorate, specialty } from './fr/vocabulary';
@@ -51,7 +52,8 @@ export const fr = {
 	demo,
 	display,
 	ticket,
-	recu
+	recu,
+	statistiques
 };
 
 export type Messages = typeof fr;

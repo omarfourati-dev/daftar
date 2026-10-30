@@ -10,6 +10,8 @@ export const nav = {
 	caisse: 'Caisse',
 	rappels: 'Rappels',
 	reglages: 'Réglages',
+	statistiques: 'Statistiques',
+	toHandle: '{count} à traiter',
 	admin: 'Administration',
 	more: 'Plus'
 };

@@ -11,10 +11,16 @@
 	import { pwa } from '../pwa.svelte';
 	import type { Me } from '../types';
 	import LanguageSwitch from './LanguageSwitch.svelte';
+	import { badges } from '../badges.svelte';
+	import GlobalSearch from './daily/GlobalSearch.svelte';
+	import Shortcuts from './daily/Shortcuts.svelte';
+	import Icon from './daily/Icon.svelte';
+	import PhoneBooking from './agenda/PhoneBooking.svelte';
+	import { agendaChanges, phoneBooking } from '../agenda/requests.svelte';
 
 	let { path, children }: { path: string; children: Snippet } = $props();
 
-	type Item = { href: string; key: MessageKey; short?: MessageKey };
+	type Item = { href: string; key: MessageKey; short?: MessageKey; ownerOnly?: boolean };
 	const STAFF: Item[] = [
 		{ href: '/app', key: 'nav.today' },
 		{ href: '/app/agenda', key: 'nav.agenda' },
@@ -22,6 +28,7 @@
 		{ href: '/app/patients', key: 'nav.patients' },
 		{ href: '/app/caisse', key: 'nav.caisse' },
 		{ href: '/app/rappels', key: 'nav.rappels' },
+		{ href: '/app/statistiques', key: 'nav.statistiques', ownerOnly: true },
 		{ href: '/app/reglages', key: 'nav.reglages' }
 	];
 	const ADMIN: Item[] = [
@@ -30,7 +37,9 @@
 	];
 
 	const isAdmin = $derived(auth.user?.role === 'admin');
-	const items = $derived(isAdmin ? ADMIN : STAFF);
+	const items = $derived(isAdmin ? ADMIN : STAFF.filter((i) => !i.ownerOnly || auth.user?.role === 'owner'));
+	/** Online requests + overdue appointments, shown next to "Aujourd'hui" (they are handled there). */
+	const badgeFor = (href: string) => (href === '/app' && !isAdmin ? badges.total : 0);
 	const bottom = $derived(items.slice(0, isAdmin ? items.length : 4));
 	const more = $derived(isAdmin ? [] : items.slice(4));
 	const practice = $derived(auth.user?.practice ?? null);
@@ -41,6 +50,11 @@
 	$effect(() => {
 		if (!auth.token) void deps.goto('/connexion');
 		else if (isAdmin && (path === '/app' || path === '/app/')) void deps.goto('/app/admin');
+	});
+
+	onMount(() => {
+		if (auth.token && !isAdmin) badges.start();
+		return () => badges.stop();
 	});
 
 	onMount(async () => {
@@ -63,6 +77,10 @@
 </script>
 
 {#if auth.token}
+	{#if !isAdmin}<Shortcuts {path} />{/if}
+	{#if phoneBooking.open && !isAdmin}
+		<PhoneBooking onbooked={() => agendaChanges.bump()} onclose={() => (phoneBooking.open = false)} />
+	{/if}
 	<div class="min-h-screen md:flex">
 		<aside class="hidden w-60 shrink-0 flex-col gap-4 border-e border-slate-200 bg-white p-4 md:flex print:hidden">
 			<a href={isAdmin ? '/app/admin' : '/app'} class="flex items-center gap-2 text-lg font-bold text-brand-800">
@@ -75,7 +93,10 @@
 						class="rounded-lg px-3 py-2.5 font-medium text-slate-700 hover:bg-brand-50 hover:text-brand-800"
 						class:bg-brand-50={active(item.href)}
 						class:text-brand-800={active(item.href)}
-						aria-current={active(item.href) ? 'page' : undefined}>{t(item.key)}</a
+						aria-current={active(item.href) ? 'page' : undefined}
+						>{t(item.key)}{#if badgeFor(item.href)}<span class="ms-2 rounded-full bg-accent-400 px-2 text-xs font-bold text-ink tabular-nums"
+								><span aria-hidden="true">{badgeFor(item.href)}</span><span class="sr-only"> – {t('nav.toHandle', { count: badgeFor(item.href) })}</span></span
+							>{/if}</a
 					>
 				{/each}
 			</nav>
@@ -84,6 +105,16 @@
 		<div class="flex min-w-0 flex-1 flex-col">
 			<header class="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2 print:hidden">
 				<span class="min-w-0 flex-1 truncate font-semibold text-slate-800">{practice?.name ?? t('common.appName')}</span>
+				{#if !isAdmin}
+					<div class="hidden min-w-0 flex-1 sm:block"><GlobalSearch /></div>
+					<button
+						type="button"
+						class="btn-secondary hidden min-h-10 px-3 text-sm sm:inline-flex"
+						aria-label={t('agenda.phone.button')}
+						title="{t('agenda.phone.button')} (T)"
+						onclick={() => (phoneBooking.open = true)}><Icon name="phone" class="h-4 w-4" /><span class="hidden lg:inline">{t('agenda.phone.button')}</span></button
+					>
+				{/if}
 				<LanguageSwitch onchange={saveLanguage} />
 				<button type="button" class="btn-secondary min-h-9 px-3 py-1 text-sm" onclick={logout}>{t('common.logout')}</button>
 			</header>
@@ -110,7 +141,10 @@
 					href={item.href}
 					class="flex min-h-14 flex-1 items-center justify-center px-1 text-center text-xs font-medium text-slate-600"
 					class:text-brand-800={active(item.href)}
-					aria-current={active(item.href) ? 'page' : undefined}>{t(item.short ?? item.key)}</a
+					aria-current={active(item.href) ? 'page' : undefined}
+					>{t(item.short ?? item.key)}{#if badgeFor(item.href)}<span class="ms-1 rounded-full bg-accent-400 px-1.5 text-[0.7rem] font-bold text-ink tabular-nums"
+							><span aria-hidden="true">{badgeFor(item.href)}</span><span class="sr-only"> – {t('nav.toHandle', { count: badgeFor(item.href) })}</span></span
+						>{/if}</a
 				>
 			{/each}
 			{#if more.length}
