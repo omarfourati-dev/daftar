@@ -434,3 +434,36 @@ und legen die Zuordnung der Spalten **selbst in der Oberfläche** fest.
   committed_at)` – die Datei wird beim Commit bzw. spätestens nach 24 h gelöscht (Aufräumjob); `import_template(id,
   practice_id, name, kind, mapping JSONB, options JSONB, created_at)`. Mandantentrennung wie überall.
 - Die Checkliste „Erste Schritte“ bekommt „Importer vos patients (Excel)“; Landing und Rechtstexte erwähnen den Import.
+
+## 15. API-Verträge für die Backlog-Stories (Release 1)
+
+Verbindlich für Backend **und** Web (werden parallel gebaut). Schema-Ergänzungen kommen, falls nicht schon in 0001,
+als Migration 0002.
+- `Me.practice` = `{id, name, slug, specialty, brandColor, status, isDemo, demoExpiresAt}`.
+- **Passwort zurücksetzen** (A3): `POST /api/staff/{userId}/reset-link` (owner, nicht für sich selbst) und
+  `POST /api/admin/practices/{id}/owner-reset-link` (admin) → 201 `{token, expiresAt}` (24 h, einmalig);
+  öffentlich `POST /api/password-reset/preview {token}` → `{email, practiceName}` · `POST /api/password-reset/accept
+  {token, password}` → `{token, user}` (token_version++). Seite `/reinitialiser#<token>`.
+- **Serien** (B4): `POST /api/appointments/series/preview {patientId, startsAt, durationMin?, serviceId?, practitionerId?,
+  reason, notes?, rule:{weekdays:[1..7], count:1..52}}` → `{occurrences:[{startsAt, endsAt, conflict:{id,startsAt,
+  patientName}|null, closed:bool}]}` · `POST /api/appointments/series {…, skipConflicts:bool}` → 201 `{seriesId,
+  created:[Appointment], skipped:[{startsAt, reason:'conflict'|'closed'}]}` (ohne skipConflicts und mit Konflikt → 409)
+  · `POST /api/appointments/series/{seriesId}/cancel {from:'YYYY-MM-DD'}` → `{cancelled:n}`. `Appointment.seriesId`.
+- **Vorschläge bei Konflikt** (B2): 409-Body enthält zusätzlich `suggestions:[startsAt…]` (bis 5 nächste freie Beginne
+  gleicher Dauer und gleichen Behandlers in den nächsten 7 Tagen).
+- **Tagesabschluss** (B5): `GET /api/appointments/overdue` → `[Appointment]` (heute, `scheduled|confirmed`, Ende vor
+  mehr als 15 min).
+- **Abzeichen** (C2): `GET /api/badges` → `{onlineRequests, overdue}` (leicht, App fragt alle 60 s).
+- **Medizinischer Hinweis / gleiche Nummer** (E2/E3): `Patient.alerts` (Text, max. 500), `PatientSummary.hasAlerts`,
+  `Patient.samePhone:[{id, firstName, lastName}]`, `Appointment.patient.alerts`, `QueueEntry.alerts` (nur intern).
+- **Statistik** (H1, owner): `GET /api/stats?month=YYYY-MM` → `{month, appointments:{total, done, noShow, cancelled,
+  online}, noShowRate, revenueMillimes, newPatients, topServices:[{name, count}], previous:{…gleiche Felder ohne
+  previous…}}`.
+- **Erste Schritte** (A5): `GET /api/onboarding` → `{steps:[{key, done}], dismissed}` mit `key ∈ hours, services,
+  practitioners, team, booking, import, install, poster` (aus Daten abgeleitet; `install`/`poster` per
+  `POST /api/onboarding/{key}/done`), `POST /api/onboarding/dismiss`; Spalte `practice.onboarding JSONB '{}'`.
+- **Feedback** (J2): `POST /api/feedback {message ≤ 2000, page}` → 201 · `GET /api/admin/feedback` ·
+  `DELETE /api/admin/feedback/{id}`; Zähler `daftar_feedback_total`.
+- **Demo** (12): `POST /api/demo {lang?, specialty?}`. Die SPA wertet `?lang=ar|fr` auf `/app/demo` und `/connexion` aus.
+- Reine Web-Seiten ohne neue API: `/app/agenda/imprimer?date=` (Druck), `/app/reglages/affiche` (A4-Plakat mit QR,
+  QR lokal erzeugt, keine externen Dienste), `/app/installer`, `/app/import`, `/app/statistiques`, `/app/abonnement`.
