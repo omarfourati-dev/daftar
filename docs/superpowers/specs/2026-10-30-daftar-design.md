@@ -42,6 +42,10 @@ daftar/
   `/salle/`, `/ticket/` die SPA-Datei `200.html` → sonst 404 (problem+json für `/api`).
 - CSP wie Redefluss (`default-src 'self'`, Hashes der Inline-Scripts von `200.html` zur Startzeit berechnen,
   `img-src 'self' data: blob:`, `connect-src 'self'`, `frame-ancestors 'none'`, `font-src 'self'`). Keine externen Hosts.
+  Ausnahme (Omar, 30.10.): Google AdSense auf den beiden Startseiten `/` und `/ar/` – nur deren HTML bekommt eine
+  gelockerte CSP wie Briefklar (`script-src 'self' 'unsafe-inline' https:`, `img-src … https:`, `frame-src https:`,
+  `connect-src 'self' https:`, `ADS_CSP` in `backend/daftar/http.py`); App, Buchungs-/Ticket-/Wartezimmerseiten,
+  Praxis-Subdomains, Rechtstexte und API behalten die strenge CSP.
   Weitere Header: `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`,
   `Permissions-Policy: camera=(), microphone=(), geolocation=()`. Hinter Caddy: echte Client-IP = **letzter** Eintrag
   von `X-Forwarded-For`.
@@ -195,7 +199,9 @@ SPA-Routen, Landing-Seiten nicht abfangen). Offline: Banner „Hors ligne“.
 ## 7. Verkaufswebseite und Rechtstexte (`landing/`)
 
 Statisches HTML + eine CSS-Datei, selbst gehostete Schrift (IBM Plex Sans Arabic, deckt Latein + Arabisch,
-woff2 400/600/700), kein Inline-Script, kein externes Laden. Seiten:
+woff2 400/600/700), kein Inline-Script, kein externes Laden – außer Google AdSense auf `/` und `/ar/` (Omar, 30.10.:
+Loader mit `ca-pub-4072840905222883`, Googles Einwilligungsfenster, Knopf „Paramètres de confidentialité“ /
+„إعدادات الخصوصية“ in der Fußzeile über `landing/privacy-settings.js`, `Mediapartners-Google` in `robots.txt`). Seiten:
 - `/` (FR) und `/ar/` (AR, RTL): Hero („Fini le cahier de rendez-vous“), Probleme → Lösungen (Absences, salle
   d'attente, impayés, tout sur papier), Funktionen mit Screenshots (`landing/img/`, PNG/WebP; bis echte Screenshots
   da sind: gezeichnete Platzhalter), „Sur tous vos appareils“ inkl. Installationsanleitung (iPhone: Partager → Sur
@@ -211,7 +217,8 @@ woff2 400/600/700), kein Inline-Script, kein externes Laden. Seiten:
 Inhalt der Datenschutzerklärung (Fakten aus `C:\private\omar_developer_portfolio\src\app\[locale]\datenschutz\page.tsx`
 und `…\impressum\page.tsx` übernehmen, nichts erfinden): Verantwortlicher für die Website = Omar Fourati
 (Anschrift aus dem Impressum), Hosting VPS bei IONOS SE in Deutschland, Server-Logs (Caddy) wie im Portfolio
-beschrieben, keine Cookies/kein Tracking auf der Website, Pilot-Formular (Zweck, Rechtsgrundlage Art. 6 Abs. 1 lit. b/f
+beschrieben, keine Cookies/kein Tracking in der App (seit 30.10.: Google AdSense mit Einwilligung nur auf den beiden
+Startseiten, Abschnitt 4.2 „publicite“ der Rechtstexte), Pilot-Formular (Zweck, Rechtsgrundlage Art. 6 Abs. 1 lit. b/f
 DSGVO, Löschung nach spätestens 12 Monaten), Demo (fiktive Daten, 24 h), App: die Praxis ist Verantwortliche für
 Patientendaten, Daftar ist Auftragsverarbeiter (Art. 28 DSGVO, Muster-AVV), Speicherung in Deutschland, TLS,
 Passwörter gehasht (Argon2), localStorage nur für Anmeldung/Sprache, Export und Löschung, Betroffenenrechte,

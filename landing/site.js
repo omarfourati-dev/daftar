@@ -1,5 +1,5 @@
 /* Daftar – Formular „Accès pilote“ als progressive Verbesserung.
-   Ohne JavaScript bleibt der Hinweis mit mailto: sichtbar. Keine Cookies, kein Tracking;
+   Ohne JavaScript bleibt der Hinweis mit mailto: sichtbar. Setzt selbst keine Cookies und trackt nicht;
    einziger Request: POST /api/public/pilot-requests. */
 (function () {
   "use strict";

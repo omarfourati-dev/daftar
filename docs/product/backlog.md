@@ -125,5 +125,5 @@ dafür zahlen“.
 - Zwei-Faktor-Anmeldung, Sitzungsliste; Mehrere Standorte; Konsultationsnotizen (erst nach Rechtsprüfung).
 
 ## Bewusst nicht
-- Patientennamen auf öffentlichen Seiten · Tracking/Cookies · Funktionen, die Werbung verspricht, aber nicht gibt ·
+- Patientennamen auf öffentlichen Seiten · Tracking/Cookies/Werbung in der App (Google AdSense nur auf `/` und `/ar/`) · Funktionen, die Werbung verspricht, aber nicht gibt ·
   echte Telefonnummern in der Demo · Selbstregistrierung ohne Admin, solange kein Gewerbe/AVV-Prozess steht.
