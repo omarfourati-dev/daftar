@@ -10,6 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from . import auth, hosts, invitations
+from . import export  # be-patienten
 from . import feedback  # be-patienten
 from . import finance  # be-patienten
 from . import overview  # be-patienten
@@ -29,4 +30,5 @@ ROUTERS: list[APIRouter] = [
     pilot.admin_router,
     feedback.router,
     feedback.admin_router,
+    export.router,
 ]
