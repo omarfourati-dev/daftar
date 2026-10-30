@@ -7,4 +7,8 @@ Disallow: /invitation
 Disallow: /salle/
 Disallow: /ticket/
 
+# Google AdSense (Werbung auf / und /ar/): der Crawler von AdSense darf alles lesen.
+User-agent: Mediapartners-Google
+Allow: /
+
 Sitemap: https://daftar.omarfourati.de/sitemap.xml

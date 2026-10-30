@@ -1,7 +1,9 @@
 """One pure-ASGI middleware for every response: security headers, request log, HTTP metrics, last-resort 500.
 
 The CSP is built once at startup; ``script-src`` contains the hashes of the inline scripts of the SPA shell
-(``200.html``), so SvelteKit's bootstrap script runs and nothing else inline does. No external hosts anywhere.
+(``200.html``), so SvelteKit's bootstrap script runs and nothing else inline does. No external hosts – except
+:data:`ADS_CSP`, which daftar/static.py sets on the two home pages of the landing only (the middleware keeps a CSP a
+response already has).
 """
 
 from __future__ import annotations
@@ -37,6 +39,25 @@ def build_csp(script_hashes: list[str]) -> str:
         "form-action 'self'; "
         "frame-ancestors 'none'"
     )
+
+
+#: The two public home pages (``/`` and ``/ar/``) show Google AdSense (auto ads plus Google's consent message), like
+#: Briefklar's ``landingCSP``. AdSense loads scripts, frames and pixels from changing Google hosts, so these two static
+#: pages without user data allow HTTPS sources. The app, the booking pages, the legal texts and the API keep the strict
+#: CSP of :func:`build_csp`. No script hashes here: a hash in ``script-src`` makes browsers ignore ``'unsafe-inline'``.
+ADS_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline' https:; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: blob: https:; "
+    "font-src 'self'; "
+    "connect-src 'self' https:; "
+    "frame-src https:; "
+    "object-src 'none'; "
+    "base-uri 'self'; "
+    "form-action 'self'; "
+    "frame-ancestors 'none'"
+)
 
 
 def security_headers(csp: str) -> dict[str, str]:

@@ -52,12 +52,17 @@ def test_wrong_method_on_a_known_route_is_problem_405(client: TestClient) -> Non
     assert_problem(client.get("/api/auth/login"), 405, "method_not_allowed")
 
 
-@pytest.mark.parametrize("path", ["/healthz", "/api/nope", "/connexion", "/", "/site.css"])
+@pytest.mark.parametrize("path", ["/healthz", "/api/nope", "/connexion", "/", "/ar/", "/site.css", "/nope"])
 def test_security_headers_everywhere(client: TestClient, path: str) -> None:
     res = client.get(path)
     for name, value in HEADERS.items():
         assert res.headers[name] == value, (path, name)
-    csp = res.headers["content-security-policy"]
+    assert "frame-ancestors 'none'" in res.headers["content-security-policy"]
+
+
+@pytest.mark.parametrize("path", ["/healthz", "/api/nope", "/connexion", "/site.css", "/confidentialite/", "/nope"])
+def test_strict_csp_without_external_hosts(client: TestClient, path: str) -> None:
+    csp = client.get(path).headers["content-security-policy"]
     for part in [
         "default-src 'self'",
         "img-src 'self' data: blob:",
@@ -81,6 +86,81 @@ def test_inline_script_hashes_ignore_external_and_empty_scripts() -> None:
     assert inline_script_hashes('<script src="/a.js"></script><script type="module" src=/b.js></script><script> </script>') == []
 
 
+# --- Google AdSense: only the two home pages (FR and AR) get the relaxed CSP --------------------------------------------
+
+#: Like Briefklar's ``landingCSP``: AdSense and Google's consent message load scripts, frames and pixels from changing
+#: Google hosts. No hashes: a hash in ``script-src`` would make browsers ignore ``'unsafe-inline'``.
+AD_CSP = {
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https:",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self'",
+    "connect-src 'self' https:",
+    "frame-src https:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+}
+STRICT_SCRIPT_SRC = "script-src 'self' 'sha256-LVQX0/CCjy48nWgLNji9mg1tmiGdYyEEm8mqInKaYOU='"
+
+
+def assert_strict_csp(res: Any, label: str) -> None:
+    parts = res.headers["content-security-policy"].split("; ")
+    assert STRICT_SCRIPT_SRC in parts, label
+    assert "http" not in res.headers["content-security-policy"], label
+    assert "img-src 'self' data: blob:" in parts and "connect-src 'self'" in parts, label
+
+
+@pytest.mark.parametrize("path", ["/", "/ar/", "/index.html", "/ar/index.html"])
+def test_the_two_home_pages_allow_google_adsense(client: TestClient, path: str) -> None:
+    res = client.get(path)
+    assert res.status_code == 200
+    assert set(res.headers["content-security-policy"].split("; ")) == AD_CSP
+    for name, value in HEADERS.items():
+        assert res.headers[name] == value, name  # AdSense gets the origin as referrer, nothing more
+
+
+def test_the_home_page_keeps_the_adsense_csp_on_head_and_revalidation(client: TestClient) -> None:
+    first = client.get("/")
+    assert set(client.head("/").headers["content-security-policy"].split("; ")) == AD_CSP
+    again = client.get("/", headers={"If-None-Match": first.headers["etag"]})
+    assert again.status_code == 304
+    assert set(again.headers["content-security-policy"].split("; ")) == AD_CSP
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/confidentialite/",  # legal texts
+        "/mentions-legales/",
+        "/app",  # the SPA
+        "/app/agenda",
+        "/connexion",
+        "/invitation",
+        "/r/cabinet-lac",  # booking page on the main domain
+        "/salle/0a1b2c3d4e",
+        "/ticket/0a1b2c3d4e",
+        "/site.css",
+        "/robots.txt",
+        "/nope",  # 404 page of the landing
+        "/api/nope",
+        "/healthz",
+    ],
+)
+def test_everything_else_keeps_the_strict_csp(client: TestClient, path: str) -> None:
+    assert_strict_csp(client.get(path, follow_redirects=False), path)
+
+
+@pytest.mark.parametrize("path", ["/", "/rdv/abc123", "/app", "/connexion", "/invitation", "/ar/", "/index.html"])
+def test_practice_sub_domains_keep_the_strict_csp(client: TestClient, make_practice: Any, path: str) -> None:
+    make_practice("Cabinet du Lac", slug="cabinet-lac")
+    res = client.get(path, headers={"host": "cabinet-lac.daftar.omarfourati.de"}, follow_redirects=False)
+    assert res.status_code in (200, 302), path  # /ar/ and /index.html go to the main domain
+    assert_strict_csp(res, path)
+
+
 def test_metrics_exposes_base_and_business_metrics(client: TestClient, make_practice: Any, make_user: Any, clock: Any) -> None:
     make_practice()
     make_practice(is_demo=True, demo_expires_at=clock.now())
@@ -92,7 +172,10 @@ def test_metrics_exposes_base_and_business_metrics(client: TestClient, make_prac
     assert 'daftar_practices{kind="demo"} 1.0' in text
     assert "daftar_users 1.0" in text  # the admin does not count
     assert "daftar_patients 0.0" in text
-    assert "daftar_appointments_created_total 0.0" in text
+    # labelled by source and exported with 0 from the start, so increase() sees the very first appointment
+    for source in ("staff", "online", "series", "import"):
+        assert f'daftar_appointments_created_total{{source="{source}"}} 0.0' in text, source
+    assert "daftar_appointments_created_total 0.0" not in text
     assert "daftar_demo_started_total 0.0" in text
     assert "daftar_pilot_requests_total 0.0" in text
     assert 'daftar_http_requests_total{method="GET",route="/api/auth/me",status="401"} 1.0' in text

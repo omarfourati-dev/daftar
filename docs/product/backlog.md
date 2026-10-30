@@ -73,6 +73,12 @@ dafür zahlen“.
 - F1 Leistungen/Behandlungsplan, Zahlungen in Raten, Saldo, Anzahlung je Termin, Quittung druckbar.
 - F2 Tageskasse nach Zahlart, offene Beträge.
 
+### Epic L – Neu am 30.10. abends (Spec 16)
+- L1 **Termin am Telefon** in Sekunden mit nächsten freien Zeiten (16.1).
+- L2 **„Patient suivant“** für Empfang/Arzt: wer ist jetzt dran, automatisch der nächste Anwesende, wenn der
+  Terminpatient fehlt (16.2). *AK*: zwei gleichzeitige „Appeler le suivant“ rufen nie dieselbe Person doppelt auf.
+- L3 **Kassenabschluss** mit Zählbetrag und Prüfung durch den Besitzer (16.3).
+
 ### Epic G – Erinnerungen
 - G1 Morgen-Liste mit WhatsApp/SMS-Knopf, Einwilligung beachtet, „envoyé“ markieren.
 
@@ -95,6 +101,8 @@ dafür zahlen“.
   Wiederherstellung einmal getestet und im README beschrieben. (Kopie außerhalb des Servers: Release 1.1.)
 
 ## Release 1.1 – nächste Tage
+- **Rechnungen an Patienten mit Rabatt** (genehmigt von Dr. …, Spec 16.4).
+- **Flyer** (Druck-PDF, FR/AR): Praxis Dr. Fadoua mit zwei QR-Codes (Website + Online-Termin); Daftar-Flyer für Ärzte.
 - **Sonderöffnungszeiten** für Zeiträume (Ramadan, Sommer) + Vorschlagsliste fester tunesischer Feiertage.
 - Änderungsprotokoll je Termin/Zahlung (wer, wann, was).
 - Wartebereich: Warteliste „früherer Termin gewünscht“, automatischer Vorschlag bei Stornierung.
@@ -102,10 +110,20 @@ dafür zahlen“.
 - Tutorial (FR/AR, Seite + PDF) und Werbevideo (Hoch- und Querformat) – Omars Wunsch, mit echten Screenshots.
 
 ## Release 2 – nach dem Pilot
+- **Patientenportal** mit Rechnungen und Zahlung per Flouci direkt auf das Konto der Praxis (Spec 16.5).
+- Aus der Konkurrenzanalyse (30.10., MAW3DI/Olycab/MedOrdo/med.tn): automatische Erinnerungen (Zusatzpaket),
+  Konsultationsnotiz + Rezept/Attest (erst nach Rechtsprüfung), Telefon-Bestätigung bei Online-Buchung und Umbuchen
+  durch den Patienten über seinen Link, Zahnschema, CNAM-Formulare – jeweils erst nach Rückfrage bei Pilotpraxen.
+- **Hosting/Recht vor echten Patientendaten klären:** Datenübermittlung ins Ausland (Hosting in Deutschland) braucht
+  nach tunesischem Recht evtl. eine INPDP-Genehmigung (Loi 2004-63, Art. 52 – unbestätigt) → Anwalt/INPDP fragen;
+  Alternative: Produktivbetrieb bei einem Hoster in Tunesien.
 - WhatsApp-Business-API/SMS-Gateway für automatische Erinnerungen; Web-Push für neue Online-Anfragen.
 - Logo-Upload je Praxis; Flouci live (Händlerkonto); eine Windows-App (Tauri, signiert), eine Store-App (Capacitor).
+- **Praxis-Website als Zusatzleistung** („site vitrine“): eigene Website je Praxis (FR/AR, SEO lokal, Öffnungszeiten
+  und Leistungen live aus Daftar, Buchungsknopf), auf eigener Domain der Praxis. Prototyp: Cabinet Dr. Fadoua Bellaj
+  Fourati (30.10.2026).
 - Zwei-Faktor-Anmeldung, Sitzungsliste; Mehrere Standorte; Konsultationsnotizen (erst nach Rechtsprüfung).
 
 ## Bewusst nicht
-- Patientennamen auf öffentlichen Seiten · Tracking/Cookies · Funktionen, die Werbung verspricht, aber nicht gibt ·
+- Patientennamen auf öffentlichen Seiten · Tracking/Cookies/Werbung in der App (Google AdSense nur auf `/` und `/ar/`) · Funktionen, die Werbung verspricht, aber nicht gibt ·
   echte Telefonnummern in der Demo · Selbstregistrierung ohne Admin, solange kein Gewerbe/AVV-Prozess steht.

@@ -42,6 +42,10 @@ daftar/
   `/salle/`, `/ticket/` die SPA-Datei `200.html` → sonst 404 (problem+json für `/api`).
 - CSP wie Redefluss (`default-src 'self'`, Hashes der Inline-Scripts von `200.html` zur Startzeit berechnen,
   `img-src 'self' data: blob:`, `connect-src 'self'`, `frame-ancestors 'none'`, `font-src 'self'`). Keine externen Hosts.
+  Ausnahme (Omar, 30.10.): Google AdSense auf den beiden Startseiten `/` und `/ar/` – nur deren HTML bekommt eine
+  gelockerte CSP wie Briefklar (`script-src 'self' 'unsafe-inline' https:`, `img-src … https:`, `frame-src https:`,
+  `connect-src 'self' https:`, `ADS_CSP` in `backend/daftar/http.py`); App, Buchungs-/Ticket-/Wartezimmerseiten,
+  Praxis-Subdomains, Rechtstexte und API behalten die strenge CSP.
   Weitere Header: `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`,
   `Permissions-Policy: camera=(), microphone=(), geolocation=()`. Hinter Caddy: echte Client-IP = **letzter** Eintrag
   von `X-Forwarded-For`.
@@ -195,7 +199,9 @@ SPA-Routen, Landing-Seiten nicht abfangen). Offline: Banner „Hors ligne“.
 ## 7. Verkaufswebseite und Rechtstexte (`landing/`)
 
 Statisches HTML + eine CSS-Datei, selbst gehostete Schrift (IBM Plex Sans Arabic, deckt Latein + Arabisch,
-woff2 400/600/700), kein Inline-Script, kein externes Laden. Seiten:
+woff2 400/600/700), kein Inline-Script, kein externes Laden – außer Google AdSense auf `/` und `/ar/` (Omar, 30.10.:
+Loader mit `ca-pub-4072840905222883`, Googles Einwilligungsfenster, Knopf „Paramètres de confidentialité“ /
+„إعدادات الخصوصية“ in der Fußzeile über `landing/privacy-settings.js`, `Mediapartners-Google` in `robots.txt`). Seiten:
 - `/` (FR) und `/ar/` (AR, RTL): Hero („Fini le cahier de rendez-vous“), Probleme → Lösungen (Absences, salle
   d'attente, impayés, tout sur papier), Funktionen mit Screenshots (`landing/img/`, PNG/WebP; bis echte Screenshots
   da sind: gezeichnete Platzhalter), „Sur tous vos appareils“ inkl. Installationsanleitung (iPhone: Partager → Sur
@@ -211,7 +217,8 @@ woff2 400/600/700), kein Inline-Script, kein externes Laden. Seiten:
 Inhalt der Datenschutzerklärung (Fakten aus `C:\private\omar_developer_portfolio\src\app\[locale]\datenschutz\page.tsx`
 und `…\impressum\page.tsx` übernehmen, nichts erfinden): Verantwortlicher für die Website = Omar Fourati
 (Anschrift aus dem Impressum), Hosting VPS bei IONOS SE in Deutschland, Server-Logs (Caddy) wie im Portfolio
-beschrieben, keine Cookies/kein Tracking auf der Website, Pilot-Formular (Zweck, Rechtsgrundlage Art. 6 Abs. 1 lit. b/f
+beschrieben, keine Cookies/kein Tracking in der App (seit 30.10.: Google AdSense mit Einwilligung nur auf den beiden
+Startseiten, Abschnitt 4.2 „publicite“ der Rechtstexte), Pilot-Formular (Zweck, Rechtsgrundlage Art. 6 Abs. 1 lit. b/f
 DSGVO, Löschung nach spätestens 12 Monaten), Demo (fiktive Daten, 24 h), App: die Praxis ist Verantwortliche für
 Patientendaten, Daftar ist Auftragsverarbeiter (Art. 28 DSGVO, Muster-AVV), Speicherung in Deutschland, TLS,
 Passwörter gehasht (Argon2), localStorage nur für Anmeldung/Sprache, Export und Löschung, Betroffenenrechte,
@@ -465,5 +472,43 @@ als Migration 0002.
 - **Feedback** (J2): `POST /api/feedback {message ≤ 2000, page}` → 201 · `GET /api/admin/feedback` ·
   `DELETE /api/admin/feedback/{id}`; Zähler `daftar_feedback_total`.
 - **Demo** (12): `POST /api/demo {lang?, specialty?}`. Die SPA wertet `?lang=ar|fr` auf `/app/demo` und `/connexion` aus.
+## 16. Weitere Wünsche von Omar (30.10. abends)
+
+**16.1 Termin am Telefon (Schnellmodus, Release 1).** Knopf „Rendez-vous par téléphone“ in der Kopfzeile (Taste `T`):
+Telefonnummer zuerst (findet vorhandene Patienten, sonst neu), Leistung, dann sofort die **nächsten freien Zeiten**
+(heute, morgen, später) als Liste – ein Klick bucht, danach WhatsApp-/SMS-Bestätigungstext zum Kopieren.
+API: `GET /api/availability/next?serviceId=&practitionerId=&limit=8` → `[{startsAt, practitionerId}]` (über Tage
+hinweg, max. 14 Tage, gleiche Regeln wie `/api/availability`).
+
+**16.2 „Patient suivant“ – Ansicht für Empfang/Arzt (Release 1).** Regel: Ist der Patient des aktuellen bzw.
+fälligen Termins (Beginn ≤ jetzt + 5 min) anwesend (Warteschlange `waiting`), ist er dran; ist er nicht da, ist
+automatisch die **erste anwesende Person** der Warteschlange dran (nach Ticketnummer; früh gekommene Terminpatienten
+zählen wie alle anderen). Terminpatienten, die 10 min nach Beginn nicht da sind, werden als „en retard“ markiert
+(kein automatisches Nichterscheinen). API: `GET /api/queue/next?practitionerId=` → `{entry: QueueEntry|null,
+reason: 'appointment'|'waiting_list', lateAppointments:[Appointment], upcoming:[QueueEntry] (nächste 3)}` ·
+`POST /api/queue/call-next {practitionerId?}` → ruft genau diesen Eintrag auf (`called`, race-sicher) und gibt ihn
+zurück. Web: `/app/salle/suivant` (große Anzeige „Maintenant / Ensuite“, Knopf „Appeler le suivant“); der
+Wartezimmer-Bildschirm zeigt die aufgerufene Nummer.
+
+**16.3 Kassenabschluss und Prüfung durch den Besitzer (Release 1).** `POST /api/cash/close {day, countedCashMillimes,
+note?}` (Personal) → `{expectedCashMillimes, countedCashMillimes, differenceMillimes, closedBy, closedAt}`;
+`POST /api/cash/{day}/verify` (owner) → `verifiedBy, verifiedAt`; `/api/cash?day=` liefert den Abschluss mit; das
+Dashboard des Besitzers zeigt ungeprüfte Tage. Tabelle `cash_closing(practice_id, day, expected_cash_millimes,
+counted_cash_millimes, note, closed_by, closed_at, verified_by, verified_at, PRIMARY KEY(practice_id, day))`.
+
+**16.4 Rechnungen an Patienten mit Rabatt (Release 1.1).** „Note d'honoraires“ aus erfassten Leistungen, fortlaufend
+je Praxis (`F-2026-0001`), Praxis-Kopf mit Matricule fiscal, druckbar. Rabatt (Betrag oder %) mit Pflichtangaben
+„Grund“ und „genehmigt von Dr. …“ (Behandler), wer ihn eingetragen hat wird gespeichert; der Besitzer sieht alle Rabatte
+in der Tagesübersicht. Zahlungen können sich auf eine Rechnung beziehen; Status offen/teilweise/bezahlt/storniert
+(Storno nur owner). Steuerfelder konfigurierbar, Standard ohne MwSt (vor dem Einsatz mit einem Steuerberater klären).
+
+**16.5 Patientenportal und Zahlung direkt an die Praxis (Release 2, Konzept).** Patienten melden sich per Einmal-Link
+(von der Praxis per WhatsApp geschickt oder über den Buchungslink) an, sehen ihre Termine und Rechnungen und zahlen offene
+Beträge mit **Flouci über das eigene Händlerkonto der Praxis** – das Geld geht von Flouci direkt auf das Konto (RIB) der
+Praxis, Daftar hält nie Geld (deshalb keine Zahlungsdienst-Lizenz nötig). Jede Praxis eröffnet dafür selbst ein
+Flouci-Händlerkonto (mit ihrer Matricule fiscal und ihrem RIB); ihre API-Schlüssel speichert Daftar verschlüsselt je
+Praxis. Alternativ Barzahlung vor Ort; das Personal setzt die Rechnung auf bezahlt. Webhook nur mit Verify-API.
+Daftars eigene Abo-Rechnungen (11.4) laufen getrennt über Omars Flouci-Konto.
+
 - Reine Web-Seiten ohne neue API: `/app/agenda/imprimer?date=` (Druck), `/app/reglages/affiche` (A4-Plakat mit QR,
   QR lokal erzeugt, keine externen Dienste), `/app/installer`, `/app/import`, `/app/statistiques`, `/app/abonnement`.
