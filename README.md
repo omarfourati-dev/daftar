@@ -68,8 +68,8 @@ CI (`.github/workflows/ci.yml`): Backend-Job mit Postgres-Service, Web-Job (chec
 ## Deploy
 
 Push auf `main` → `deploy.yml`: CI, dann Self-hosted-Runner auf myvps: rsync nach `/home/daftar`, DB-Rolle und DB
-`daftar` in `zentrades-postgres`, `.env` aus den Secrets, `docker compose -f docker-compose.prod.yml up -d --build`,
-Health abwarten, Caddy neu laden.
+`daftar` in `zentrades-postgres`, `.env` aus den Secrets, `docker compose -f docker-compose.prod.yml up -d --build`
+(App `daftar` und Datensicherung `daftar-backup`), Health abwarten, Caddy neu laden.
 
 GitHub-Einstellungen (Environment `production`): Secrets `DB_PASSWORD` (nur Buchstaben, Ziffern, `_`, `-`, weil er in
 der `DATABASE_URL` steht), `JWT_SECRET` (≥ 32 Zeichen), `ADMIN_PASSWORD` (≥ 10 Zeichen), optional
@@ -99,6 +99,43 @@ daftar.omarfourati.de {
 	reverse_proxy daftar:8080
 }
 ```
+
+## Datensicherung und Wiederherstellung
+
+Der Container `daftar-backup` (`postgres:17-alpine`, Skript `ops/backup.sh`, in `docker-compose.prod.yml`) sichert
+die Datenbank `daftar` täglich um 02:30 Uhr (Europe/Berlin) mit `pg_dump -Fc` in das benannte Docker-Volume
+`daftar_backups` – bewusst nicht unter `/home/daftar`, das der Deploy mit `rsync --delete` abgleicht. Dateiname
+`daftar-JJJJ-MM-TT_HHMM.dump`; Sicherungen älter als 14 Tage löscht das Skript. Das Passwort kommt als `PGPASSWORD`
+aus `DB_PASSWORD` und erscheint nie im Log. Test: `backend/tests/test_backup_script.py` (Dump, Aufbewahrung,
+Wiederherstellung in eine Wegwerf-DB, Fehlerfall, Zeitplan; braucht Docker).
+
+```bash
+# Sicherungen und Log ansehen
+docker run --rm -v daftar_backups:/b:ro alpine ls -lh /b
+docker logs daftar-backup --tail 20
+
+# Sofort sichern (z. B. vor einem größeren Update)
+docker exec daftar-backup sh /ops/backup.sh
+
+# Eine Sicherung aus dem Volume holen (danach z. B. per scp auf den eigenen Rechner)
+docker run --rm -v daftar_backups:/b:ro alpine cat /b/daftar-2026-10-30_0230.dump > /root/daftar-2026-10-30_0230.dump
+
+# Wiederherstellen – ersetzt den Inhalt der Datenbank daftar (alles oder nichts: --single-transaction)
+cd /home/daftar
+docker compose -f docker-compose.prod.yml stop daftar
+DB_PASSWORD=$(sed -n 's/^DB_PASSWORD=//p' .env)          # nur in dieser Shell, nie in der Kommandozeile von docker
+PGPASSWORD="$DB_PASSWORD" docker run --rm -e PGPASSWORD -v daftar_backups:/b:ro --network web \
+  --add-host=host.docker.internal:host-gateway postgres:17-alpine \
+  pg_restore -h host.docker.internal -p 5433 -U daftar -d daftar \
+  --clean --if-exists --no-owner --single-transaction --exit-on-error /b/daftar-2026-10-30_0230.dump
+unset DB_PASSWORD
+docker compose -f docker-compose.prod.yml start daftar
+```
+
+Zum Ausprobieren ohne Risiko in eine Wegwerf-Datenbank wiederherstellen: vorher
+`docker exec zentrades-postgres psql -U zentrades -d postgres -c "CREATE DATABASE daftar_probe OWNER daftar"`, im
+`pg_restore` dann `-d daftar_probe`, danach `DROP DATABASE daftar_probe`. Die Sicherungen liegen auf demselben Server –
+gegen einen Plattenausfall regelmäßig eine Kopie herunterladen.
 
 ## Umgebungsvariablen
 
