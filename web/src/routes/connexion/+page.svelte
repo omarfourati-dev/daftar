@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { api, apiErrorMessage, deps } from '#lib/api';
 	import { auth } from '#lib/auth.svelte';
-	import { currentPracticeSlug, loadPublicPractice, type PublicPractice } from '#lib/host';
+	import { currentPracticeSlug, landingUrl, loadPublicPractice, type PublicPractice } from '#lib/host';
 	import { applyLocaleFromQuery, i18n, isLocale, t } from '#lib/i18n.svelte';
 	import type { Session } from '#lib/types';
 	import LanguageSwitch from '../../lib/components/LanguageSwitch.svelte';
@@ -75,7 +75,7 @@
 			<a class="font-semibold text-brand-700 underline" href="/app/demo">{t('auth.tryDemo')}</a>
 		</p>
 		<p class="text-center text-sm">
-			<a class="text-slate-500 hover:text-brand-700" href="/" data-sveltekit-reload>{t('common.toLanding')}</a>
+			<a class="text-slate-500 hover:text-brand-700" href={landingUrl()} data-sveltekit-reload>{t('common.toLanding')}</a>
 		</p>
 	{/if}
 </main>

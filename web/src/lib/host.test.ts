@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { deps } from './api';
-import { currentHostKind, hostDeps, hostKind, loadPublicPractice, practiceSlugFromHost } from './host';
+import { currentHostKind, hostDeps, hostKind, landingUrl, loadPublicPractice, practiceSlugFromHost } from './host';
 
 describe('practiceSlugFromHost', () => {
 	it.each([
@@ -49,6 +49,24 @@ describe('hostKind', () => {
 			expect(currentHostKind()).toBe('practice');
 		} finally {
 			hostDeps.hostname = original;
+		}
+	});
+});
+
+describe('landingUrl', () => {
+	it.each([
+		['https://app.daftar.omarfourati.de', 'https://daftar.omarfourati.de/'],
+		['http://app.localhost:18086', 'http://localhost:18086/'],
+		['https://daftar.omarfourati.de', '/'],
+		['https://cabinet-lac.daftar.omarfourati.de', '/'],
+		['http://localhost:5173', '/']
+	])('%s → %s', (origin, url) => {
+		const original = hostDeps.origin;
+		try {
+			hostDeps.origin = () => origin;
+			expect(landingUrl()).toBe(url);
+		} finally {
+			hostDeps.origin = original;
 		}
 	});
 });

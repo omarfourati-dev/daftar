@@ -31,10 +31,21 @@ export function hostKind(hostname: string, bases: readonly string[] = BASE_DOMAI
 	return practiceSlugFromHost(host, bases) ? 'practice' : 'main';
 }
 
-/** Swappable in tests: the host name the page runs on. */
+/** Swappable in tests: the host name and origin the page runs on. */
 export const hostDeps = {
-	hostname: (): string => (typeof location === 'undefined' ? '' : location.hostname)
+	hostname: (): string => (typeof location === 'undefined' ? '' : location.hostname),
+	origin: (): string => (typeof location === 'undefined' ? '' : location.origin)
 };
+
+/** The landing as seen from this page: from the app host the main domain (same scheme and port), else `/`. */
+export function landingUrl(): string {
+	const origin = hostDeps.origin();
+	if (!origin) return '/';
+	const url = new URL(origin);
+	if (hostKind(url.hostname) !== 'app') return '/';
+	url.hostname = url.hostname.replace(/^app\./i, '');
+	return url.origin + '/';
+}
 
 /** What the page we are on is: the app host, a practice sub-domain or the main domain. */
 export function currentHostKind(): HostKind {
