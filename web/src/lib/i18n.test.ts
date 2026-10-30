@@ -114,3 +114,21 @@ describe('i18n', () => {
 		expect(formatNumber(1234)).not.toMatch(ARABIC_INDIC);
 	});
 });
+
+describe('shared vocabulary', () => {
+	it('names the 24 governorates and the 11 specialties in both languages', async () => {
+		localStorage.clear();
+		const { i18n, translate } = await fresh();
+		const { fr } = await import('./i18n/fr');
+		expect(Object.keys(fr.governorate)).toHaveLength(24);
+		expect(Object.keys(fr.specialty)).toEqual([
+			'generaliste', 'dentiste', 'pediatre', 'gynecologue', 'dermatologue', 'ophtalmologue',
+			'cardiologue', 'orl', 'kinesitherapeute', 'psychologue', 'autre'
+		]);
+		expect(translate('governorate.kef')).toBe('Le Kef');
+		expect(translate('specialty.kinesitherapeute')).toBe('Kinésithérapie');
+		i18n.setLocale('ar');
+		expect(translate('governorate.sfax')).toBe('صفاقس');
+		expect(translate('specialty.generaliste')).toBe('طب عام');
+	});
+});

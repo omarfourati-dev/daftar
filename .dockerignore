@@ -15,3 +15,5 @@ web/.svelte-kit
 web/test-results
 web/playwright-report
 docker-compose.override.yml
+backend/tests
+backend/.pytest_cache

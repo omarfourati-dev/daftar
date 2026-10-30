@@ -80,6 +80,10 @@ MUTATIONS: list[tuple[str, str, str, str]] = [
     ("daftar/hours.py", "            if after[0] < before[1]:", "            if False:", "tests/test_practice_data.py"),
     ("daftar/slugs.py", "    if slug in RESERVED_SLUGS:", "    if False:", "tests/test_practice_data.py"),
     ("daftar/settings.py", "flouci_app_secret={'***' if self.flouci_app_secret else None!r}", "flouci_app_secret={self.flouci_app_secret!r}", "tests/test_settings.py"),
+    ("migrations/versions/0001_initial.py", "kind IN ('patients', 'appointments')", "kind IN ('patients', 'appointments', 'invoices')", "tests/test_schema.py"),
+    ("migrations/versions/0001_initial.py", "user_id     BIGINT      NOT NULL REFERENCES app_user (id) ON DELETE CASCADE,", "user_id     BIGINT      NOT NULL REFERENCES app_user (id),", "tests/test_schema.py"),
+    ("migrations/versions/0002_onboarding_alerts.py", "CHECK (char_length(alerts) <= 500)", "CHECK (char_length(alerts) <= 501)", "tests/test_schema.py"),
+    ("daftar/auth.py", "            slug=row.slug,", "            slug=row.specialty,", "tests/test_auth.py"),
 ]
 
 

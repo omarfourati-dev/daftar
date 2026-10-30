@@ -25,6 +25,7 @@ import { shell } from './fr/shell';
 import { appointmentStatus, paymentMethod, queueStatus } from './fr/status';
 import { ticket } from './fr/ticket';
 import { today } from './fr/today';
+import { governorate, specialty } from './fr/vocabulary';
 
 export const fr = {
 	common,
@@ -37,6 +38,8 @@ export const fr = {
 	appointmentStatus,
 	queueStatus,
 	paymentMethod,
+	governorate,
+	specialty,
 	today,
 	agenda,
 	salle,

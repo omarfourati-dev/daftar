@@ -20,6 +20,7 @@ import { shell } from './ar/shell';
 import { appointmentStatus, paymentMethod, queueStatus } from './ar/status';
 import { ticket } from './ar/ticket';
 import { today } from './ar/today';
+import { governorate, specialty } from './ar/vocabulary';
 
 export const ar: Messages = {
 	common,
@@ -32,6 +33,8 @@ export const ar: Messages = {
 	appointmentStatus,
 	queueStatus,
 	paymentMethod,
+	governorate,
+	specialty,
 	today,
 	agenda,
 	salle,

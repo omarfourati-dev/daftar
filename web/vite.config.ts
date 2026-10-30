@@ -20,6 +20,8 @@ export default defineConfig(({ mode }) => ({
 	],
 	// Local backend: `PORT=18084 python -m daftar` (port 8080 is taken on Omar's machine), or the Docker stack.
 	server: { proxy: { '/api': process.env.API_URL ?? 'http://localhost:18084' } },
+	// Never inline fonts as data: URIs – the CSP allows fonts only from 'self' (found by the E2E console check).
+	build: { assetsInlineLimit: 0 },
 	// Svelte must resolve to its browser build so components can be mounted in jsdom.
 	resolve: mode === 'test' ? { conditions: ['browser'] } : undefined,
 	test: {

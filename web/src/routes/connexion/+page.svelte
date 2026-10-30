@@ -3,7 +3,7 @@
 	import { api, apiErrorMessage, deps } from '#lib/api';
 	import { auth } from '#lib/auth.svelte';
 	import { currentPracticeSlug, loadPublicPractice, type PublicPractice } from '#lib/host';
-	import { i18n, isLocale, t } from '#lib/i18n.svelte';
+	import { applyLocaleFromQuery, i18n, isLocale, t } from '#lib/i18n.svelte';
 	import type { Session } from '#lib/types';
 	import LanguageSwitch from '../../lib/components/LanguageSwitch.svelte';
 
@@ -13,6 +13,7 @@
 	let busy = $state(false);
 	// On a practice sub-domain the page shows that practice (its own app, section 13).
 	const slug = currentPracticeSlug();
+	applyLocaleFromQuery();
 	let practice = $state<PublicPractice | null>(null);
 
 	onMount(async () => {

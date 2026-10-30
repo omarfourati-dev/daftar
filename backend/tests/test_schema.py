@@ -385,3 +385,13 @@ def test_patient_alerts_and_appointment_series(make_practice: Factory, make_pati
     second = make_appointment(pat, series_id=series, starts_at=first.starts_at + timedelta(days=7))
     assert first.series_id == second.series_id == series
     assert make_appointment(pat, starts_at=first.starts_at + timedelta(days=1)).series_id is None
+
+
+def test_onboarding_state_and_alert_length(db: Engine, make_practice: Factory, make_patient: Factory) -> None:
+    p = make_practice()
+    assert p.onboarding == {}
+    with db.begin() as conn:
+        conn.execute(update(practice).where(practice.c.id == p.id).values(onboarding={"dismissed": True, "done": ["install"]}))
+    make_patient(p, alerts="x" * 500)
+    refused(db, insert(patient).values(practice_id=p.id, first_name="A", last_name="B", phone="+21620123456", alerts="x" * 501))
+    refused(db, update(practice).where(practice.c.id == p.id).values(onboarding=text("'[]'::jsonb")))

@@ -77,6 +77,19 @@ describe('/connexion', () => {
 		expect(screen.getByLabelText('البريد الإلكتروني')).toBeInTheDocument();
 	});
 
+	it('takes the language from ?lang= (links from the Arabic landing page)', async () => {
+		history.replaceState(null, '', '/connexion?lang=ar');
+		mockApi({});
+		render(Page);
+		expect(await screen.findByRole('heading', { name: 'تسجيل الدخول' })).toBeInTheDocument();
+		expect(i18n.locale).toBe('ar');
+		history.replaceState(null, '', '/connexion?lang=xx');
+		i18n.setLocale('fr');
+		render(Page);
+		expect(i18n.locale).toBe('fr'); // unknown values are ignored
+		history.replaceState(null, '', '/connexion');
+	});
+
 	it('offers the demo on the main domain', () => {
 		mockApi({});
 		render(Page);

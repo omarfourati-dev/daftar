@@ -106,6 +106,7 @@ practice = Table(
     Column("booking_min_notice_hours", Integer, nullable=False),
     Column("booking_max_per_day", Integer, nullable=False),
     Column("booking_block_no_shows", Integer, nullable=False),
+    Column("onboarding", JSONB, nullable=False),  # "Erste Schritte" state (migration 0002)
     _ts("created_at"),
 )
 

@@ -169,3 +169,11 @@ export function addDays(day: string, days: number): string {
 export function tunisInstant(day: string, time: string): string {
 	return `${day}T${time}:00+01:00`;
 }
+
+/** `?lang=ar|fr` in the address (links from the landing page) switches the language; returns the locale applied. */
+export function applyLocaleFromQuery(search: string = typeof location === 'undefined' ? '' : location.search): Locale | null {
+	const value = new URLSearchParams(search).get('lang');
+	if (!isLocale(value)) return null;
+	i18n.setLocale(value);
+	return value;
+}

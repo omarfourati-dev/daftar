@@ -1,0 +1,24 @@
+# Production on the VPS (myvps). Shares the host's PostgreSQL (zentrades-postgres, port 5433) and sits behind Caddy
+# in the network "web". Secrets come from .env (written by the deploy workflow).
+services:
+  daftar:
+    build: .
+    container_name: daftar
+    restart: unless-stopped
+    env_file: [{ path: .env, required: false }]
+    environment:
+      DATABASE_URL: postgresql+psycopg://daftar:${DB_PASSWORD:?DB_PASSWORD required}@host.docker.internal:5433/daftar
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET required}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      BASE_DOMAIN: ${BASE_DOMAIN:-daftar.omarfourati.de}
+      FLOUCI_APP_TOKEN: ${FLOUCI_APP_TOKEN:-}
+      FLOUCI_APP_SECRET: ${FLOUCI_APP_SECRET:-}
+    stop_grace_period: 30s
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    mem_limit: 384m
+    networks: [web]
+
+networks:
+  web:
+    external: true
