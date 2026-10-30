@@ -46,7 +46,7 @@ test('D1 – walk-in ticket, call, consultation, done; screen and ticket page sh
 	await ticketPage.reload();
 	await expect(ticketPage.getByRole('status')).toHaveText('C’est votre tour ! Présentez-vous à l’accueil.');
 	await page.getByRole('listitem').filter({ hasText: 'Mme Secrète' }).getByRole('button', { name: 'En consultation' }).click();
-	await expect(page.getByRole('status')).toHaveText('Ticket 1 : En soins.');
+	await expect(page.getByRole('status')).toHaveText('Ticket 1 : En consultation.');
 	await page.getByRole('listitem').filter({ hasText: 'Mme Secrète' }).getByRole('button', { name: 'Terminé' }).click();
 	await expect(page.getByRole('region', { name: 'Terminés aujourd’hui' })).toContainText('Mme Secrète');
 	await visitor.close();

@@ -4,7 +4,7 @@ export const appointmentStatus: Messages['appointmentStatus'] = {
 	scheduled: 'مبرمج',
 	confirmed: 'مؤكَّد',
 	arrived: 'وصل',
-	in_treatment: 'قيد العلاج',
+	in_treatment: 'في الفحص',
 	done: 'انتهى',
 	no_show: 'غائب',
 	cancelled: 'ملغى'
@@ -13,7 +13,7 @@ export const appointmentStatus: Messages['appointmentStatus'] = {
 export const queueStatus: Messages['queueStatus'] = {
 	waiting: 'في الانتظار',
 	called: 'تمّت المناداة',
-	in_treatment: 'قيد العلاج',
+	in_treatment: 'في الفحص',
 	done: 'انتهى',
 	left: 'غادر'
 };
