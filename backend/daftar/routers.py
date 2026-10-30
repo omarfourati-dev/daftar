@@ -16,6 +16,7 @@ from . import services
 from . import closures
 from . import staff
 from . import password_reset
+from . import admin_practices
 
 ROUTERS: list[APIRouter] = [
     auth.router,
@@ -27,4 +28,5 @@ ROUTERS: list[APIRouter] = [
     closures.router,
     staff.router,
     password_reset.router,
+    admin_practices.router,
 ]

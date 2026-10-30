@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import secrets
 from datetime import date
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, ClassVar, Literal
 
 from fastapi import APIRouter
 from pydantic import AfterValidator, BeforeValidator, Field, StrictBool, model_validator
@@ -118,10 +118,13 @@ class PracticeFields(ApiModel):
     reminder_template_ar: Annotated[str, Field(max_length=1000)] | None = None
     online_booking: OnlineBookingPatch | None = None
 
+    #: Fields that may be cleared with ``null`` (subclasses extend it).
+    nullable_fields: ClassVar[frozenset[str]] = NULLABLE
+
     @model_validator(mode="after")
     def _no_null_for_required_fields(self) -> PracticeFields:
         for name in self.model_fields_set:
-            if getattr(self, name) is None and name not in NULLABLE:
+            if getattr(self, name) is None and name not in self.nullable_fields:
                 raise ValueError("validation: Ce champ ne peut pas être vide.")
         return self
 
