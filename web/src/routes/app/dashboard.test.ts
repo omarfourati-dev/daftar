@@ -33,9 +33,8 @@ const late = appt({ id: 40, startsAt: '2026-10-30T08:30:00+01:00', status: 'conf
 
 function dashboardApi(extra: Record<string, Handler> = {}) {
 	return mockApi({
-		'GET /api/dashboard': () => json(200, dashboard),
+		'GET /api/dashboard': () => json(200, { ...dashboard, onlineRequests: [request], onlineRequestsCount: 1 }),
 		'GET /api/appointments/overdue': () => json(200, [late]),
-		'GET /api/appointments?from=2026-10-30&to=2026-12-29': () => json(200, [request, dashboard.upcoming[0]]),
 		'GET /api/practice': () => json(200, practice),
 		'GET /api/badges': () => json(200, { onlineRequests: 0, overdue: 0 }),
 		...extra
@@ -102,8 +101,7 @@ describe('/app – today at a glance', () => {
 	it('hides the lists that have nothing to do', async () => {
 		dashboardApi({
 			'GET /api/appointments/overdue': () => json(200, []),
-			'GET /api/appointments?from=2026-10-30&to=2026-12-29': () => json(200, []),
-			'GET /api/dashboard': () => json(200, { ...dashboard, upcoming: [] })
+			'GET /api/dashboard': () => json(200, { ...dashboard, upcoming: [], onlineRequests: [], onlineRequestsCount: 0 })
 		});
 		render(Page);
 		expect(await screen.findByText('Plus aucun rendez-vous prévu aujourd’hui.')).toBeInTheDocument();
@@ -168,6 +166,7 @@ describe('/app – today at a glance', () => {
 			'GET /api/dashboard': () =>
 				json(200, {
 					...dashboard,
+					onlineRequests: [],
 					unverifiedCashDays: [
 						{ day: '2026-10-29', differenceMillimes: -5000 },
 						{ day: '2026-10-28', differenceMillimes: 0 }

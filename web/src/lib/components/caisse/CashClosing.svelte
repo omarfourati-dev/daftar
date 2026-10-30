@@ -82,6 +82,9 @@
 		>
 			{diff === 0 ? t('caisse.closing.exact') : diff < 0 ? t('caisse.closing.missing', { amount: money(-diff) }) : t('caisse.closing.surplus', { amount: money(diff) })}
 		</p>
+		{#if closing.stale && !closing.verifiedAt}
+			<p class="rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900 ring-1 ring-amber-200">{t('caisse.closing.stale')}</p>
+		{/if}
 		{#if closing.note}<p class="text-sm text-slate-700">{closing.note}</p>{/if}
 		<p class="text-sm text-slate-600">{t('caisse.closing.closedBy', { name: closing.closedBy ?? '–', time: formatTime(closing.closedAt) })}</p>
 		{#if closing.verifiedAt}

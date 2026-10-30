@@ -92,6 +92,8 @@ export interface CashClosing {
 	closedAt: string;
 	verifiedBy?: string | null;
 	verifiedAt?: string | null;
+	/** Payments of the day changed after the closing: count again. */
+	stale?: boolean;
 }
 
 /** `GET /api/cash?day=`. */

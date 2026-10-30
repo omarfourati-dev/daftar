@@ -52,6 +52,11 @@ export const agenda: Messages['agenda'] = {
 		name_required: 'اكتب اسمًا.',
 		queue_empty: 'لا أحد في الانتظار حاليًا.',
 		paid_at_in_future: 'تاريخ الدفع في المستقبل.',
+		invalid_birth_year: 'سنة الولادة غير صحيحة.',
+		deposit_needs_appointment: 'يجب ربط العربون بموعد.',
+		appointment_mismatch: 'هذا الموعد لا يخصّ هذا المريض.',
+		cash_day_verified: 'صادق صاحب العيادة على صندوق هذا اليوم.',
+		day_in_future: 'هذا اليوم لم يأتِ بعد.',
 		onboarding_derived: 'تُشطب هذه الخطوة تلقائيًا عند إتمامها.'
 	},
 	phone: {

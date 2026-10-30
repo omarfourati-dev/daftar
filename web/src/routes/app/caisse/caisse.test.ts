@@ -125,4 +125,15 @@ describe('/app/caisse – the cash book of the day', () => {
 		expect(screen.getByRole('heading', { level: 1, name: 'الصندوق' })).toBeInTheDocument();
 		expect(await screen.findByRole('alert')).toHaveTextContent('تعذّر تحميل الصندوق.');
 	});
+
+	it('asks for a recount when payments changed after the closing', async () => {
+		cashApi({
+			'GET /api/cash?day=2026-10-30': () =>
+				json(200, { ...day, closing: { day: '2026-10-30', expectedCashMillimes: 150000, countedCashMillimes: 150000, differenceMillimes: 0, note: '', closedBy: 'Salma', closedAt: '2026-10-30T17:00:00+01:00', verifiedBy: null, verifiedAt: null, stale: true } })
+		});
+		render(Page);
+		const closing = within(await screen.findByRole('region', { name: 'Clôture de caisse' }));
+		expect(await closing.findByText('Des paiements ont changé depuis la clôture. Recomptez la caisse.')).toBeInTheDocument();
+	});
 });
+

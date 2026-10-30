@@ -30,6 +30,7 @@ export const caisse: Messages['caisse'] = {
 		verify: 'المصادقة على الغلق',
 		verifiedBy: 'صادق عليه {name} في {date}',
 		waiting: 'في انتظار مصادقة صاحب العيادة.',
+		stale: 'تغيّرت الدفعات بعد الغلق. أعد عدّ الصندوق.',
 		invalid: 'أدخل المبلغ المعدود (0 إن كان الصندوق فارغًا).'
 	},
 	balances: {

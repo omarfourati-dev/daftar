@@ -254,7 +254,7 @@
 													<th scope="col" class="py-2 pe-3 text-start font-semibold">{t('patients.money.label')}</th>
 													{#if showTooth}<th scope="col" class="py-2 pe-3 text-start font-semibold">{t('patients.money.tooth')}</th>{/if}
 													<th scope="col" class="py-2 text-end font-semibold">{t('patients.money.price')}</th>
-													{#if isOwner}<td></td>{/if}
+													<td></td>
 												</tr>
 											</thead>
 											<tbody>
@@ -264,7 +264,6 @@
 														<td class="py-2.5 pe-3">{tr.label}</td>
 														{#if showTooth}<td class="py-2.5 pe-3 tabular-nums">{tr.tooth ?? ''}</td>{/if}
 														<td class="py-2.5 text-end font-semibold tabular-nums">{money(tr.priceMillimes)}</td>
-														{#if isOwner}
 															<td class="py-1 ps-2 text-end">
 																{#if confirming === `t${tr.id}`}
 																	<button type="button" class="btn min-h-9 bg-rose-700 px-2 text-xs text-white" disabled={busy} onclick={() => remove('treatment', tr.id)}
@@ -280,7 +279,6 @@
 																	>
 																{/if}
 															</td>
-														{/if}
 													</tr>
 												{/each}
 											</tbody>

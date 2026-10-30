@@ -148,13 +148,16 @@ export interface Dashboard {
 	today: string;
 	appointments: { total: number; byStatus: Partial<Record<AppointmentStatus, number>> };
 	upcoming: Appointment[];
-	queue: { waiting: number; called: number };
+	queue: { waiting: number; called: number; inTreatment?: number };
 	cashTodayMillimes: number;
 	remindersPending: number;
 	dueTotalMillimes: number;
 	patientsCount: number;
-	/** Owner only (section 16.3, field name is a contract addition): closed cash days not verified yet. */
-	unverifiedCashDays?: { day: string; differenceMillimes: number }[];
+	/** Open online requests (requested, not past, max 20). */
+	onlineRequests?: Appointment[];
+	onlineRequestsCount?: number;
+	/** Owner only (section 16.3): closed cash days not verified yet. */
+	unverifiedCashDays?: { day: string; differenceMillimes: number; closedBy?: string | null }[];
 }
 
 export type OnboardingKey = 'hours' | 'services' | 'practitioners' | 'team' | 'booking' | 'import' | 'install' | 'poster';

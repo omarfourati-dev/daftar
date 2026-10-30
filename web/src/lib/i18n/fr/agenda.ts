@@ -51,6 +51,11 @@ export const agenda = {
 		name_required: 'Indiquez un nom.',
 		queue_empty: 'Personne n’attend pour le moment.',
 		paid_at_in_future: 'La date du paiement est dans le futur.',
+		invalid_birth_year: 'Année de naissance invalide.',
+		deposit_needs_appointment: 'Un acompte doit être lié à un rendez-vous.',
+		appointment_mismatch: 'Ce rendez-vous n’appartient pas à ce patient.',
+		cash_day_verified: 'La caisse de ce jour a déjà été vérifiée par le titulaire.',
+		day_in_future: 'Ce jour n’est pas encore passé.',
 		onboarding_derived: 'Cette étape se coche toute seule une fois faite.'
 	},
 	phone: {

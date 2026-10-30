@@ -13,7 +13,7 @@
 	import { money, personName, practitionerLabel, shortDay, statusLabel } from '#lib/agenda/format';
 	import { whatsappUrl } from '#lib/agenda/links';
 	import { appointmentMessage, type PatientMessage } from '#lib/agenda/messages';
-	import { addDays, formatDay, formatTime, t, todayTunis, type MessageKey } from '#lib/i18n.svelte';
+	import { formatDay, formatTime, t, todayTunis, type MessageKey } from '#lib/i18n.svelte';
 	import type { AppointmentStatus } from '#lib/status';
 	import type { Appointment, Dashboard, Onboarding, PracticeSettings } from '#lib/types/agenda';
 	import Icon, { type IconName } from '../../lib/components/daily/Icon.svelte';
@@ -47,15 +47,14 @@
 	async function load() {
 		error = '';
 		try {
-			const [d, late, coming, p] = await Promise.all([
+			const [d, late, p] = await Promise.all([
 				api<Dashboard>('/api/dashboard'),
 				api<Appointment[]>('/api/appointments/overdue'),
-				api<Appointment[]>(`/api/appointments?from=${today}&to=${addDays(today, 60)}`),
 				api<PracticeSettings>('/api/practice').catch(() => null)
 			]);
 			data = d;
 			overdue = late;
-			requests = coming.filter((a) => a.status === 'requested').sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+			requests = [...(d.onlineRequests ?? [])].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
 			practice = p;
 		} catch {
 			error = t('today.loadError');

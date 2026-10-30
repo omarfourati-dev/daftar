@@ -29,6 +29,7 @@ export const caisse = {
 		verify: 'Valider la clôture',
 		verifiedBy: 'Validée par {name} le {date}',
 		waiting: 'En attente de validation par le titulaire.',
+		stale: 'Des paiements ont changé depuis la clôture. Recomptez la caisse.',
 		invalid: 'Indiquez le montant compté (0 si la caisse est vide).'
 	},
 	balances: {
