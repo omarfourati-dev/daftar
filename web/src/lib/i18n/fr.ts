@@ -8,6 +8,7 @@
 import { admin } from './fr/admin';
 import { agenda } from './fr/agenda';
 import { auth } from './fr/auth';
+import { booking } from './fr/booking';
 import { caisse } from './fr/caisse';
 import { common } from './fr/common';
 import { demo } from './fr/demo';
@@ -57,7 +58,8 @@ export const fr = {
 	recu,
 	kit,
 	practice,
-	poster
+	poster,
+	booking
 };
 
 export type Messages = typeof fr;

@@ -3,6 +3,7 @@ import type { Messages } from './fr';
 import { admin } from './ar/admin';
 import { agenda } from './ar/agenda';
 import { auth } from './ar/auth';
+import { booking } from './ar/booking';
 import { caisse } from './ar/caisse';
 import { common } from './ar/common';
 import { demo } from './ar/demo';
@@ -52,5 +53,6 @@ export const ar: Messages = {
 	recu,
 	kit,
 	practice,
-	poster
+	poster,
+	booking
 };

@@ -37,6 +37,7 @@ export interface PublicPracticeProfile {
 	services: PublicService[];
 	practitioners: PublicPractitioner[];
 	horizonDays: number;
+	minNoticeHours?: number;
 }
 
 /** `GET /api/public/practices/{slug}/slots` */
@@ -49,19 +50,22 @@ export interface SlotsAnswer {
 export interface BookingCreated {
 	status: 'requested' | 'confirmed' | string;
 	startsAt: string;
+	endsAt?: string;
 	serviceName: string;
 	practitionerName: string | null;
 	manageToken: string;
 }
 
-/** `GET /api/public/bookings/{token}` (contract addition: the fields below; `cancellable` optional). */
+/** `GET /api/public/bookings/{token}` – never patient data. */
 export interface ManagedBooking {
 	status: string;
 	startsAt: string;
-	durationMin?: number;
+	endsAt?: string;
 	serviceName: string;
 	practitionerName: string | null;
-	cancellable?: boolean;
+	canCancel?: boolean;
+	/** last instant for cancelling online (startsAt − minimum notice) */
+	cancelUntil?: string;
 	practice: {
 		slug: string;
 		name: string;
@@ -71,6 +75,5 @@ export interface ManagedBooking {
 		address?: string;
 		city?: string;
 		mapsUrl?: string;
-		minNoticeHours?: number;
 	};
 }
