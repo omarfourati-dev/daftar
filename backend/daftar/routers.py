@@ -15,6 +15,7 @@ from . import demo  # be-patienten
 from . import export  # be-patienten
 from . import feedback  # be-patienten
 from . import finance  # be-patienten
+from . import imports  # be-patienten
 from . import overview  # be-patienten
 from . import patients  # be-patienten
 from . import pilot  # be-patienten
@@ -37,4 +38,6 @@ ROUTERS: list[APIRouter] = [
     billing.router,
     billing.admin_router,
     billing.public_router,
+    imports.router,
+    imports.template_router,
 ]

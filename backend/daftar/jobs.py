@@ -23,6 +23,7 @@ from .context import AppContext
 from .invitations import delete_stale_invitations
 from .billing import billing_job  # be-patienten
 from .demo import cleanup_demos  # be-patienten
+from .imports import cleanup_imports  # be-patienten
 from .pilot import cleanup_pilot_requests  # be-patienten
 
 log = logging.getLogger("daftar")
@@ -46,6 +47,7 @@ JOBS: list[Job] = [
     Job("invitation-cleanup", timedelta(minutes=30), cleanup_invitations),
     Job("pilot-request-cleanup", timedelta(hours=24), cleanup_pilot_requests),  # be-patienten
     Job("demo-cleanup", timedelta(minutes=30), cleanup_demos),  # be-patienten
+    Job("import-cleanup", timedelta(minutes=30), cleanup_imports),  # be-patienten
     Job("billing", timedelta(hours=1), billing_job),  # be-patienten – idempotent, so hourly is fine
 ]
 

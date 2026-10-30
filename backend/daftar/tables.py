@@ -310,10 +310,13 @@ import_job = Table(
     _practice_id(),
     Column("created_by", BigInteger, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),
     Column("filename", Text, nullable=False),
-    Column("file_bytes", LargeBinary, nullable=False),
+    Column("file_bytes", LargeBinary, nullable=True),  # NULL once committed (migration 0003)
     _ts("created_at"),
     _ts("expires_at"),
     _ts("committed_at", nullable=True),
+    Column("sheet", Text, nullable=True),  # chosen sheet and header row (migration 0003)
+    Column("header_row", Integer, nullable=False),
+    Column("report", JSONB, nullable=True),  # problems found by the commit, for report.csv
 )
 
 import_template = Table(
