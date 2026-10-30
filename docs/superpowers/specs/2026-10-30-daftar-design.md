@@ -37,9 +37,20 @@ daftar/
 ```
 
 - Ein Prozess: FastAPI liefert `/api/*`, `/healthz`, `/metrics` (öffentlich 404 über Caddy), die Landing-Seiten und
-  die SPA. Reihenfolge der statischen Auslieferung: exakte Datei in `landing/` → Verzeichnis mit `index.html` in
-  `landing/` → Datei aus `web/build` → für Pfade ohne Dateiendung unter `/app`, `/connexion`, `/invitation`,
-  `/salle/`, `/ticket/` die SPA-Datei `200.html` → sonst 404 (problem+json für `/api`).
+  die SPA – je nach Host (`backend/daftar/hosts.py`, `static.py`):
+  - **App-Host `app.<BASE_DOMAIN>`** (Fix-Liste 1, 30.10. abends; Slug `app` reserviert, tls-check 200): die komplette
+    SPA – Admin, alle Praxis-Benutzer, `/app/demo`, `/connexion`, `/invitation`, `/reinitialiser`, `/r/<slug>`,
+    `/rdv/…`, `/salle/…`, `/ticket/…` → `200.html`; Dateien aus `web/build`; `/` → 302 `/app`; alles andere 302 auf
+    denselben Pfad der Hauptdomain. Das Anmelde-Token im localStorage liegt damit auf einem Ursprung ohne fremde Scripts.
+  - **Hauptdomain `<BASE_DOMAIN>`** (zeigt AdSense; auch jeder andere Host): nur Landing, Rechtstexte und statische
+    Dateien – exakte Datei in `landing/` → Verzeichnis mit `index.html` in `landing/` → Datei aus `web/build`, aber nie
+    `200.html` → sonst 404 (problem+json für `/api`). App-Pfade (ohne Dateiendung unter `/app`, `/connexion`,
+    `/invitation`, `/reinitialiser`, `/r/`, `/rdv/`, `/salle/`, `/ticket/`) → **301** auf
+    `https://app.<BASE_DOMAIN><pfad>?<query>` (Fragmente wie `#token` behält der Browser). Anmelden geht hier nicht
+    (401 wie bei falschem Passwort); die API (z. B. `POST /api/public/pilot-requests` der Landing) läuft weiter. Der
+    Service Worker tut hier nichts und meldet sich ab.
+  - **Praxis-Subdomain `<slug>.<BASE_DOMAIN>`**: Abschnitte 11.3 und 13.
+  - Lokal `BASE_DOMAIN=localhost`: `http://localhost:<port>` ist die Hauptdomain, `http://app.localhost:<port>` die App.
 - CSP wie Redefluss (`default-src 'self'`, Hashes der Inline-Scripts von `200.html` zur Startzeit berechnen,
   `img-src 'self' data: blob:`, `connect-src 'self'`, `frame-ancestors 'none'`, `font-src 'self'`). Keine externen Hosts.
   Ausnahme (Omar, 30.10.): Google AdSense auf den beiden Startseiten `/` und `/ar/` – nur deren HTML bekommt eine
@@ -47,8 +58,10 @@ daftar/
   `connect-src 'self' https:`, `ADS_CSP` in `backend/daftar/http.py`); App, Buchungs-/Ticket-/Wartezimmerseiten,
   Praxis-Subdomains, Rechtstexte und API behalten die strenge CSP.
   Weitere Header: `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`,
-  `Permissions-Policy: camera=(), microphone=(), geolocation=()`. Hinter Caddy: echte Client-IP = **letzter** Eintrag
-  von `X-Forwarded-For`.
+  `Permissions-Policy: camera=(), microphone=(), geolocation=()`, über HTTPS (direkt oder `X-Forwarded-Proto: https`
+  von Caddy) `Strict-Transport-Security: max-age=31536000` – ohne `includeSubDomains`/`preload`, die andere
+  Subdomains von omarfourati.de mitbinden würden. Hinter Caddy: echte Client-IP = **letzter** Eintrag von
+  `X-Forwarded-For`.
 - Cache: `/_app/immutable/*` 1 Jahr immutable; `200.html`, `sw.js`, `manifest.webmanifest`, Landing-HTML `no-cache`.
 - Zeitzone aller Fachlogik: `Africa/Tunis` (UTC+1, keine Sommerzeit). „Heute“ = Datum in Tunis über eine injizierte Uhr.
 - Geld: ganzzahlig in **Millimes** (1 DT = 1000 Millimes), Feldnamen enden auf `Millimes`.
@@ -313,7 +326,8 @@ Daten (ohne Admin-Felder) plus Schließtage, Leistungen, Behandler und sieht sei
 ### 11.3 Online-Buchung für Patienten
 - Adresse: `https://<slug>.daftar.omarfourati.de` (Wildcard-DNS `*.daftar` → 212.132.95.145; Caddy On-Demand-TLS mit
   `ask` → `GET /api/public/tls-check?domain=<host>`: 200 nur für bestehende, nicht gesperrte Nicht-Demo-Praxis, sonst
-  404) und immer auch `https://daftar.omarfourati.de/r/<slug>` (Tests, lokal, Fallback).
+  404) und immer auch `https://app.daftar.omarfourati.de/r/<slug>` (Tests, lokal, Fallback; auf der Hauptdomain 301
+  dorthin).
 - Host-Routing im Backend (Einstellung `BASE_DOMAIN`, Standard `daftar.omarfourati.de`): Host `<slug>.<BASE_DOMAIN>` →
   `/` und `/rdv/<token>` liefern die SPA (`200.html`), `/api/*`, `/_app/*`, Icons, Manifest normal, alles andere 302
   auf `https://<BASE_DOMAIN><pfad>`. Unbekannter Slug → 404-Seite. Die SPA-Route `/` (existiert nur für Subdomains;
@@ -399,9 +413,11 @@ wertet viele fast gleiche Apps als Spam). Später möglich: **eine** signierte W
 Dateinamen `Daftar-<slug>.exe` selbst auf die Praxis einstellt, und **eine** Daftar-App in Play Store/App Store
 (Capacitor), Praxis per QR-Code/Code. Heute nur die PWA.
 - **Ersetzt die Weiterleitung aus 11.3:** Auf `<slug>.<BASE_DOMAIN>` liefert der Server zusätzlich `/app/*`,
-  `/connexion`, `/invitation` als SPA (statt 302). Anmeldung auf einer Praxis-Subdomain akzeptiert nur Benutzer dieser
-  Praxis (sonst dieselbe 401-Meldung wie bei falschem Passwort); Admin meldet sich nur auf der Hauptdomain an. Die
-  Login-Seite zeigt dort Name und Icon der Praxis.
+  `/connexion`, `/invitation`, `/reinitialiser` als SPA (statt 302). Anmeldung auf einer Praxis-Subdomain akzeptiert
+  nur Benutzer dieser Praxis (sonst dieselbe 401-Meldung wie bei falschem Passwort); Admin und alle Praxis-Benutzer
+  melden sich auf `app.<BASE_DOMAIN>` an, auf der Hauptdomain niemand (Fix-Liste 1). Die Login-Seite zeigt auf der
+  Subdomain Name und Icon der Praxis. Manifest des App-Hosts: das statische `web/static/manifest.webmanifest`
+  („Daftar“, `start_url` `/app`).
 - **Manifeste je Host:** `GET /manifest.webmanifest` auf einer Praxis-Subdomain → `name` „<Praxisname> – Daftar“,
   `short_name` (Praxisname, max. 12 Zeichen), `start_url` `/app`, `scope` `/`, Icons der Praxis; `GET
   /booking.webmanifest` → „<Praxisname> – Rendez-vous“, `start_url` `/` (Patienten installieren die Buchungsseite).

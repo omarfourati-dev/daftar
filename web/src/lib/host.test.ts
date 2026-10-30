@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { deps } from './api';
-import { loadPublicPractice, practiceSlugFromHost } from './host';
+import { currentHostKind, hostDeps, hostKind, loadPublicPractice, practiceSlugFromHost } from './host';
 
 describe('practiceSlugFromHost', () => {
 	it.each([
@@ -20,6 +20,36 @@ describe('practiceSlugFromHost', () => {
 
 	it('accepts another base domain', () => {
 		expect(practiceSlugFromHost('dr-amira.rdv.example.tn', ['rdv.example.tn'])).toBe('dr-amira');
+	});
+});
+
+describe('hostKind', () => {
+	it.each([
+		['app.daftar.omarfourati.de', 'app'],
+		['APP.daftar.omarfourati.de.', 'app'],
+		['app.localhost', 'app'],
+		['cabinet-lac.daftar.omarfourati.de', 'practice'],
+		['cabinet-lac.localhost', 'practice'],
+		['daftar.omarfourati.de', 'main'],
+		['localhost', 'main'],
+		['127.0.0.1', 'main'],
+		['www.daftar.omarfourati.de', 'main'],
+		['evil-daftar.omarfourati.de', 'main'],
+		['app.example.com', 'main']
+	])('%s → %s', (host, kind) => {
+		expect(hostKind(host)).toBe(kind);
+	});
+
+	it('reads the page host', () => {
+		const original = hostDeps.hostname;
+		try {
+			hostDeps.hostname = () => 'app.daftar.omarfourati.de';
+			expect(currentHostKind()).toBe('app');
+			hostDeps.hostname = () => 'cabinet-lac.daftar.omarfourati.de';
+			expect(currentHostKind()).toBe('practice');
+		} finally {
+			hostDeps.hostname = original;
+		}
 	});
 });
 

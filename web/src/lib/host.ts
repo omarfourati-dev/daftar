@@ -1,7 +1,9 @@
 /**
- * Practice sub-domains: on `cabinet-lac.daftar.omarfourati.de` the app belongs to the practice `cabinet-lac`
- * (its booking page at `/`, its staff app at `/app`). Locally `<slug>.localhost` works the same way when the
- * backend runs with BASE_DOMAIN=localhost (docker-compose.yml).
+ * Hosts (fixlist 1): the app runs on its own origin `app.daftar.omarfourati.de` (admin, every practice's staff, demo,
+ * booking pages `/r/<slug>`) and on the practice sub-domains: on `cabinet-lac.daftar.omarfourati.de` the app belongs
+ * to the practice `cabinet-lac` (its booking page at `/`, its staff app at `/app`). The main domain only has the
+ * landing (with Google AdSense) – the server sends app paths from there to the app host. Locally `app.localhost` and
+ * `<slug>.localhost` work the same way when the backend runs with BASE_DOMAIN=localhost (docker-compose.yml).
  */
 import { api } from './api';
 
@@ -20,10 +22,24 @@ export function practiceSlugFromHost(hostname: string, bases: readonly string[] 
 	return null;
 }
 
+export type HostKind = 'app' | 'practice' | 'main';
+
+/** `app` for app.<base>, `practice` for a practice sub-domain, `main` for the main domain and every other host. */
+export function hostKind(hostname: string, bases: readonly string[] = BASE_DOMAINS): HostKind {
+	const host = hostname.toLowerCase().replace(/\.$/, '');
+	if (bases.some((base) => host === 'app.' + base)) return 'app';
+	return practiceSlugFromHost(host, bases) ? 'practice' : 'main';
+}
+
 /** Swappable in tests: the host name the page runs on. */
 export const hostDeps = {
 	hostname: (): string => (typeof location === 'undefined' ? '' : location.hostname)
 };
+
+/** What the page we are on is: the app host, a practice sub-domain or the main domain. */
+export function currentHostKind(): HostKind {
+	return hostKind(hostDeps.hostname());
+}
 
 /** The practice slug of the page we are on, or null on the main domain. */
 export function currentPracticeSlug(): string | null {

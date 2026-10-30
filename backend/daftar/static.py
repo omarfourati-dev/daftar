@@ -1,17 +1,21 @@
-"""Static delivery of the landing site and the SPA (design section 2).
+"""Static delivery of the landing site and the SPA (design section 2), per host (see daftar/hosts.py).
 
-Order for ``GET``/``HEAD`` of a path that is not an API route:
-1. exact file in ``landing/``;
-2. directory in ``landing/`` with ``index.html`` (without trailing slash: 308 redirect to ``…/``);
-3. file from ``web/build`` (SvelteKit output);
-4. for paths without a file extension under ``/app``, ``/connexion``, ``/invitation``, ``/salle/``, ``/ticket/``,
-   ``/r/``, ``/rdv/``: the SPA shell ``200.html``;
+Main domain ``<BASE_DOMAIN>`` (and every other host, :meth:`StaticSite.respond`) – landing, legal texts, files:
+1. app routes (paths without a file extension under ``/app``, ``/connexion``, ``/invitation``, ``/reinitialiser``,
+   ``/salle/``, ``/ticket/``, ``/r/``, ``/rdv/``) → 301 to the same path and query on ``app.<BASE_DOMAIN>``;
+2. exact file in ``landing/``;
+3. directory in ``landing/`` with ``index.html`` (without trailing slash: 308 redirect to ``…/``);
+4. file from ``web/build`` (SvelteKit output), but never the SPA shell ``200.html`` – the app does not run here;
 5. otherwise 404 (``landing/404.html`` when present, else problem+json). ``/api/*`` never gets here.
 
+App host ``app.<BASE_DOMAIN>`` (:meth:`StaticSite.respond_app`): ``/`` → 302 ``/app``; app routes → ``200.html``;
+files from ``web/build``; unknown ``/_app/…`` and ``/icons/…`` → 404; everything else (landing, legal texts) 302 to
+the same path on the main domain.
+
 On a practice sub-domain (``<slug>.<BASE_DOMAIN>``, see :meth:`StaticSite.respond_practice`): ``/``, ``/rdv/…``,
-``/app…``, ``/connexion``, ``/invitation`` → SPA; app assets (``/_app``, ``/icons``, ``/sw.js``, ``/favicon.svg``)
-as usual; everything else 302 to the same path on the main domain. Manifests and icons of the practice come from
-daftar/branding.py (wired in app.py).
+``/app…``, ``/connexion``, ``/invitation``, ``/reinitialiser`` → SPA; app assets (``/_app``, ``/icons``,
+``/sw.js``, ``/favicon.svg``, ``/200.html``) as usual; everything else 302 to the same path on the main domain.
+Manifests and icons of the practice come from daftar/branding.py (wired in app.py).
 
 Traversal attempts (``..``, backslashes, control characters, ``//``, ``:``) get a hard 404, never the SPA.
 Google AdSense: only the two home pages of the landing (``index.html`` and ``ar/index.html``, served for ``/`` and
@@ -39,9 +43,9 @@ from .problems import problem_response
 SPA_SHELL = "200.html"
 #: The landing pages that show Google AdSense (design section 7): the French and the Arabic home page.
 AD_PAGES = ("index.html", "ar/index.html")
-SPA_PREFIXES = ("/app", "/connexion", "/invitation")
+SPA_PREFIXES = ("/app", "/connexion", "/invitation", "/reinitialiser")
 SPA_PREFIXES_WITH_TOKEN = ("/salle/", "/ticket/", "/r/", "/rdv/")
-PRACTICE_SPA_PREFIXES = ("/app", "/connexion", "/invitation")
+PRACTICE_SPA_PREFIXES = ("/app", "/connexion", "/invitation", "/reinitialiser")
 PRACTICE_ASSET_PREFIXES = ("/_app/", "/icons/")
 PRACTICE_ASSETS = ("/sw.js", "/favicon.svg", "/200.html")
 
@@ -168,33 +172,37 @@ class StaticSite:
 
     # --- request handling ---------------------------------------------------------------------------------------
 
-    def respond(self, request: Request) -> Response:
-        raw = request.scope.get("raw_path")
-        path = decode_path(raw.decode("latin-1").split("?", 1)[0]) if raw else request.scope["path"]
-        if path is None or is_unsafe(path):
+    def respond(self, request: Request, app_origin: str) -> Response:
+        """The main domain: landing, legal texts and files; app routes move to ``app_origin`` (301)."""
+        path = self._path(request)
+        if path is None:
             return self.not_found(request)
         if path == "/api" or path.startswith("/api/"):
             return problem_response(404, code="not_found")
-        rel = path.lstrip("/")
-
-        found = self._file(self.landing, rel, immutable_ok=False) if rel and not rel.endswith("/") else None
-        if found is None and self.landing is not None:
-            index_rel = (rel.rstrip("/") + "/index.html").lstrip("/")
-            index = self._file(self.landing, index_rel, immutable_ok=False)
-            if index is not None:
-                if rel and not path.endswith("/"):
-                    query = request.url.query
-                    return RedirectResponse(path + "/" + (f"?{query}" if query else ""), status_code=308)
-                found = index
-        if found is None and rel and not rel.endswith("/"):
-            found = self._file(self.web, rel, immutable_ok=True)
-        if found is None and is_spa_route(path):
-            found = self.shell()
-        if found is None:
+        if is_spa_route(path):
+            return RedirectResponse(app_origin + self._target(request), status_code=301)
+        if path == "/" + SPA_SHELL:
             return self.not_found(request)
-        return self._send(request, found)
+        return self._files(request, path)
 
-    def respond_practice(self, request: Request, base_domain: str) -> Response:
+    def respond_app(self, request: Request, main_origin: str) -> Response:
+        """The app host ``app.<BASE_DOMAIN>``: the SPA and its files; the landing stays on ``main_origin``."""
+        path = self._path(request)
+        if path is None:
+            return self.not_found(request)
+        if path == "/":
+            return RedirectResponse("/app", status_code=302)
+        if is_spa_route(path):
+            shell = self.shell()
+            return self._send(request, shell) if shell else self.not_found(request)
+        found = self._file(self.web, path.lstrip("/"), immutable_ok=True) if not path.endswith("/") else None
+        if found is not None:
+            return self._send(request, found)
+        if path.startswith(PRACTICE_ASSET_PREFIXES):
+            return self.not_found(request)
+        return RedirectResponse(main_origin + self._target(request), status_code=302)
+
+    def respond_practice(self, request: Request, main_origin: str) -> Response:
         """A request on an existing practice's sub-domain (manifests and icons are handled before)."""
         path = request.scope["path"]
         if is_unsafe(path):
@@ -207,11 +215,43 @@ class StaticSite:
             shell = self.shell()
             return self._send(request, shell) if shell else self.not_found(request)
         if path in PRACTICE_ASSETS or path.startswith(PRACTICE_ASSET_PREFIXES):
-            return self.respond(request)
+            return self._files(request, path)
+        return RedirectResponse(main_origin + self._target(request), status_code=302)
+
+    # --- helpers ------------------------------------------------------------------------------------------------
+
+    @staticmethod
+    def _path(request: Request) -> str | None:
+        """The decoded path, or None for malformed escapes and traversal attempts."""
         raw = request.scope.get("raw_path")
-        target = raw.decode("latin-1") if raw else path
+        path = decode_path(raw.decode("latin-1").split("?", 1)[0]) if raw else request.scope["path"]
+        return None if path is None or is_unsafe(path) else path
+
+    @staticmethod
+    def _target(request: Request) -> str:
+        """Path (as sent, still percent-encoded) and query of the request – for redirects to another host."""
+        raw = request.scope.get("raw_path")
+        target = raw.decode("latin-1").split("?", 1)[0] if raw else request.scope["path"]
         query = request.url.query
-        return RedirectResponse(f"https://{base_domain}{target}" + (f"?{query}" if query else ""), status_code=302)
+        return target + (f"?{query}" if query else "")
+
+    def _files(self, request: Request, path: str) -> Response:
+        """Exact landing file → landing directory (308 without slash) → build file → 404."""
+        rel = path.lstrip("/")
+        found = self._file(self.landing, rel, immutable_ok=False) if rel and not rel.endswith("/") else None
+        if found is None and self.landing is not None:
+            index_rel = (rel.rstrip("/") + "/index.html").lstrip("/")
+            index = self._file(self.landing, index_rel, immutable_ok=False)
+            if index is not None:
+                if rel and not path.endswith("/"):
+                    query = request.url.query
+                    return RedirectResponse(path + "/" + (f"?{query}" if query else ""), status_code=308)
+                found = index
+        if found is None and rel and not rel.endswith("/"):
+            found = self._file(self.web, rel, immutable_ok=True)
+        if found is None:
+            return self.not_found(request)
+        return self._send(request, found)
 
     def not_found(self, request: Request) -> Response:
         page = self._file(self.landing, "404.html", immutable_ok=False)

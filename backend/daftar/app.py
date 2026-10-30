@@ -19,7 +19,7 @@ from starlette.routing import Match
 
 from .bootstrap import bootstrap_admin
 from .branding import ICONS, initials, manifest, render_icon
-from .hosts import HostPractice, practice_for_host
+from .hosts import APP_LABEL, HostPractice, is_app_host, practice_for_host, site_origin
 from .clock import Clock, SystemClock
 from .context import AppContext
 from .db import make_engine, ping
@@ -112,9 +112,12 @@ def create_app(
 
     @app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     def static(request: Request) -> Response:
-        is_practice_host, host_practice = practice_for_host(engine, request.headers.get("host"), settings.base_domain)
+        host, base = request.headers.get("host"), settings.base_domain
+        if is_app_host(host, base):
+            return site.respond_app(request, site_origin(base, host))
+        is_practice_host, host_practice = practice_for_host(engine, host, base)
         if not is_practice_host:
-            return site.respond(request)
+            return site.respond(request, site_origin(f"{APP_LABEL}.{base}", host))
         if host_practice is None:
             return site.not_found(request)
         return practice_page(request, host_practice)
@@ -131,7 +134,7 @@ def create_app(
             return Response(png, media_type="image/png", headers={"Cache-Control": "no-cache"})
         if path.startswith("/icons/practice-"):
             return site.not_found(request)
-        return site.respond_practice(request, settings.base_domain)
+        return site.respond_practice(request, site_origin(settings.base_domain, request.headers.get("host")))
 
     app.add_middleware(
         HttpMiddleware, metrics=metrics, csp=build_csp(site.csp_hashes()), log_requests=settings.log_requests

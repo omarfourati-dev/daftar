@@ -1,10 +1,18 @@
 import { expect, test, type Page } from '@playwright/test';
 
-/** What the foundation can do, end to end against the real stack (backend + built SPA + Postgres). */
+/**
+ * What the foundation can do, end to end against the real stack (backend + built SPA + Postgres).
+ * The app lives on its own origin app.<BASE_DOMAIN> (fixlist 1); E2E_BASE_URL is the main domain (landing only).
+ * Browsers resolve app.localhost; Node on Windows does not (getaddrinfo ENOTFOUND) → API requests from Node go to
+ * BASE with the app's Host header.
+ */
 
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@daftar.test';
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'local-admin-password-123';
 const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:18083';
+const APP_HOST = `app.${new URL(BASE).host}`;
+const APP = `${new URL(BASE).protocol}//${APP_HOST}`;
+const ON_APP = { headers: { host: APP_HOST } };
 
 /** Fails the test on any console error or uncaught exception of the page. */
 function watchConsole(page: Page): string[] {
@@ -17,7 +25,7 @@ function watchConsole(page: Page): string[] {
 }
 
 async function signIn(page: Page, email = ADMIN_EMAIL, password = ADMIN_PASSWORD) {
-	await page.goto('/connexion');
+	await page.goto(APP + '/connexion');
 	await page.getByLabel('E-mail').fill(email);
 	await page.getByLabel('Mot de passe').fill(password);
 	await page.getByRole('button', { name: 'Se connecter' }).click();
@@ -25,7 +33,7 @@ async function signIn(page: Page, email = ADMIN_EMAIL, password = ADMIN_PASSWORD
 
 test('/connexion loads in French and switches to Arabic (right to left)', async ({ page }) => {
 	const problems = watchConsole(page);
-	await page.goto('/connexion');
+	await page.goto(APP + '/connexion');
 	await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible();
 	await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
 	await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
@@ -40,8 +48,9 @@ test('/connexion loads in French and switches to Arabic (right to left)', async 
 	expect(problems).toEqual([]);
 });
 
-test('/connexion?lang=ar opens in Arabic', async ({ page }) => {
+test('/connexion?lang=ar on the main domain opens the app host in Arabic', async ({ page }) => {
 	await page.goto('/connexion?lang=ar');
+	await expect(page).toHaveURL(`${APP}/connexion?lang=ar`);
 	await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
 	await page.getByRole('button', { name: 'Français' }).click();
 });
@@ -67,13 +76,13 @@ test('the admin signs in, lands in the app (administration) and signs out', asyn
 
 	await page.getByRole('button', { name: 'Se déconnecter' }).click();
 	await expect(page).toHaveURL(/\/connexion$/);
-	await page.goto('/app/agenda');
+	await page.goto(APP + '/app/agenda');
 	await expect(page).toHaveURL(/\/connexion$/); // the guard keeps signed-out visitors out
 	expect(problems).toEqual([]);
 });
 
 test('/invitation with an unknown token explains the problem', async ({ page }) => {
-	await page.goto('/invitation#ceci-n-est-pas-une-invitation');
+	await page.goto(APP + '/invitation#ceci-n-est-pas-une-invitation');
 	await expect(page.getByRole('alert')).toHaveText('Cette invitation n’est pas valide, a expiré ou a déjà été utilisée.');
 	await page.getByRole('link', { name: 'Aller à la connexion' }).click();
 	await expect(page).toHaveURL(/\/connexion$/);
@@ -82,14 +91,14 @@ test('/invitation with an unknown token explains the problem', async ({ page }) 
 test('/invitation without a token does not ask the server', async ({ page }) => {
 	const requests: string[] = [];
 	page.on('request', (r) => requests.push(new URL(r.url()).pathname));
-	await page.goto('/invitation');
+	await page.goto(APP + '/invitation');
 	await expect(page.getByRole('alert')).toContainText('Ce lien est incomplet.');
 	expect(requests.filter((p) => p.startsWith('/api'))).toEqual([]);
 });
 
 test('security headers and CSP on the app and the API', async ({ request }) => {
 	for (const path of ['/connexion', '/healthz', '/api/auth/me']) {
-		const res = await request.get(path);
+		const res = await request.get(path, ON_APP);
 		const h = res.headers();
 		expect(h['x-content-type-options'], path).toBe('nosniff');
 		expect(h['referrer-policy'], path).toBe('strict-origin-when-cross-origin');
@@ -99,8 +108,34 @@ test('security headers and CSP on the app and the API', async ({ request }) => {
 		expect(csp, path).toContain("frame-ancestors 'none'");
 		expect(csp, path).toMatch(/script-src 'self' 'sha256-[A-Za-z0-9+/=]+'/); // the SPA bootstrap script, nothing else
 		expect(csp, path).not.toContain('http');
+		expect(h['strict-transport-security'], path).toBeUndefined(); // HSTS only over HTTPS (behind Caddy)
 	}
-	expect((await request.get('/connexion')).headers()['cache-control']).toBe('no-cache');
+	expect((await request.get('/connexion', ON_APP)).headers()['cache-control']).toBe('no-cache');
+});
+
+test('the main domain keeps only the landing: app paths move to the app host with 301', async ({ request }) => {
+	for (const path of ['/connexion?lang=ar', '/app/demo', '/invitation', '/r/cabinet-test']) {
+		const res = await request.get(path, { maxRedirects: 0 });
+		expect(res.status(), path).toBe(301);
+		expect(res.headers()['location'], path).toBe(`${APP}${path}`);
+	}
+	expect((await request.get('/200.html', { maxRedirects: 0 })).status()).toBe(404);
+	const home = await request.get('/', { maxRedirects: 0 });
+	expect(home.status()).toBe(200);
+	expect(await home.text()).not.toContain('__sveltekit');
+	const appRoot = await request.get('/', { ...ON_APP, maxRedirects: 0 });
+	expect([appRoot.status(), appRoot.headers()['location']]).toEqual([302, '/app']);
+	expect((await request.get(`/api/public/tls-check?domain=${new URL(APP).hostname}`)).status()).toBe(200);
+});
+
+test('nobody signs in on the main domain, the admin does on the app host', async ({ request }) => {
+	const data = { email: ADMIN_EMAIL, password: ADMIN_PASSWORD };
+	const main = await request.post('/api/auth/login', { data });
+	expect(main.status()).toBe(401);
+	expect(await main.json()).toMatchObject({ code: 'invalid_credentials' });
+	const app = await request.post('/api/auth/login', { data, ...ON_APP });
+	expect(app.status()).toBe(200);
+	expect((await app.json()).user.role).toBe('admin');
 });
 
 test('health, metrics and unknown API paths', async ({ request }) => {
@@ -121,7 +156,7 @@ test('health, metrics and unknown API paths', async ({ request }) => {
 });
 
 test('installable app: manifest, icons and a stamped service worker that never caches the API', async ({ page, request }) => {
-	const manifest = await (await request.get('/manifest.webmanifest')).json();
+	const manifest = await (await request.get('/manifest.webmanifest', ON_APP)).json();
 	expect(manifest).toMatchObject({
 		name: 'Daftar – agenda du cabinet médical',
 		short_name: 'Daftar',
@@ -130,8 +165,8 @@ test('installable app: manifest, icons and a stamped service worker that never c
 		display: 'standalone',
 		theme_color: '#0f766e'
 	});
-	for (const icon of manifest.icons as { src: string }[]) expect((await request.get(icon.src)).ok(), icon.src).toBeTruthy();
-	const sw = await request.get('/sw.js');
+	for (const icon of manifest.icons as { src: string }[]) expect((await request.get(icon.src, ON_APP)).ok(), icon.src).toBeTruthy();
+	const sw = await request.get('/sw.js', ON_APP);
 	expect(sw.headers()['cache-control']).toBe('no-cache');
 	expect(await sw.text()).not.toContain('__BUILD__');
 
@@ -145,6 +180,16 @@ test('installable app: manifest, icons and a stamped service worker that never c
 	});
 	expect(cached).toContain('/200.html');
 	expect(cached.filter((p) => p.startsWith('/api'))).toEqual([]);
+	expect(page.url().startsWith(APP + '/')).toBeTruthy(); // the token lives on the app's origin only
+	expect(await page.evaluate(() => navigator.serviceWorker.controller?.scriptURL)).toBe(`${APP}/sw.js`);
+});
+
+test('the main domain stores no token and runs no service worker', async ({ page }) => {
+	await page.route((url) => !url.origin.startsWith(new URL(BASE).origin), (route) => route.abort('blockedbyclient'));
+	await page.goto('/');
+	await page.waitForLoadState('networkidle');
+	expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([]);
+	expect(await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
 });
 
 test('an unknown practice sub-domain is 404', async ({ request }) => {

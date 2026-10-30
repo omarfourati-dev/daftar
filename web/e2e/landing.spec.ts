@@ -8,6 +8,14 @@ import { test, expect, type Page, type Route } from "@playwright/test";
 const BASE = (process.env.E2E_BASE_URL ?? "http://localhost:18083").replace(/\/$/, "");
 const BASE_ORIGIN = new URL(BASE).origin;
 const SITE = "https://daftar.omarfourati.de";
+/** Die App hat einen eigenen Ursprung ohne Werbung (Fix-Liste 1): Links der Landing zeigen dorthin. */
+const APP_SITE = "https://app.daftar.omarfourati.de";
+/** App-Host des getesteten Servers (BASE_DOMAIN=localhost → app.localhost:<port>). Node auf Windows löst *.localhost
+ * nicht auf → Requests aus Node gehen mit Host-Header an BASE; im Browser funktioniert APP_ORIGIN direkt. */
+const APP_HOST = `app.${new URL(BASE).host}`;
+const APP_ORIGIN = `${new URL(BASE).protocol}//${APP_HOST}`;
+/** Pfade der App – auf der Hauptdomain nur noch eine 301 auf den App-Host. */
+const APP_PATHS = ["/app", "/app/demo", "/connexion", "/invitation", "/r/cabinet-test", "/rdv/abc123", "/salle/abc123", "/ticket/abc123"];
 const API = "**/api/public/pilot-requests";
 
 const ADSENSE_CLIENT = "ca-pub-4072840905222883";
@@ -82,7 +90,7 @@ function watch(page: Page, { ads = false } = {}) {
   page.on("request", (req) => {
     const url = new URL(req.url());
     if (url.protocol !== "http:" && url.protocol !== "https:") return;
-    if (url.origin === BASE_ORIGIN || (ads && isGoogleAdHost(url.hostname))) return;
+    if (url.origin === BASE_ORIGIN || url.origin === APP_ORIGIN || (ads && isGoogleAdHost(url.hostname))) return;
     foreign.push(req.url());
   });
   return { errors, foreign };
@@ -205,22 +213,47 @@ for (const spec of PAGES) {
 }
 
 test.describe("Verkaufsseite", () => {
-  test("FR: alle „Essayer la démo“-Knöpfe führen zu /app/demo, „Se connecter“ zu /connexion", async ({ page }) => {
+  test("FR: alle „Essayer la démo“-Knöpfe führen zu app.…/app/demo, „Se connecter“ zu app.…/connexion", async ({ page }) => {
     await page.goto(BASE + "/");
     const demo = page.getByRole("link", { name: "Essayer la démo" });
     expect(await demo.count()).toBeGreaterThanOrEqual(2);
-    for (const href of await demo.evaluateAll((els) => els.map((e) => e.getAttribute("href")))) expect(href).toBe("/app/demo");
-    await expect(page.locator(".site-header").getByRole("link", { name: "Se connecter" })).toHaveAttribute("href", "/connexion");
+    for (const href of await demo.evaluateAll((els) => els.map((e) => e.getAttribute("href")))) expect(href).toBe(`${APP_SITE}/app/demo`);
+    await expect(page.locator(".site-header").getByRole("link", { name: "Se connecter" })).toHaveAttribute("href", `${APP_SITE}/connexion`);
     await expect(page.locator(".hero").getByRole("link", { name: "Essayer la démo" })).toBeVisible();
   });
 
-  test("AR: Demo-Knöpfe führen zu /app/demo mit arabischer Sprache, Anmelden zu /connexion", async ({ page }) => {
+  test("AR: Demo-Knöpfe führen zu app.…/app/demo mit arabischer Sprache, Anmelden zu app.…/connexion", async ({ page }) => {
     await page.goto(BASE + "/ar/");
     const demo = page.getByRole("link", { name: "جرّبوا دفتر الآن" });
     expect(await demo.count()).toBeGreaterThanOrEqual(2);
-    for (const href of await demo.evaluateAll((els) => els.map((e) => e.getAttribute("href")))) expect(href).toBe("/app/demo?lang=ar");
-    await expect(page.locator(".site-header").getByRole("link", { name: "تسجيل الدخول" })).toHaveAttribute("href", "/connexion?lang=ar");
+    for (const href of await demo.evaluateAll((els) => els.map((e) => e.getAttribute("href")))) expect(href).toBe(`${APP_SITE}/app/demo?lang=ar`);
+    await expect(page.locator(".site-header").getByRole("link", { name: "تسجيل الدخول" })).toHaveAttribute("href", `${APP_SITE}/connexion?lang=ar`);
   });
+
+  test("keine Seite verlinkt App-Pfade der Hauptdomain, App-Links zeigen auf app.daftar.omarfourati.de", async ({ page, request }) => {
+    const appPath = /^\/(app|connexion|invitation|reinitialiser|r\/|rdv\/|salle\/|ticket\/)/;
+    for (const spec of PAGES) {
+      await page.goto(BASE + spec.path);
+      const hrefs = await page.locator("a[href]").evaluateAll((els) => els.map((e) => e.getAttribute("href") ?? ""));
+      for (const href of hrefs) {
+        expect(href, `${spec.path}: ${href}`).not.toMatch(appPath);
+        expect(href, `${spec.path}: ${href}`).not.toContain(`${SITE}/app`);
+        expect(href, `${spec.path}: ${href}`).not.toContain(`${SITE}/connexion`);
+      }
+      expect(hrefs.filter((h) => h.startsWith(APP_SITE + "/")).length, spec.path).toBeGreaterThanOrEqual(1);
+    }
+    const llms = await (await request.get(BASE + "/llms.txt")).text();
+    expect(llms).toContain(`(${APP_SITE}/app/demo)`);
+    expect(llms).not.toContain(`${SITE}/app/`);
+  });
+
+  for (const path of APP_PATHS) {
+    test(`${path} auf der Hauptdomain: 301 auf den App-Host (mit Query)`, async ({ request }) => {
+      const res = await request.get(BASE + path + "?lang=ar", { maxRedirects: 0 });
+      expect(res.status()).toBe(301);
+      expect(res.headers()["location"]).toBe(`${APP_ORIGIN}${path}?lang=ar`);
+    });
+  }
 
   for (const path of ["/", "/ar/"]) {
     test(`${path}: JSON-LD ist gültiges SoftwareApplication-Schema mit kostenloser Pilotphase`, async ({ page }) => {
@@ -306,12 +339,12 @@ test.describe("Werbung nur auf den beiden Startseiten", () => {
   }
 
   const WITHOUT_ADS = [
-    ...PAGES.map((p) => p.path).filter((p) => !AD_PAGES.has(p)),
-    "/app", "/app/demo", "/connexion", "/invitation", "/r/cabinet-test", "/rdv/abc123", "/salle/abc123", "/ticket/abc123",
+    ...PAGES.map((p) => ({ path: p.path, host: new URL(BASE).host })).filter((p) => !AD_PAGES.has(p.path)),
+    ...APP_PATHS.map((path) => ({ path, host: APP_HOST })), // die App auf ihrem eigenen Host
   ];
-  for (const path of WITHOUT_ADS) {
-    test(`${path}: kein Google-Code, kein Datenschutz-Knopf, strenge CSP ohne fremde Hosts`, async ({ request }) => {
-      const res = await request.get(BASE + path);
+  for (const { path, host } of WITHOUT_ADS) {
+    test(`${host}${path}: kein Google-Code, kein Datenschutz-Knopf, strenge CSP ohne fremde Hosts`, async ({ request }) => {
+      const res = await request.get(BASE + path, { headers: { host } });
       expect(res.status()).toBe(200);
       const html = await res.text();
       expect(html).not.toMatch(/googlesyndication|adsbygoogle|ca-pub-|privacy-settings/);
@@ -322,9 +355,9 @@ test.describe("Werbung nur auf den beiden Startseiten", () => {
     });
   }
 
-  test("/connexion lädt im Browser nichts von Google", async ({ page }) => {
+  test("/connexion (App-Host) lädt im Browser nichts von Google", async ({ page }) => {
     const seen = watch(page);
-    await page.goto(BASE + "/connexion", { waitUntil: "networkidle" });
+    await page.goto(APP_ORIGIN + "/connexion", { waitUntil: "networkidle" });
     await expect(page.locator("form")).toHaveCount(1);
     expect(seen.foreign).toEqual([]);
   });

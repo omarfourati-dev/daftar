@@ -13,7 +13,7 @@ from sqlalchemy import Connection, select, update
 
 from .context import AppContext
 from .deps import ClientIp, Conn, Ctx, CurrentUser
-from .hosts import practice_by_slug, subdomain_label
+from .hosts import APP_LABEL, practice_by_slug, subdomain_label
 from .passwords import hash_password, needs_rehash, password_problem, verify_against_dummy, verify_password
 from .problems import bad_request, too_many_requests, unauthorized, unprocessable
 from .schemas import ApiModel, Lang, Name, Role, TunisDateTime
@@ -120,8 +120,9 @@ def bump_token_version(conn: Connection, user_id: int) -> None:
 
 @router.post("/login")
 def login(body: LoginIn, request: Request, ctx: Ctx, conn: Conn, ip: ClientIp) -> Session:
-    """On a practice sub-domain only that practice's staff may sign in (the admin only on the main domain);
-    everybody else gets exactly the answer of a wrong password."""
+    """Signing in works on the app host ``app.<BASE_DOMAIN>`` (admin and every practice's staff) and on a practice's
+    own sub-domain (only its staff) – never on the main domain, which shows ads (fixlist 1). Everybody else gets
+    exactly the answer of a wrong password."""
     email = body.email.strip().lower()
     if not ctx.login_throttle.reserve(email, ip):
         ctx.metrics.logins.labels("throttled").inc()
@@ -135,8 +136,8 @@ def login(body: LoginIn, request: Request, ctx: Ctx, conn: Conn, ip: ClientIp) -
     else:
         ok = verify_password(body.password, row.password_hash)
     label = subdomain_label(request.headers.get("host"), ctx.settings.base_domain)
-    if ok and label is not None:
-        host_practice = practice_by_slug(conn, label)
+    if ok and label != APP_LABEL:
+        host_practice = practice_by_slug(conn, label) if label is not None else None
         ok = host_practice is not None and row is not None and row.practice_id == host_practice.id
     if not ok:
         ctx.metrics.logins.labels("failed").inc()

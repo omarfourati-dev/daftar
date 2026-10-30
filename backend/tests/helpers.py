@@ -18,6 +18,10 @@ def assert_problem(res: Any, status: int, code: str) -> dict[str, Any]:
     return body
 
 
-def login(client: TestClient, email: str, password: str = PASSWORD, ip: str | None = None) -> Any:
-    headers = {"X-Forwarded-For": ip} if ip else {}
+#: The app's own host (fixlist 1): signing in works there and on a practice's own sub-domain, never on the main domain.
+APP_HOST = "app.daftar.omarfourati.de"
+
+
+def login(client: TestClient, email: str, password: str = PASSWORD, ip: str | None = None, host: str = APP_HOST) -> Any:
+    headers = {"host": host, **({"X-Forwarded-For": ip} if ip else {})}
     return client.post("/api/auth/login", json={"email": email, "password": password}, headers=headers)

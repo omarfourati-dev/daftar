@@ -7,10 +7,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from daftar.static import decode_path, is_spa_route
-from tests.helpers import assert_problem
+from tests.helpers import APP_HOST, assert_problem
 
 SHELL_MARK = "window.__boot = 1;"
 IMMUTABLE = "public, max-age=31536000, immutable"
+#: The SPA runs on the app host only (fixlist 1); the main domain sends app routes there (tests/test_hosts.py).
+ON_APP = {"host": APP_HOST}
 
 
 def get(client: TestClient, path: str, **kw: Any) -> Any:
@@ -30,7 +32,6 @@ def get(client: TestClient, path: str, **kw: Any) -> Any:
         ("/_app/version.json", '"version"', "no-cache", "application/json"),
         ("/sw.js", "BUILD", "no-cache", "text/javascript; charset=utf-8"),
         ("/manifest.webmanifest", "Daftar", "no-cache", "application/manifest+json"),
-        ("/200.html", SHELL_MARK, "no-cache", "text/html; charset=utf-8"),
     ],
 )
 def test_files(client: TestClient, path: str, contains: str, cache: str, ctype: str) -> None:
@@ -51,12 +52,13 @@ def test_files(client: TestClient, path: str, contains: str, cache: str, ctype: 
         "/app/recu/7",
         "/connexion",
         "/invitation",
+        "/reinitialiser",
         "/salle/0a1b2c3d4e",
         "/ticket/0a1b2c3d4e",
     ],
 )
 def test_spa_routes_get_the_shell(client: TestClient, path: str) -> None:
-    res = get(client, path)
+    res = get(client, path, headers=ON_APP)
     assert res.status_code == 200, path
     assert SHELL_MARK in res.text
     assert res.headers["cache-control"] == "no-cache"
@@ -88,7 +90,7 @@ def test_404_without_a_landing_404_page_is_problem_json(settings: Any, clock: An
 
     with TestClient(create_app(replace(settings, landing_dir=tmp_path), clock, engine=db, run_jobs=False)) as client:
         assert_problem(get(client, "/nothing-here"), 404, "not_found")
-        assert SHELL_MARK in get(client, "/app").text  # the SPA still works without a landing
+        assert SHELL_MARK in get(client, "/app", headers=ON_APP).text  # the SPA still works without a landing
 
 
 def test_directories_without_slash_redirect(client: TestClient) -> None:
@@ -129,16 +131,16 @@ def test_malformed_escapes() -> None:
 
 
 def test_etag_revalidation(client: TestClient) -> None:
-    first = get(client, "/connexion")
+    first = get(client, "/connexion", headers=ON_APP)
     etag = first.headers["etag"]
-    again = get(client, "/connexion", headers={"If-None-Match": etag})
+    again = get(client, "/connexion", headers={**ON_APP, "If-None-Match": etag})
     assert again.status_code == 304
     assert again.content == b""
     assert get(client, "/", headers={"If-None-Match": etag}).status_code == 200  # another file, another tag
 
 
 def test_head_requests(client: TestClient) -> None:
-    res = client.head("/connexion")
+    res = client.head("/connexion", headers=ON_APP)
     assert res.status_code == 200
     assert res.headers["cache-control"] == "no-cache"
 

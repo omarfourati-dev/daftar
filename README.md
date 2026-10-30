@@ -2,8 +2,9 @@
 
 Daftar (لاتيني + „دفتر“, das Heft) ersetzt das Papierheft der Arztpraxen in Tunesien: Termine, Warteschlange vor Ort,
 Patientenkartei, Nichterscheinen, Barzahlungen in Raten, Online-Buchung je Praxis und eine installierbare App
-(PWA) – auf PC am Empfang, Tablet und Handy, auf Französisch und Arabisch. Live: https://daftar.omarfourati.de,
-jede Praxis unter `https://<slug>.daftar.omarfourati.de`. Spezifikation: `docs/superpowers/specs/2026-10-30-daftar-design.md`.
+(PWA) – auf PC am Empfang, Tablet und Handy, auf Französisch und Arabisch. Live: https://daftar.omarfourati.de
+(Verkaufsseite mit Google AdSense), die App auf eigenem Ursprung unter https://app.daftar.omarfourati.de, jede Praxis
+unter `https://<slug>.daftar.omarfourati.de`. Spezifikation: `docs/superpowers/specs/2026-10-30-daftar-design.md`.
 
 ## Stack
 
@@ -15,7 +16,16 @@ jede Praxis unter `https://<slug>.daftar.omarfourati.de`. Spezifikation: `docs/s
 | Betrieb | ein Docker-Container `daftar` (Port 8080) hinter Caddy, Postgres des Servers, GitHub Actions |
 
 FastAPI liefert alles aus einem Prozess: `/api/*`, `/healthz`, `/metrics`, die Landing und die SPA (Reihenfolge und
-Sicherheits-Header siehe `backend/daftar/static.py` und `http.py`).
+Sicherheits-Header siehe `backend/daftar/static.py` und `http.py`). Je Host:
+
+| Host | liefert |
+|---|---|
+| `daftar.omarfourati.de` (Hauptdomain, AdSense) | Landing, Rechtstexte, statische Dateien; App-Pfade (`/app…`, `/connexion`, `/invitation`, `/reinitialiser`, `/r/…`, `/rdv/…`, `/salle/…`, `/ticket/…`) → 301 auf `app.`; keine Anmeldung |
+| `app.daftar.omarfourati.de` | die ganze SPA (Admin, alle Praxis-Benutzer, Demo, Buchungsseiten `/r/<slug>`); `/` → `/app`; Landing-Pfade → 302 auf die Hauptdomain |
+| `<slug>.daftar.omarfourati.de` | Buchungsseite (`/`) und eigene App der Praxis; nur deren Benutzer melden sich an |
+
+Lokal mit `BASE_DOMAIN=localhost`: Hauptdomain `http://localhost:<port>`, App `http://app.localhost:<port>`, Praxis
+`http://<slug>.localhost:<port>` (Browser lösen `*.localhost` selbst auf).
 
 ## Lokal entwickeln
 
@@ -30,11 +40,12 @@ docker compose up -d postgres
 # Backend (siehe backend/README.md für alle Bausteine)
 cd backend && py -3.13 -m venv .venv && .venv/Scripts/python -m pip install -r requirements-dev.txt
 
-# Web mit Vite-Dev-Server (leitet /api an http://localhost:18084 weiter, API_URL überschreibt das)
+# Web mit Vite-Dev-Server (leitet /api an http://localhost:18084 weiter, API_URL überschreibt das).
+# Anmelden geht nur auf dem App-Host: Backend mit BASE_DOMAIN=localhost starten und http://app.localhost:5173 öffnen.
 cd web && npm ci && npm run dev
 
-# Alles wie in Produktion (baut web/, startet Postgres + App auf http://localhost:18083,
-# Admin admin@daftar.test / local-admin-password-123, Praxis-Subdomains als <slug>.localhost:18083).
+# Alles wie in Produktion (baut web/, startet Postgres + Landing auf http://localhost:18083, die App auf
+# http://app.localhost:18083, Admin admin@daftar.test / local-admin-password-123, Praxen als <slug>.localhost:18083).
 # Läuft der Container daftar-postgres schon auf 55436: POSTGRES_PORT=55437 davorsetzen.
 docker compose --profile app up -d --build
 ```
@@ -48,7 +59,7 @@ Hinter einem TLS-prüfenden Proxy braucht der Docker-Build ein zusätzliches Roo
 cd backend && .venv/Scripts/python -m pytest                 # gegen echtes Postgres (55436, DB daftar_test)
 cd backend && .venv/Scripts/python -m tests.mutation_check   # optional: baut Fehler ein und erwartet rote Tests
 cd web && npm run check && npx vitest run && npm run build
-cd web && npx playwright test                                # E2E gegen den Docker-Stack auf :18083
+cd web && npx playwright test                                # E2E gegen den Docker-Stack auf :18083 (+ app.localhost)
 ```
 
 CI (`.github/workflows/ci.yml`): Backend-Job mit Postgres-Service, Web-Job (check, vitest, build), E2E-Job
@@ -64,7 +75,9 @@ GitHub-Einstellungen (Environment `production`): Secrets `DB_PASSWORD` (nur Buch
 der `DATABASE_URL` steht), `JWT_SECRET` (≥ 32 Zeichen), `ADMIN_PASSWORD` (≥ 10 Zeichen), optional
 `FLOUCI_APP_TOKEN`, `FLOUCI_APP_SECRET`; Variablen `ADMIN_EMAIL`, optional `BASE_DOMAIN`.
 
-Caddy (Wildcard-DNS `*.daftar` → Server, On-Demand-TLS fragt das Backend):
+Caddy (Wildcard-DNS `*.daftar` → Server, On-Demand-TLS fragt das Backend; `app.daftar.omarfourati.de` läuft über den
+Wildcard-Block, der tls-check antwortet für `app` mit 200). HSTS setzt die App selbst (nur über HTTPS, ohne
+`includeSubDomains`):
 
 ```
 {
