@@ -1,4 +1,4 @@
-/** Public booking pages: /, /r/[slug] and /rdv/[token] (section 11.3). Owner: fe-kunden. */
+/** Public booking pages: /, /r/[slug] and /rdv#<token> (section 11.3). Owner: fe-kunden. */
 export const booking = {
 	title: 'Prendre rendez-vous',
 	headline: 'Prendre rendez-vous en ligne',

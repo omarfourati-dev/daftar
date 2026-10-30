@@ -14,12 +14,13 @@ const SHELL_PAGE = '/200.html';
 const ICONS = ['icon-192.png', 'icon-512.png', 'maskable-512.png'].map((f) => '/icons/' + f);
 const PASS = ['/api', '/healthz', '/metrics'];
 const SPA = ['/app', '/connexion', '/invitation', '/reinitialiser'];
-const SPA_WITH_TOKEN = ['/salle/', '/ticket/', '/r/', '/rdv/'];
+const SPA_WITH_TOKEN = ['/salle/', '/ticket/', '/r/'];
+const SPA_PAGES = ['/rdv']; // the patient's link /rdv#<token>
 
 function isSpaRoute(path) {
   const last = path.replace(/\/$/, '').split('/').pop() || '';
   if (last.includes('.')) return false;
-  if (SPA.some((p) => path === p || path.startsWith(p + '/'))) return true;
+  if (SPA_PAGES.includes(path) || SPA.some((p) => path === p || path.startsWith(p + '/'))) return true;
   return SPA_WITH_TOKEN.some((p) => path.startsWith(p) && path.length > p.length);
 }
 

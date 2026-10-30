@@ -20,7 +20,7 @@ Sicherheits-Header siehe `backend/daftar/static.py` und `http.py`). Je Host:
 
 | Host | liefert |
 |---|---|
-| `daftar.omarfourati.de` (Hauptdomain, AdSense) | Landing, Rechtstexte, statische Dateien; App-Pfade (`/app…`, `/connexion`, `/invitation`, `/reinitialiser`, `/r/…`, `/rdv/…`, `/salle/…`, `/ticket/…`) → 301 auf `app.`; keine Anmeldung |
+| `daftar.omarfourati.de` (Hauptdomain, AdSense) | Landing, Rechtstexte, statische Dateien; App-Pfade (`/app…`, `/connexion`, `/invitation`, `/reinitialiser`, `/r/…`, `/rdv`, `/salle/…`, `/ticket/…`) → 301 auf `app.`; keine Anmeldung |
 | `app.daftar.omarfourati.de` | die ganze SPA (Admin, alle Praxis-Benutzer, Demo, Buchungsseiten `/r/<slug>`); `/` → `/app`; Landing-Pfade → 302 auf die Hauptdomain |
 | `<slug>.daftar.omarfourati.de` | Buchungsseite (`/`) und eigene App der Praxis; nur deren Benutzer melden sich an |
 

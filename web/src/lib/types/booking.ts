@@ -56,7 +56,7 @@ export interface BookingCreated {
 	manageToken: string;
 }
 
-/** `GET /api/public/bookings/{token}` – never patient data. */
+/** `POST /api/public/bookings/lookup {token}` (and `…/cancel`) – never patient data. */
 export interface ManagedBooking {
 	status: string;
 	startsAt: string;

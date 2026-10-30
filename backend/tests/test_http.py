@@ -153,7 +153,7 @@ def test_everything_else_keeps_the_strict_csp(client: TestClient, path: str) -> 
     assert_strict_csp(client.get(path, follow_redirects=False), path)
 
 
-@pytest.mark.parametrize("path", ["/", "/rdv/abc123", "/app", "/connexion", "/invitation", "/ar/", "/index.html"])
+@pytest.mark.parametrize("path", ["/", "/rdv", "/app", "/connexion", "/invitation", "/ar/", "/index.html"])
 def test_practice_sub_domains_keep_the_strict_csp(client: TestClient, make_practice: Any, path: str) -> None:
     make_practice("Cabinet du Lac", slug="cabinet-lac")
     res = client.get(path, headers={"host": "cabinet-lac.daftar.omarfourati.de"}, follow_redirects=False)

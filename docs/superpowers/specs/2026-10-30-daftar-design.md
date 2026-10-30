@@ -40,12 +40,12 @@ daftar/
   die SPA – je nach Host (`backend/daftar/hosts.py`, `static.py`):
   - **App-Host `app.<BASE_DOMAIN>`** (Fix-Liste 1, 30.10. abends; Slug `app` reserviert, tls-check 200): die komplette
     SPA – Admin, alle Praxis-Benutzer, `/app/demo`, `/connexion`, `/invitation`, `/reinitialiser`, `/r/<slug>`,
-    `/rdv/…`, `/salle/…`, `/ticket/…` → `200.html`; Dateien aus `web/build`; `/` → 302 `/app`; alles andere 302 auf
+    `/rdv`, `/salle/…`, `/ticket/…` → `200.html`; Dateien aus `web/build`; `/` → 302 `/app`; alles andere 302 auf
     denselben Pfad der Hauptdomain. Das Anmelde-Token im localStorage liegt damit auf einem Ursprung ohne fremde Scripts.
   - **Hauptdomain `<BASE_DOMAIN>`** (zeigt AdSense; auch jeder andere Host): nur Landing, Rechtstexte und statische
     Dateien – exakte Datei in `landing/` → Verzeichnis mit `index.html` in `landing/` → Datei aus `web/build`, aber nie
     `200.html` → sonst 404 (problem+json für `/api`). App-Pfade (ohne Dateiendung unter `/app`, `/connexion`,
-    `/invitation`, `/reinitialiser`, `/r/`, `/rdv/`, `/salle/`, `/ticket/`) → **301** auf
+    `/invitation`, `/reinitialiser`, `/r/`, `/salle/`, `/ticket/` sowie die Seite `/rdv`) → **301** auf
     `https://app.<BASE_DOMAIN><pfad>?<query>` (Fragmente wie `#token` behält der Browser). Anmelden geht hier nicht
     (401 wie bei falschem Passwort); die API (z. B. `POST /api/public/pilot-requests` der Landing) läuft weiter. Der
     Service Worker tut hier nichts und meldet sich ab.
@@ -329,10 +329,12 @@ Daten (ohne Admin-Felder) plus Schließtage, Leistungen, Behandler und sieht sei
   404) und immer auch `https://app.daftar.omarfourati.de/r/<slug>` (Tests, lokal, Fallback; auf der Hauptdomain 301
   dorthin).
 - Host-Routing im Backend (Einstellung `BASE_DOMAIN`, Standard `daftar.omarfourati.de`): Host `<slug>.<BASE_DOMAIN>` →
-  `/` und `/rdv/<token>` liefern die SPA (`200.html`), `/api/*`, `/_app/*`, Icons, Manifest normal, alles andere 302
+  `/` und `/rdv` (sowie `/app…`, `/connexion`, `/invitation`, `/reinitialiser`) liefern die SPA (`200.html`),
+  `/api/*`, `/_app/*`, Icons, Manifest normal, alles andere 302
   auf `https://<BASE_DOMAIN><pfad>`. Unbekannter Slug → 404-Seite. Die SPA-Route `/` (existiert nur für Subdomains;
   auf der Hauptdomain liefert der Server die Landing) liest den Slug aus `location.hostname`, sonst
-  `location.replace('/')`. `/r/[slug]` zeigt dieselbe Buchungsseite, `/rdv/[token]` die Verwaltung des Patienten.
+  `location.replace('/')`. `/r/[slug]` zeigt dieselbe Buchungsseite, `/rdv#<token>` die Verwaltung des Patienten
+  (auf der Praxis-Subdomain und auf `app.`; die Hauptdomain leitet `/rdv` per 301 auf `app.` um, das Fragment bleibt).
 - Öffentliche API (ohne Login, nie Daten anderer Patienten):
   `GET /api/public/practices/{slug}` → Praxisprofil (Name FR/AR, Adresse, Gouvernorat, Telefon, WhatsApp, Karte,
   Beschreibung, Öffnungszeiten, `onlineBookingEnabled`, online buchbare Leistungen mit Dauer und ggf. Preis, online
@@ -347,8 +349,10 @@ Daten (ohne Admin-Felder) plus Schließtage, Leistungen, Behandler und sieht sei
   über Telefon **und** Nachname (ohne Groß/Klein) wiedererkannt, sonst neu angelegt.
   Verwaltung mit dem Token im Body (Fix-Liste 3; die Seite `/rdv#<token>` hält ihn aus Caddy- und App-Logs):
   `POST /api/public/bookings/lookup {token}` → Termin, Status, Praxis-Kontakt · `POST /api/public/bookings/cancel
-  {token}` → storniert (bis `booking_min_notice_hours` vorher). Vorerst bleiben die Pfad-Varianten mit gleichen
-  Antworten: `GET /api/public/bookings/{token}`, `POST /api/public/bookings/{token}/cancel`.
+  {token}` → storniert (bis `booking_min_notice_hours` vorher). Der Link, den die Buchungsbestätigung zeigt (auch zum
+  Teilen per WhatsApp), lautet `https://<host der Buchung>/rdv#<token>`. Die Pfad-Varianten
+  (`GET /api/public/bookings/{token}`, `POST /api/public/bookings/{token}/cancel`) und die Seite `/rdv/<token>` sind
+  entfernt (Fix-Liste 2, 31.10.; es gab noch keine echte Buchung).
 - Praxis-Seite: Online-Anfragen erscheinen im Dashboard („Nouvelles demandes en ligne“) und gestrichelt in der Agenda;
   Bestätigen (→ `confirmed`) oder Ablehnen (→ `cancelled`) mit fertigem WhatsApp-Text an den Patienten.
 - Datenschutz: Die Rechtstexte erklären die Online-Buchung (Daten gehen an die Praxis als Verantwortliche, Daftar als

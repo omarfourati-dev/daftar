@@ -23,8 +23,9 @@ server log):
   canCancel, cancelUntil, practice: {…contact}}`` – no names, no phone of the patient
 - ``POST /api/public/bookings/cancel {token}`` → the same, cancelled; 409 ``too_late`` (less than
   ``booking_min_notice_hours`` before), 409 ``cannot_cancel`` (already arrived, done, no-show)
-- for now also with the token in the path (old links ``/rdv/<token>``): ``GET /api/public/bookings/{token}``,
-  ``POST /api/public/bookings/{token}/cancel`` – same answers
+
+The token never travels in a path (fixlist 2: the old ``/rdv/<token>`` links and ``GET /api/public/bookings/{token}``,
+``POST /api/public/bookings/{token}/cancel`` are gone – no real booking used them).
 """
 
 from __future__ import annotations
@@ -432,24 +433,14 @@ def _view(row: Row[Any], now: datetime, status: str | None = None) -> BookingVie
 
 @router.post("/bookings/lookup")
 def lookup_booking(body: TokenIn, ctx: Ctx, conn: Conn, ip: ClientIp) -> BookingView:
-    return view_booking(body.token, ctx, conn, ip)
+    _limit(ctx, "booking-manage", MANAGE_LIMIT, MANAGE_WINDOW, ip)
+    return _view(_booking(conn, body.token), ctx.clock.now())
 
 
 @router.post("/bookings/cancel")
-def cancel_booking_by_body(body: TokenIn, ctx: Ctx, conn: Conn, ip: ClientIp) -> BookingView:
-    return cancel_booking(body.token, ctx, conn, ip)
-
-
-@router.get("/bookings/{token}")
-def view_booking(token: str, ctx: Ctx, conn: Conn, ip: ClientIp) -> BookingView:
+def cancel_booking(body: TokenIn, ctx: Ctx, conn: Conn, ip: ClientIp) -> BookingView:
     _limit(ctx, "booking-manage", MANAGE_LIMIT, MANAGE_WINDOW, ip)
-    return _view(_booking(conn, token), ctx.clock.now())
-
-
-@router.post("/bookings/{token}/cancel")
-def cancel_booking(token: str, ctx: Ctx, conn: Conn, ip: ClientIp) -> BookingView:
-    _limit(ctx, "booking-manage", MANAGE_LIMIT, MANAGE_WINDOW, ip)
-    row = _booking(conn, token, lock=True)
+    row = _booking(conn, body.token, lock=True)
     now = ctx.clock.now()
     if row.status == "cancelled":
         return _view(row, now)

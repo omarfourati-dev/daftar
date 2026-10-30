@@ -125,8 +125,9 @@ describe('online booking page', () => {
 		});
 		expect(screen.getByText('mardi 3 novembre 2026')).toBeInTheDocument();
 		expect(screen.getByText('14:20')).toBeInTheDocument();
-		expect(screen.getByRole('textbox', { name: 'Votre lien personnel' })).toHaveValue(`${location.origin}/rdv/mng-1`);
-		expect(screen.getByRole('link', { name: 'Voir mon rendez-vous' })).toHaveAttribute('href', '/rdv/mng-1');
+		// the token stays in the fragment (/rdv#…): it never reaches a server log
+		expect(screen.getByRole('textbox', { name: 'Votre lien personnel' })).toHaveValue(`${location.origin}/rdv#mng-1`);
+		expect(screen.getByRole('link', { name: 'Voir mon rendez-vous' })).toHaveAttribute('href', '/rdv#mng-1');
 	});
 
 	it('says when the booking is confirmed right away and leaves the practitioner to the practice', async () => {

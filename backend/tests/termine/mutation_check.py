@@ -62,7 +62,7 @@ MUTATIONS: list[tuple[str, str, str, str]] = [
     ("daftar/booking.py", "PHONE_LIMIT = 3", "PHONE_LIMIT = 4", T + "test_booking.py"),
     ("daftar/booking.py", '        f"{row.id}:{body.phone}",', "        body.phone,", T + "test_booking.py"),
     ("daftar/booking.py", "    _one_at_a_time(conn, row.id)\n", "", T + "test_booking.py"),
-    ("daftar/booking.py", "    return view_booking(body.token, ctx, conn, ip)", '    return view_booking("x", ctx, conn, ip)', T + "test_booking.py"),
+    ("daftar/booking.py", "    return _view(_booking(conn, body.token), ctx.clock.now())", '    return _view(_booking(conn, "x"), ctx.clock.now())', T + "test_booking.py"),
     ("daftar/booking.py", "can_cancel=current in OPEN and now <= cancel_until", "can_cancel=True", T + "test_booking.py"),
     ("daftar/booking.py", "    if day < local_day(now) or day > last_day or not resources:", "    if not resources:", T + "test_booking.py"),
     ("daftar/booking.py", '        raise _slot_taken() from exc', "        raise", T + "test_booking.py"),

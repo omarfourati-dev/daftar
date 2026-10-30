@@ -2,7 +2,8 @@
 
 Main domain ``<BASE_DOMAIN>`` (and every other host, :meth:`StaticSite.respond`) – landing, legal texts, files:
 1. app routes (paths without a file extension under ``/app``, ``/connexion``, ``/invitation``, ``/reinitialiser``,
-   ``/salle/``, ``/ticket/``, ``/r/``, ``/rdv/``) → 301 to the same path and query on ``app.<BASE_DOMAIN>``;
+   ``/salle/``, ``/ticket/``, ``/r/``, and the page ``/rdv``) → 301 to the same path and query on
+   ``app.<BASE_DOMAIN>`` (the browser keeps the fragment, e.g. ``/rdv#<token>``);
 2. exact file in ``landing/``;
 3. directory in ``landing/`` with ``index.html`` (without trailing slash: 308 redirect to ``…/``);
 4. file from ``web/build`` (SvelteKit output), but never the SPA shell ``200.html`` – the app does not run here;
@@ -12,7 +13,7 @@ App host ``app.<BASE_DOMAIN>`` (:meth:`StaticSite.respond_app`): ``/`` → 302 `
 files from ``web/build``; unknown ``/_app/…`` and ``/icons/…`` → 404; everything else (landing, legal texts) 302 to
 the same path on the main domain.
 
-On a practice sub-domain (``<slug>.<BASE_DOMAIN>``, see :meth:`StaticSite.respond_practice`): ``/``, ``/rdv/…``,
+On a practice sub-domain (``<slug>.<BASE_DOMAIN>``, see :meth:`StaticSite.respond_practice`): ``/``, ``/rdv``,
 ``/app…``, ``/connexion``, ``/invitation``, ``/reinitialiser`` → SPA; app assets (``/_app``, ``/icons``,
 ``/sw.js``, ``/favicon.svg``, ``/200.html``) as usual; everything else 302 to the same path on the main domain.
 Manifests and icons of the practice come from daftar/branding.py (wired in app.py).
@@ -44,7 +45,10 @@ SPA_SHELL = "200.html"
 #: The landing pages that show Google AdSense (design section 7): the French and the Arabic home page.
 AD_PAGES = ("index.html", "ar/index.html")
 SPA_PREFIXES = ("/app", "/connexion", "/invitation", "/reinitialiser")
-SPA_PREFIXES_WITH_TOKEN = ("/salle/", "/ticket/", "/r/", "/rdv/")
+SPA_PREFIXES_WITH_TOKEN = ("/salle/", "/ticket/", "/r/")
+#: Single SPA pages: the patient's link ``/rdv#<token>`` (fixlist 2; the token stays in the fragment, the old pages
+#: ``/rdv/<token>`` are gone).
+SPA_PAGES = ("/rdv",)
 PRACTICE_SPA_PREFIXES = ("/app", "/connexion", "/invitation", "/reinitialiser")
 PRACTICE_ASSET_PREFIXES = ("/_app/", "/icons/")
 PRACTICE_ASSETS = ("/sw.js", "/favicon.svg", "/200.html")
@@ -114,7 +118,7 @@ def is_spa_route(path: str) -> bool:
     last = path.rstrip("/").rsplit("/", 1)[-1]
     if "." in last:
         return False
-    if any(path == p or path.startswith(p + "/") for p in SPA_PREFIXES):
+    if path in SPA_PAGES or any(path == p or path.startswith(p + "/") for p in SPA_PREFIXES):
         return True
     return any(path.startswith(p) and len(path) > len(p) for p in SPA_PREFIXES_WITH_TOKEN)
 
@@ -209,9 +213,7 @@ class StaticSite:
         if is_unsafe(path):
             return self.not_found(request)
         no_extension = "." not in path.rstrip("/").rsplit("/", 1)[-1]
-        spa = path == "/" or (path.startswith("/rdv/") and len(path) > len("/rdv/")) or any(
-            path == p or path.startswith(p + "/") for p in PRACTICE_SPA_PREFIXES
-        )
+        spa = path == "/" or path in SPA_PAGES or any(path == p or path.startswith(p + "/") for p in PRACTICE_SPA_PREFIXES)
         if spa and no_extension:
             shell = self.shell()
             return self._send(request, shell) if shell else self.not_found(request)

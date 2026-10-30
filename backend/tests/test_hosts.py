@@ -56,7 +56,7 @@ def test_subdomain_label(host: str | None, label: str | None) -> None:
 # --- static routing on a practice sub-domain -------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("path", ["/", "/rdv/abc123", "/app", "/app/agenda", "/connexion", "/invitation", "/reinitialiser"])
+@pytest.mark.parametrize("path", ["/", "/rdv", "/app", "/app/agenda", "/connexion", "/invitation", "/reinitialiser"])
 def test_practice_host_serves_the_spa(client: TestClient, lac: Any, path: str) -> None:
     res = client.get(path, headers=on("cabinet-lac." + BASE), follow_redirects=False)
     assert res.status_code == 200, path
@@ -75,6 +75,7 @@ def test_practice_host_serves_app_assets(client: TestClient, lac: Any, path: str
         ("/ar/", f"https://{BASE}/ar/"),
         ("/site.css", f"https://{BASE}/site.css"),
         ("/salle/0a1b2c", f"https://{BASE}/salle/0a1b2c"),
+        ("/rdv/abc123", f"https://{BASE}/rdv/abc123"),  # the old patient links (token in the path) are gone
         ("/autre?x=1&y=2", f"https://{BASE}/autre?x=1&y=2"),
     ],
 )
@@ -107,7 +108,7 @@ def test_main_domain_keeps_the_landing(client: TestClient, lac: Any) -> None:
 APP = "app." + BASE
 APP_PATHS = [
     "/app", "/app/", "/app/admin", "/app/demo", "/app/patients/42", "/connexion", "/invitation", "/reinitialiser",
-    "/r/cabinet-lac", "/rdv/abc123", "/salle/0a1b2c", "/ticket/0a1b2c",
+    "/r/cabinet-lac", "/rdv", "/salle/0a1b2c", "/ticket/0a1b2c",
 ]
 
 
@@ -152,6 +153,7 @@ def test_app_host_serves_the_app_files(client: TestClient, path: str, contains: 
         ("/autre", f"https://{BASE}/autre"),  # the main domain shows its 404 page
         ("/r/", f"https://{BASE}/r/"),
         ("/app/missing.js", f"https://{BASE}/app/missing.js"),
+        ("/rdv/abc123", f"https://{BASE}/rdv/abc123"),
     ],
 )
 def test_app_host_sends_the_rest_to_the_main_domain(client: TestClient, path: str, target: str) -> None:
@@ -183,7 +185,7 @@ def test_the_redirect_keeps_query_and_encoding(client: TestClient) -> None:
     assert res.headers["location"] == f"https://{APP}/r/caf%C3%A9"
 
 
-@pytest.mark.parametrize("path", ["/200.html", "/app/missing.js", "/applications", "/r/"])
+@pytest.mark.parametrize("path", ["/200.html", "/app/missing.js", "/applications", "/r/", "/rdv/abc123"])
 def test_main_domain_never_serves_the_app(client: TestClient, path: str) -> None:
     res = client.get(path, headers=on(BASE), follow_redirects=False)
     assert res.status_code == 404, path

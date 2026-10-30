@@ -367,7 +367,7 @@ def test_the_honeypot_pretends_and_stores_nothing(client: TestClient, lac: Any, 
     with db.connect() as conn:
         assert conn.execute(select(func.count()).select_from(appointment)).scalar_one() == 0
         assert conn.execute(select(func.count()).select_from(patient)).scalar_one() == 0
-    assert_problem(client.get(f"/api/public/bookings/{res.json()['manageToken']}"), 404, "not_found")
+    assert_problem(lookup(client, res.json()["manageToken"]), 404, "not_found")
 
 
 @pytest.mark.parametrize(
@@ -425,12 +425,20 @@ def test_the_same_patient_cannot_book_the_same_time_twice(client: TestClient, la
     assert_problem(book(client, "cabinet-lac", serviceId=lac.consultation.id), 409, "slot_unavailable")
 
 
-# --- the patient's link ----------------------------------------------------------------------------------------
+# --- the patient's link /rdv#<token>: the token only ever travels in a request body (fixlists 3 and 2) -----------
+
+
+def lookup(client: TestClient, token: str, **kw: Any) -> Any:
+    return client.post("/api/public/bookings/lookup", json={"token": token}, **kw)
+
+
+def cancel(client: TestClient, token: str, **kw: Any) -> Any:
+    return client.post("/api/public/bookings/cancel", json={"token": token}, **kw)
 
 
 def test_view_the_own_booking(client: TestClient, lac: Any) -> None:
     token = book(client, "cabinet-lac", serviceId=lac.consultation.id).json()["manageToken"]
-    res = client.get(f"/api/public/bookings/{token}")
+    res = lookup(client, token)
     assert res.status_code == 200, res.text
     assert res.json() == {
         "status": "requested", "startsAt": iso(MON, "09:00"), "endsAt": iso(MON, "09:30"), "serviceName": "Consultation",
@@ -445,67 +453,51 @@ def test_view_the_own_booking(client: TestClient, lac: Any) -> None:
 
 def test_cancel_the_own_booking(client: TestClient, lac: Any) -> None:
     token = book(client, "cabinet-lac", serviceId=lac.consultation.id).json()["manageToken"]
-    res = client.post(f"/api/public/bookings/{token}/cancel")
+    res = cancel(client, token)
     assert res.status_code == 200, res.text
     assert (res.json()["status"], res.json()["canCancel"]) == ("cancelled", False)
-    assert client.post(f"/api/public/bookings/{token}/cancel").json()["status"] == "cancelled"  # twice is fine
+    assert cancel(client, token).json() == res.json()  # twice is fine
+    assert lookup(client, token).json()["status"] == "cancelled"
     assert "09:00" in slot_times(client, "cabinet-lac", date=MON.isoformat(), serviceId=lac.consultation.id, practitionerId=lac.practitioners[0].id)
 
 
 def test_cancelling_too_late_or_after_the_visit(client: TestClient, lac: Any, clock: Any, as_user: Factory) -> None:
     token = book(client, "cabinet-lac", serviceId=lac.consultation.id).json()["manageToken"]
     clock.set(at(MON, "07:01"))  # less than 2 hours before 09:00
-    assert client.get(f"/api/public/bookings/{token}").json()["canCancel"] is False
-    assert_problem(client.post(f"/api/public/bookings/{token}/cancel"), 409, "too_late")
+    assert lookup(client, token).json()["canCancel"] is False
+    assert_problem(cancel(client, token), 409, "too_late")
     other = book(client, "cabinet-lac", serviceId=lac.consultation.id, startsAt=iso(TUE, "09:00"), phone="20 555 666", lastName="X").json()
     staff = as_user(lac, "assistant")
     appt_id = client.get("/api/appointments?from=2026-11-03&to=2026-11-03", headers=staff).json()[0]["id"]
     client.post(f"/api/appointments/{appt_id}/status", json={"status": "confirmed"}, headers=staff)
-    assert client.post(f"/api/public/bookings/{other['manageToken']}/cancel").status_code == 200  # confirmed: still possible
+    assert cancel(client, other["manageToken"]).status_code == 200  # confirmed: still possible
     client.post(f"/api/appointments/{appt_id}/status", json={"status": "scheduled"}, headers=staff)
     clock.set(at(TUE, "09:10"))
     client.post(f"/api/appointments/{appt_id}/status", json={"status": "arrived"}, headers=staff)
-    assert_problem(client.post(f"/api/public/bookings/{other['manageToken']}/cancel"), 409, "cannot_cancel")
+    assert_problem(cancel(client, other["manageToken"]), 409, "cannot_cancel")
 
 
 def test_unknown_booking_links(client: TestClient) -> None:
-    assert_problem(client.get("/api/public/bookings/inconnu"), 404, "not_found")
-    assert_problem(client.post("/api/public/bookings/inconnu/cancel"), 404, "not_found")
-    assert_problem(client.post("/api/public/bookings/lookup", json={"token": "inconnu"}), 404, "not_found")
-    assert_problem(client.post("/api/public/bookings/cancel", json={"token": "inconnu"}), 404, "not_found")
+    assert_problem(lookup(client, "inconnu"), 404, "not_found")
+    assert_problem(cancel(client, "inconnu"), 404, "not_found")
+
+
+def test_the_old_links_with_the_token_in_the_path_are_gone(client: TestClient, lac: Any) -> None:
+    """``/rdv/<token>`` put the token into URLs (and logs); no real booking used it yet, so the endpoints went away."""
+    token = book(client, "cabinet-lac", serviceId=lac.consultation.id).json()["manageToken"]
+    assert_problem(client.get(f"/api/public/bookings/{token}"), 404, "not_found")
+    assert_problem(client.post(f"/api/public/bookings/{token}/cancel"), 404, "not_found")
+    assert lookup(client, token).json()["status"] == "requested"  # untouched
 
 
 def test_booking_links_are_rate_limited(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(booking_module, "MANAGE_LIMIT", 3)
     ip = {"X-Forwarded-For": "203.0.113.80"}
-    assert_problem(client.get("/api/public/bookings/inconnu", headers=ip), 404, "not_found")
-    assert_problem(client.post("/api/public/bookings/lookup", json={"token": "inconnu"}, headers=ip), 404, "not_found")
-    assert_problem(client.post("/api/public/bookings/cancel", json={"token": "inconnu"}, headers=ip), 404, "not_found")
-    assert_problem(client.post("/api/public/bookings/inconnu/cancel", headers=ip), 429, "too_many_requests")
-    assert_problem(client.post("/api/public/bookings/lookup", json={"token": "inconnu"}, headers=ip), 429, "too_many_requests")
-
-
-# --- the token in the request body (fixlist 3: the page /rdv#<token> keeps it out of every log) ------------------
-
-
-def test_lookup_with_the_token_in_the_body(client: TestClient, lac: Any) -> None:
-    token = book(client, "cabinet-lac", serviceId=lac.consultation.id).json()["manageToken"]
-    res = client.post("/api/public/bookings/lookup", json={"token": token})
-    assert res.status_code == 200, res.text
-    assert res.json() == client.get(f"/api/public/bookings/{token}").json()
-    assert res.json()["status"] == "requested" and res.json()["canCancel"] is True
-
-
-def test_cancel_with_the_token_in_the_body(client: TestClient, lac: Any, clock: Any) -> None:
-    token = book(client, "cabinet-lac", serviceId=lac.consultation.id).json()["manageToken"]
-    res = client.post("/api/public/bookings/cancel", json={"token": token})
-    assert res.status_code == 200, res.text
-    assert (res.json()["status"], res.json()["canCancel"]) == ("cancelled", False)
-    assert client.post("/api/public/bookings/cancel", json={"token": token}).json() == res.json()  # twice is fine
-    assert client.post("/api/public/bookings/lookup", json={"token": token}).json()["status"] == "cancelled"
-    late = book(client, "cabinet-lac", serviceId=lac.consultation.id, startsAt=iso(MON, "10:00")).json()["manageToken"]
-    clock.set(at(MON, "08:01"))
-    assert_problem(client.post("/api/public/bookings/cancel", json={"token": late}), 409, "too_late")
+    assert_problem(lookup(client, "inconnu", headers=ip), 404, "not_found")
+    assert_problem(cancel(client, "inconnu", headers=ip), 404, "not_found")
+    assert_problem(lookup(client, "inconnu", headers=ip), 404, "not_found")
+    assert_problem(cancel(client, "inconnu", headers=ip), 429, "too_many_requests")
+    assert_problem(lookup(client, "inconnu", headers=ip), 429, "too_many_requests")
 
 
 @pytest.mark.parametrize("body", [{}, {"token": ""}, {"token": "x" * 201}, {"token": 42}])

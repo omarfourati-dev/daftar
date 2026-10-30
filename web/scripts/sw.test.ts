@@ -64,7 +64,7 @@ describe('service worker on the main domain', () => {
 describe('service worker of the app', () => {
 	it('app host: app routes, shell cache, but "/" goes to the server (it redirects to /app)', async () => {
 		const sw = worker('app.daftar.omarfourati.de');
-		for (const path of ['/app', '/app/agenda', '/connexion', '/invitation', '/reinitialiser', '/r/cabinet-lac']) {
+		for (const path of ['/app', '/app/agenda', '/connexion', '/invitation', '/reinitialiser', '/r/cabinet-lac', '/rdv']) {
 			expect(sw.intercepts(path), path).toBe(true);
 		}
 		expect(sw.intercepts('/')).toBe(false);
@@ -80,7 +80,8 @@ describe('service worker of the app', () => {
 		for (const host of ['cabinet-lac.daftar.omarfourati.de', 'cabinet-lac.localhost']) {
 			const sw = worker(host);
 			expect(sw.intercepts('/'), host).toBe(true);
-			expect(sw.intercepts('/rdv/abc123'), host).toBe(true);
+			expect(sw.intercepts('/rdv'), host).toBe(true); // the patient's link /rdv#<token>
+			expect(sw.intercepts('/rdv/abc123'), host).toBe(false); // the old links are gone (the server sends them away)
 			expect(sw.intercepts('/api/public/practices/cabinet-lac', 'cors'), host).toBe(false);
 		}
 	});

@@ -1,5 +1,8 @@
 <script lang="ts">
-	/** `/rdv/<token>` – the patient's own link: the appointment, its status, the practice's contact, cancel (11.3). */
+	/**
+	 * `/rdv#<token>` – the patient's own link: the appointment, its status, the practice's contact, cancel (11.3).
+	 * The token stays in the fragment and travels only in request bodies, so it never reaches a server log (fixlist 2).
+	 */
 	import { onMount } from 'svelte';
 	import { api, ApiError } from '#lib/api';
 	import { bookingErrorMessage, useBookingManifest } from '#lib/booking';
@@ -8,12 +11,13 @@
 	import { telUrl, whatsappUrl } from '#lib/links';
 	import { appointmentStatusClass, type AppointmentStatus } from '#lib/status';
 	import type { ManagedBooking } from '#lib/types/booking';
-	import ConfirmDialog from '../../../lib/components/ConfirmDialog.svelte';
-	import LanguageSwitch from '../../../lib/components/LanguageSwitch.svelte';
-	import AppointmentEntry from '../../../lib/components/booking/AppointmentEntry.svelte';
+	import ConfirmDialog from '../../lib/components/ConfirmDialog.svelte';
+	import LanguageSwitch from '../../lib/components/LanguageSwitch.svelte';
+	import AppointmentEntry from '../../lib/components/booking/AppointmentEntry.svelte';
 
-	let { data }: { data: { token: string } } = $props();
 	applyLocaleFromQuery();
+	/** Read when the page mounts – after a client-side navigation the address bar already shows the new fragment. */
+	let token = '';
 
 	let booking = $state<ManagedBooking | null>(null);
 	let loading = $state(true);
@@ -26,8 +30,14 @@
 
 	onMount(async () => {
 		if (host) useBookingManifest();
+		token = decodeURIComponent(location.hash.slice(1));
+		if (!token) {
+			error = t('booking.manage.notFound');
+			loading = false;
+			return;
+		}
 		try {
-			booking = await api<ManagedBooking>(`/api/public/bookings/${encodeURIComponent(data.token)}`);
+			booking = await api<ManagedBooking>('/api/public/bookings/lookup', { method: 'POST', json: { token } });
 		} catch (err) {
 			error = err instanceof ApiError && err.status === 404 ? t('booking.manage.notFound') : bookingErrorMessage(err);
 		} finally {
@@ -49,7 +59,7 @@
 		busy = true;
 		cancelError = '';
 		try {
-			const answer = await api<ManagedBooking | undefined>(`/api/public/bookings/${encodeURIComponent(data.token)}/cancel`, { method: 'POST' });
+			const answer = await api<ManagedBooking | undefined>('/api/public/bookings/cancel', { method: 'POST', json: { token } });
 			booking = { ...booking!, ...(answer ?? {}), status: 'cancelled' };
 			confirming = false;
 			notice = t('booking.manage.cancelled');

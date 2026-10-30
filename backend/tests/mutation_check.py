@@ -71,7 +71,7 @@ MUTATIONS: list[tuple[str, str, str, str]] = [
     ("migrations/versions/0001_initial.py", "CONSTRAINT appointment_duration_check CHECK (ends_at = starts_at + duration_min * interval '1 minute'),", "", "tests/test_schema.py"),
     ("daftar/hosts.py", "if not is_practice_host or found is None or found.is_demo or", "if not is_practice_host or found is None or", "tests/test_hosts.py"),
     ("daftar/hosts.py", 'return host.split(":", 1)[0].rstrip(".")', 'return host.split(":", 1)[0]', "tests/test_hosts.py"),
-    ("daftar/static.py", 'spa = path == "/" or (path.startswith("/rdv/")', 'spa = path == "/" or (path.startswith("/rdvx/")', "tests/test_hosts.py"),
+    ("daftar/static.py", 'spa = path == "/" or path in SPA_PAGES or', 'spa = path == "/" or', "tests/test_hosts.py"),
     ("daftar/static.py", "status_code=302)", "status_code=301)", "tests/test_hosts.py"),
     ("daftar/branding.py", "return (words[0][0] + words[-1][0]).upper()", "return (words[0][0] + words[1][0]).upper()", "tests/test_hosts.py"),
     ("daftar/branding.py", "draw.rectangle((0, 0, size, size), fill=(*color, 255))", "draw.rectangle((0, 0, size, size), fill=(0, 0, 0, 255))", "tests/test_hosts.py"),

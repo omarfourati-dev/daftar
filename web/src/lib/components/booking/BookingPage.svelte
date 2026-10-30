@@ -197,7 +197,8 @@
 		view = 'select';
 	}
 
-	const manageUrl = $derived(created ? `${location.origin}/rdv/${created.manageToken}` : '');
+	/** The patient's own link: the token in the fragment (`/rdv#…`) never reaches a server log. */
+	const manageUrl = $derived(created ? `${location.origin}/rdv#${created.manageToken}` : '');
 	const privacyUrl = $derived(mainUrl(ar ? '/ar/confidentialite/' : '/confidentialite/'));
 	const hoursLines = $derived(hours ? hoursSummary(hours) : []);
 	const dayRange = (from: string, to: string) =>
@@ -449,7 +450,7 @@
 								url: manageUrl
 							})}
 						/>
-						<a class="btn-primary self-start" href="/rdv/{created.manageToken}">{t('booking.openManage')}</a>
+						<a class="btn-primary self-start" href="/rdv#{created.manageToken}">{t('booking.openManage')}</a>
 					</div>
 					<button type="button" class="mt-4 min-h-11 font-semibold text-brand-700 underline-offset-4 hover:underline" onclick={restart}
 						>{t('booking.another')}</button
