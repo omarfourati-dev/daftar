@@ -1,0 +1,14 @@
+/** Page /invitation#token. Owner: foundation. */
+export const invitation = {
+	title: 'Rejoindre le cabinet',
+	checking: 'Vérification de l’invitation…',
+	intro: 'Vous êtes invité(e) à rejoindre {practice} en tant que {role}.',
+	name: 'Votre nom',
+	email: 'E-mail',
+	password: 'Mot de passe',
+	repeat: 'Répéter le mot de passe',
+	passwordHint: 'Au moins 10 caractères.',
+	signedInWarning: 'Vous êtes connecté(e) en tant que {email}. Le nouveau compte remplacera cette session.',
+	submit: 'Créer mon compte',
+	toLogin: 'Aller à la connexion'
+};

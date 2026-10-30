@@ -1,0 +1,59 @@
+@import 'tailwindcss';
+
+/*
+ * Daftar brand (design section 8): primary teal #0f766e, dark #134e4a, light #f0fdfa, accent #f59e0b,
+ * text #0f172a, surfaces #ffffff / #f8fafc. Font: IBM Plex Sans Arabic (self-hosted, covers Latin and Arabic;
+ * imported in routes/+layout.svelte). Use logical utilities (ms-/me-/ps-/pe-/start-/end-, text-start) so
+ * layouts mirror correctly in Arabic (dir="rtl").
+ */
+@theme {
+	--font-sans: 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, sans-serif;
+
+	--color-brand-50: #f0fdfa;
+	--color-brand-100: #ccfbf1;
+	--color-brand-200: #99f6e4;
+	--color-brand-300: #5eead4;
+	--color-brand-400: #2dd4bf;
+	--color-brand-500: #14b8a6;
+	--color-brand-600: #0d9488;
+	--color-brand-700: #0f766e;
+	--color-brand-800: #115e59;
+	--color-brand-900: #134e4a;
+	--color-brand-950: #042f2e;
+
+	--color-accent-400: #fbbf24;
+	--color-accent-500: #f59e0b;
+	--color-accent-600: #d97706;
+
+	--color-ink: #0f172a;
+	--color-surface: #f8fafc;
+}
+
+@utility btn {
+	@apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+@layer components {
+	.btn-primary {
+		@apply btn bg-brand-700 text-white hover:bg-brand-800;
+	}
+	.btn-secondary {
+		@apply btn border border-slate-300 bg-white text-ink hover:bg-slate-100;
+	}
+	.btn-accent {
+		@apply btn bg-accent-500 text-ink hover:bg-accent-600;
+	}
+	.card {
+		@apply rounded-xl border border-slate-200 bg-white p-4 shadow-sm;
+	}
+	.input {
+		@apply min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-ink focus-visible:border-brand-700 focus-visible:outline-2 focus-visible:outline-brand-700;
+	}
+	.label {
+		@apply flex flex-col gap-1 text-sm font-medium text-slate-700;
+	}
+}
+
+:focus-visible {
+	outline-color: var(--color-brand-700);
+}

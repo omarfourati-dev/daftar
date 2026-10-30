@@ -132,10 +132,19 @@ def test_every_specialty_has_a_catalog() -> None:
         ("kinesitherapeute", [("Séance", 45), ("Bilan", 60)]),
         ("psychologue", [("Séance", 50), ("Premier entretien", 60)]),
         ("autre", [("Consultation", 30), ("Contrôle", 20)]),
+        ("ophtalmologue", [("Consultation", 20), ("Mesure de la vue / réfraction", 20), ("Fond d'œil", 20),
+                           ("Tension oculaire", 15), ("Adaptation lentilles", 30)]),
+        ("gynecologue", [("Consultation", 30), ("Suivi de grossesse", 30), ("Échographie", 20), ("Frottis", 15)]),
+        ("dermatologue", [("Consultation", 20), ("Contrôle", 15), ("Petite chirurgie", 30)]),
+        ("cardiologue", [("Consultation", 30), ("ECG", 15), ("Échographie cardiaque", 30), ("Pose Holter", 15)]),
+        ("orl", [("Consultation", 20), ("Audiogramme", 30), ("Lavage d'oreille", 15)]),
     ],
 )
 def test_catalogs_from_the_design(specialty: str, expected: list[tuple[str, int]]) -> None:
-    assert [(i.name_fr, i.duration_min) for i in DEFAULT_CATALOGS[specialty]][: len(expected)] == expected
+    items = [(i.name_fr, i.duration_min) for i in DEFAULT_CATALOGS[specialty]]
+    if specialty in {"generaliste", "pediatre", "kinesitherapeute", "psychologue", "autre"}:
+        items = items[: len(expected)]  # the design names these with "z. B."
+    assert items == expected
 
 
 def test_dentist_catalog_from_section_11() -> None:
