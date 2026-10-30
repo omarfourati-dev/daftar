@@ -9,11 +9,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from . import auth, hosts, invitations, patients
+from . import auth, hosts, invitations
+from . import finance  # be-patienten
+from . import patients  # be-patienten
 
 ROUTERS: list[APIRouter] = [
     auth.router,
     invitations.router,
     hosts.router,
     patients.router,
+    finance.router,
 ]
