@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Flyer A5 – Daftar pour les cabinets</title>
+  <!-- Verkaufsflyer A5 (148 x 210 mm) + 3 mm Beschnitt. Seite 1 Französisch, Seite 2 Arabisch.
+       Inhalte, Wortlaut, Farben, Schrift und Logo ausschließlich von der Landingpage
+       (daftar-integration/landing: index.html, ar/index.html, site.css, brand/logo.svg, fonts/).
+       PDF und Vorschauen: node build.mjs -->
+  <link rel="stylesheet" href="flyer.css">
+</head>
+<body>
+
+<svg class="sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <!-- Häkchen der Landingpage (.now::before, .plan li::before) -->
+  <symbol id="coche" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#0f766e"/><path d="M6.6 12.4l3.6 3.6 7.2-7.6" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="coche-ligne" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<!-- ================= Recto : français ================= -->
+<section class="sheet" lang="fr" dir="ltr">
+  <div class="cahier">
+    <img class="seyes" src="img/seyes.svg" alt="">
+    <span class="marge" aria-hidden="true"></span>
+    <div class="cahier-contenu">
+      <img class="logo" src="brand/logo.svg" alt="Daftar – دفتر">
+      <h1>Fini le cahier<br>de rendez-vous</h1>
+      <p class="chapeau">Daftar remplace le cahier de votre cabinet&nbsp;: agenda, rendez-vous en ligne, salle d’attente, dossiers patients et paiements, sur le PC de l’accueil comme sur votre téléphone.</p>
+      <p class="pour-qui">Pour les cabinets de toutes spécialités, en français et en arabe.</p>
+    </div>
+  </div>
+
+  <ul class="atouts">
+    <li>
+      <svg class="coche"><use href="#coche"/></svg>
+      <h2>Aucune double réservation</h2>
+      <p>Daftar la refuse et propose les horaires libres.</p>
+    </li>
+    <li>
+      <svg class="coche"><use href="#coche"/></svg>
+      <h2>Vos patients réservent en ligne</h2>
+      <p>À toute heure, sur la page de réservation propre à votre cabinet.</p>
+    </li>
+    <li>
+      <svg class="coche"><use href="#coche"/></svg>
+      <h2>La salle d’attente, dans l’ordre</h2>
+      <p>Chaque patient reçoit un ticket. L’accueil appelle le suivant d’un clic.</p>
+    </li>
+    <li>
+      <svg class="coche"><use href="#coche"/></svg>
+      <h2>Paiements en plusieurs fois</h2>
+      <p>Reste à payer calculé, reçu pour chaque paiement et caisse du jour.</p>
+    </li>
+    <li>
+      <svg class="coche"><use href="#coche"/></svg>
+      <h2>Les rappels de demain, en un clic</h2>
+      <p>Un clic ouvre WhatsApp ou les SMS avec le texte déjà écrit.</p>
+    </li>
+    <li>
+      <svg class="coche"><use href="#coche"/></svg>
+      <h2>Sur PC, tablette et téléphone</h2>
+      <p>Un accès personnel pour chaque membre de l’équipe.</p>
+    </li>
+  </ul>
+
+  <div class="bande">
+    <div class="tarif">
+      <p class="tarif-des">à partir de</p>
+      <p class="tarif-prix"><span class="montant">49&nbsp;DT</span> <span class="periode">par mois</span></p>
+      <ul class="tarif-points">
+        <li><svg class="coche-ligne"><use href="#coche-ligne"/></svg>Sans engagement</li>
+        <li><svg class="coche-ligne"><use href="#coche-ligne"/></svg>Tarif préférentiel pour les cabinets pilotes</li>
+      </ul>
+      <p class="pilote">La phase pilote est gratuite</p>
+      <p class="question">Une question&nbsp;? <span class="mail">info@omarfourati.de</span></p>
+    </div>
+    <a class="acces" href="https://daftar.omarfourati.de">
+      <span class="acces-titre">Essayez la démo</span>
+      <img class="qr" src="qr/qr-daftar.svg" alt="QR code : daftar.omarfourati.de">
+      <span class="acces-url">daftar.omarfourati.de</span>
+    </a>
+  </div>
+</section>
+
+<!-- ================= Verso : arabe ================= -->
+<section class="sheet" lang="ar" dir="rtl">
+  <div class="cahier">
+    <img class="seyes" src="img/seyes.svg" alt="">
+    <span class="marge" aria-hidden="true"></span>
+    <div class="cahier-contenu">
+      <img class="logo" src="brand/logo.svg" alt="Daftar – دفتر">
+      <h1>وداعًا لدفتر<br>المواعيد الورقي</h1>
+      <p class="chapeau">تطبيق «دفتر» يعوّض الدفتر الورقي في عيادتكم: الأجندة، والحجز عبر الإنترنت، وقاعة الانتظار، وملفات المرضى والمدفوعات، على حاسوب الاستقبال كما على هاتفكم.</p>
+      <p class="pour-qui">لعيادات كل الاختصاصات، بالعربية والفرنسية.</p>
+    </div>
+  </div>
+
+  <ul class="atouts">
+    <li>
+      <svg class="coche"><use href="#coche"/></svg>
+      <h2>لا موعدين في الوقت نفسه</h2>
+      <p>يرفض دفتر ذلك ويقترح الساعات الشاغرة.</p>
+    </li>
+    <li>
+      <svg class="coche"><use href="#coche"/></svg>
+      <h2>مرضاكم يحجزون عبر الإنترنت</h2>
+      <p>لكل عيادة صفحة حجز خاصة بها، يحجز فيها مرضاكم في أي ساعة.</p>
+    </li>
+    <li>
+      <svg class="coche"><use href="#coche"/></svg>
+      <h2>قاعة انتظار منظَّمة</h2>
+      <p>يحصل كل مريض على رقم تذكرة، وينادي الاستقبال على التالي بنقرة.</p>
+    </li>
+    <li>
+      <svg class="coche"><use href="#coche"/></svg>
+      <h2>الدفع على أقساط وصندوق اليوم</h2>
+      <p>يُحسب المبلغ المتبقي تلقائيًا، مع إيصال لكل دفعة.</p>
+    </li>
+    <li>
+      <svg class="coche"><use href="#coche"/></svg>
+      <h2>تذكيرات الغد بنقرة واحدة</h2>
+      <p>نقرة واحدة تفتح واتساب أو الرسائل القصيرة والنص جاهز.</p>
+    </li>
+    <li>
+      <svg class="coche"><use href="#coche"/></svg>
+      <h2>على كل أجهزتكم</h2>
+      <p>على الحاسوب واللوحة الرقمية والهاتف، مع حساب شخصي لكل فرد من الفريق.</p>
+    </li>
+  </ul>
+
+  <div class="bande">
+    <div class="tarif">
+      <p class="tarif-des">ابتداءً من</p>
+      <p class="tarif-prix"><span class="montant">49 د.ت</span> <span class="periode">شهريًا</span></p>
+      <ul class="tarif-points">
+        <li><svg class="coche-ligne"><use href="#coche-ligne"/></svg>دون التزام</li>
+        <li><svg class="coche-ligne"><use href="#coche-ligne"/></svg>سعر تفضيلي للعيادات المشاركة في المرحلة التجريبية</li>
+      </ul>
+      <p class="pilote">المرحلة التجريبية مجانية</p>
+      <p class="question">لأي سؤال: <span class="mail" dir="ltr">info@omarfourati.de</span></p>
+    </div>
+    <a class="acces" href="https://daftar.omarfourati.de">
+      <span class="acces-titre">جرّبوا دفتر الآن</span>
+      <img class="qr" src="qr/qr-daftar.svg" alt="رمز QR: daftar.omarfourati.de">
+      <span class="acces-url" dir="ltr">daftar.omarfourati.de</span>
+    </a>
+  </div>
+</section>
+
+</body>
+</html>

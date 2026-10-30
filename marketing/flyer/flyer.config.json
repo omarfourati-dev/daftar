@@ -1,0 +1,14 @@
+{
+  "title": "Daftar – Flyer A5 pour les cabinets (FR/AR)",
+  "author": "Omar Fourati",
+  "subject": "Daftar : agenda, réservation en ligne, salle d'attente et paiements pour les cabinets médicaux",
+  "html": "flyer.html",
+  "pdf": "flyer-daftar-a5.pdf",
+  "previews": ["preview-fr.png", "preview-ar.png"],
+  "preview": { "scale": 2.5 },
+  "format": { "trimW": 148, "trimH": 210, "bleed": 3 },
+  "checks": { "safeMm": 5, "minPt": 8 },
+  "qr": [
+    { "file": "qr/qr-daftar.svg", "url": "https://daftar.omarfourati.de", "ecl": "Q", "version": 3, "color": "#134e4a", "symbolMm": 25.5 }
+  ]
+}

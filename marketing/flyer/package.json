@@ -1,0 +1,16 @@
+{
+  "name": "flyer-daftar",
+  "private": true,
+  "type": "module",
+  "description": "Verkaufsflyer A5 (FR/AR) für Daftar: HTML/CSS -> PDF mit 3 mm Beschnitt + PNG-Vorschauen (node build.mjs)",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "jsqr": "1.4.0",
+    "pdf-lib": "1.17.1",
+    "playwright": "1.64.1",
+    "pngjs": "7.0.0",
+    "qrcode": "1.5.4"
+  }
+}
