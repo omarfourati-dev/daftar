@@ -10,9 +10,38 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from . import auth, hosts, invitations
+from . import practice_settings
+from . import practitioners
+from . import services
+from . import closures
+from . import staff
+from . import password_reset
+from . import admin_practices
+from . import onboarding
+from . import queue
+from . import availability
+from . import appointments
+from . import series
+from . import booking
+from . import queue_next
 
 ROUTERS: list[APIRouter] = [
     auth.router,
     invitations.router,
     hosts.router,
+    practice_settings.router,
+    practitioners.router,
+    services.router,
+    closures.router,
+    staff.router,
+    password_reset.router,
+    admin_practices.router,
+    onboarding.router,
+    queue.router,
+    queue.public_router,
+    availability.router,
+    appointments.router,
+    series.router,
+    booking.router,
+    queue_next.router,
 ]
