@@ -9,7 +9,7 @@
 	import type { AgendaBase } from '../../agenda/data';
 	import { money, personName, practitionerLabel, statusLabel } from '../../agenda/format';
 	import { telUrl, whatsappUrl, displayPhone } from '../../agenda/links';
-	import { dateAndTime, messageIn, patientLang, type PatientMessage } from '../../agenda/messages';
+	import { appointmentMessage, dateAndTime, type PatientMessage } from '../../agenda/messages';
 	import { hhmm, minutesOfDay, tunisDayOf } from '../../agenda/time';
 	import { formatDate, formatDateTime, t, type MessageKey } from '../../i18n.svelte';
 	import type { AppointmentStatus } from '../../status';
@@ -72,12 +72,7 @@
 	const cancellable = $derived(!['cancelled', 'no_show', 'done'].includes(a.status));
 	const when = $derived(dateAndTime(a.startsAt));
 
-	const whatsappMessage = $derived.by(() => {
-		if (!sendMessage) return '';
-		const lang = patientLang(a.patient.lang);
-		const practice = lang === 'ar' && base.practice.nameAr ? base.practice.nameAr : base.practice.name;
-		return messageIn(lang, sendMessage, { patient: a.patient.firstName, practice, ...dateAndTime(a.startsAt) });
-	});
+	const whatsappMessage = $derived(sendMessage ? appointmentMessage(a, sendMessage, base.practice) : '');
 
 	function update(next: Appointment) {
 		a = next;

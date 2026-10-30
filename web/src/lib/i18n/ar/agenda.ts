@@ -23,7 +23,7 @@ export const agenda: Messages['agenda'] = {
 	now: 'الآن، {time}',
 	slot: 'موعد جديد على الساعة {time}',
 	slotWith: 'موعد جديد على الساعة {time} مع {practitioner}',
-	requested: 'طلب عبر الإنترنت، في انتظار التأكيد',
+	requested: 'طلب للتأكيد',
 	noShows: '{count} غيابات',
 	alert: 'تنبيه طبي',
 	depositDue: 'عربون {amount} للدفع',

@@ -1,7 +1,6 @@
 import { render, screen } from '@testing-library/svelte';
 import type { Component } from 'svelte';
 import { beforeEach, describe, expect, it } from 'vitest';
-import Today from './+page.svelte';
 import Admin from './admin/+page.svelte';
 import Caisse from './caisse/+page.svelte';
 import Patients from './patients/+page.svelte';
@@ -12,7 +11,6 @@ import { i18n } from '#lib/i18n.svelte';
 
 // Each page is replaced by its feature work; until then it shows its title in the current language.
 const pages: [string, Component, string, string][] = [
-	['/app', Today, 'Aujourd’hui', 'اليوم'],
 	['/app/salle', Salle, 'Salle d’attente', 'قاعة الانتظار'],
 	['/app/patients', Patients, 'Patients', 'المرضى'],
 	['/app/caisse', Caisse, 'Caisse', 'الصندوق'],

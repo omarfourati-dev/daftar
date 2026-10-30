@@ -24,3 +24,14 @@ export function messageIn(lang: string | null | undefined, key: PatientMessage, 
 	const text = (patientLang(lang) === 'ar' ? ar : fr).agenda.messages[key];
 	return text.replace(/\{(\w+)\}/g, (whole, name: string) => params[name] ?? whole);
 }
+
+/** The message about an appointment (confirmation, refusal) for the patient, with the practice name in their language. */
+export function appointmentMessage(
+	a: { startsAt: string; patient: { firstName: string; lang?: string } },
+	key: PatientMessage,
+	practice: { name: string; nameAr?: string }
+): string {
+	const lang = patientLang(a.patient.lang);
+	const name = lang === 'ar' && practice.nameAr ? practice.nameAr : practice.name;
+	return messageIn(lang, key, { patient: a.patient.firstName, practice: name, ...dateAndTime(a.startsAt) });
+}
