@@ -1,5 +1,9 @@
 """One pure-ASGI middleware for every response: security headers, request log, HTTP metrics, last-resort 500.
 
+HSTS (``Strict-Transport-Security: max-age=31536000``) only on requests that came over HTTPS – directly or through
+Caddy (``X-Forwarded-Proto: https``); never ``includeSubDomains`` or ``preload``, which would bind other sub-domains
+of omarfourati.de as well.
+
 The CSP is built once at startup; ``script-src`` contains the hashes of the inline scripts of the SPA shell
 (``200.html``), so SvelteKit's bootstrap script runs and nothing else inline does. No external hosts – except
 :data:`ADS_CSP`, which daftar/static.py sets on the two home pages of the landing only (the middleware keeps a CSP a
@@ -21,6 +25,7 @@ from .problems import problem_response
 log = logging.getLogger("daftar.http")
 error_log = logging.getLogger("daftar")
 QUIET_PATHS = frozenset({"/healthz", "/metrics"})
+HSTS = "max-age=31536000"
 
 
 def build_csp(script_hashes: list[str]) -> str:
@@ -69,6 +74,16 @@ def security_headers(csp: str) -> dict[str, str]:
     }
 
 
+def came_over_https(scope: Scope) -> bool:
+    """The connection itself, or Caddy in front of us (it sets ``X-Forwarded-Proto``), used HTTPS."""
+    if scope.get("scheme") == "https":
+        return True
+    for name, value in scope.get("headers", ()):
+        if name == b"x-forwarded-proto":
+            return value.decode("latin-1").rsplit(",", 1)[-1].strip().lower() == "https"
+    return False
+
+
 def route_label(scope: Scope) -> str:
     """The route template (``/api/patients/{patient_id}``), ``static`` for files/SPA, ``unmatched`` otherwise."""
     route: Any = scope.get("route")
@@ -93,6 +108,7 @@ class HttpMiddleware:
             return
         start = time.perf_counter()
         state = {"status": 500, "started": False}
+        https = came_over_https(scope)
 
         async def send_with_headers(message: Message) -> None:
             if message["type"] == "http.response.start":
@@ -102,6 +118,8 @@ class HttpMiddleware:
                 for name, value in self.headers.items():
                     if name not in headers:
                         headers[name] = value
+                if https:
+                    headers["Strict-Transport-Security"] = HSTS
             await send(message)
 
         try:
