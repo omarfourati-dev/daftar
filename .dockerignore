@@ -1,0 +1,17 @@
+.git
+.github
+.superpowers
+docs
+**/.env
+**/.env.*
+**/*.pem
+**/__pycache__
+**/*.pyc
+backend/.venv
+backend/.pytest_cache
+web/node_modules
+web/build
+web/.svelte-kit
+web/test-results
+web/playwright-report
+docker-compose.override.yml

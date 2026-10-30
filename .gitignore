@@ -1,0 +1,32 @@
+# secrets and local settings
+.env
+.env.*
+!.env.example
+*.pem
+docker-compose.override.yml
+
+# agent notes and reports
+.superpowers/
+
+# backend
+backend/.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# web
+web/node_modules/
+web/.svelte-kit/
+web/build/
+web/test-results/
+web/playwright-report/
+web/vite.config.ts.timestamp-*
+
+# editors / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
