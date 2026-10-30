@@ -1,0 +1,22 @@
+# Daftar
+
+> Daftar (دفتر, « cahier ») est une application web de gestion des rendez-vous pour les cabinets médicaux en Tunisie, toutes spécialités : médecine générale, dentaire, pédiatrie, gynécologie, dermatologie, ophtalmologie, cardiologie, ORL, kinésithérapie, psychologie… Elle remplace le cahier de rendez-vous papier. Interface en français et en arabe (de droite à gauche).
+
+Fonctions : agenda par jour et par semaine avec une colonne par praticien ; catalogue d'actes avec durée et prix, prérempli selon la spécialité ; horaires d'ouverture avec pause, jours de congé et jours fériés ; aucune double réservation possible pour un même praticien ou un même patient ; page de réservation en ligne propre à chaque cabinet (par exemple cabinet-ben-salah.daftar.omarfourati.de) avec horaires libres, confirmation par le cabinet ou automatique, annulation par lien, blocage en ligne après des absences répétées ; salle d'attente avec tickets numérotés ; écran de salle d'attente et page ticket sur le téléphone du patient (numéros uniquement, jamais de noms) ; compteur d'absences avec « acompte conseillé » ; rappels WhatsApp ou SMS préparés par Daftar et envoyés en un clic par le cabinet ; acomptes ; actes et paiements en plusieurs fois avec reste à payer ; caisse du jour ; reçus imprimables ; équipe avec rôles ; export des données. Fonctionne dans le navigateur et s'installe comme application sur PC, Android et iPhone. Une connexion Internet est nécessaire.
+
+Ce que Daftar ne fait pas : pas d'encaissement des paiements des patients, pas d'envoi automatique de SMS, pas de radiographies, pas de facturation CNAM.
+
+Tarifs : phase pilote gratuite ; ensuite à partir de 49 DT par mois, sans engagement, avec un tarif préférentiel pour les cabinets pilotes ; paiement de l'abonnement par Flouci ou virement.
+
+Données : hébergement en Allemagne (IONOS SE), connexions chiffrées, aucun cookie ni traceur. Le cabinet reste responsable des données de ses patients ; Daftar agit comme sous-traitant (article 28 du RGPD).
+
+Éditeur : Omar Fourati, Gummersbach (Allemagne), info@omarfourati.de.
+
+## Pages
+
+- [Présentation (français)](https://daftar.omarfourati.de/)
+- [Présentation (arabe)](https://daftar.omarfourati.de/ar/)
+- [Démo](https://daftar.omarfourati.de/app/demo) : crée un cabinet fictif de la spécialité choisie, supprimé après 24 heures
+- [Politique de confidentialité](https://daftar.omarfourati.de/confidentialite/)
+- [Modèle de contrat de sous-traitance](https://daftar.omarfourati.de/contrat-sous-traitance/)
+- [Mentions légales et Impressum](https://daftar.omarfourati.de/mentions-legales/)

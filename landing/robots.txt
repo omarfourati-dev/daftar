@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /app/
+Disallow: /api/
+Disallow: /connexion
+Disallow: /invitation
+Disallow: /salle/
+Disallow: /ticket/
+
+Sitemap: https://daftar.omarfourati.de/sitemap.xml
