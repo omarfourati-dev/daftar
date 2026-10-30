@@ -41,7 +41,7 @@
 	onclick={() => onopen?.(a)}
 >
 	<span class="shrink-0 font-semibold tabular-nums" class:line-through={struck}>{formatTime(a.startsAt)}</span>
-	<span class="min-w-0 truncate font-semibold" class:line-through={struck}>{personName(a.patient)}</span>
+	<span class="min-w-0 truncate font-semibold" dir="auto" class:line-through={struck}>{personName(a.patient)}</span>
 	{#if a.reason && !dense}<span class="min-w-0 truncate text-slate-600">{a.reason}</span>{/if}
 	{#if practitioner && !dense}<span class="min-w-0 truncate text-slate-500">{practitioner}</span>{/if}
 	{#if a.patient.alerts}

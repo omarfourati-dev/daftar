@@ -118,7 +118,7 @@
 	{/each}
 
 	{#each appointments as a (a.id)}
-		<AppointmentCard {a} {minimal} dense={minimal || Math.max(a.durationMin, 1) * ppm < 40} style={place(a)} practitioner={showPractitioner?.(a) ?? null} {onopen} />
+		<AppointmentCard {a} {minimal} dense={minimal || Math.max(a.durationMin, 1) * ppm < 52} style={place(a)} practitioner={showPractitioner?.(a) ?? null} {onopen} />
 	{/each}
 </section>
 
