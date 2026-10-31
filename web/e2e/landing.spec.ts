@@ -337,6 +337,19 @@ test.describe("Werbung nur auf den beiden Startseiten", () => {
       for (const name of CONSENT_COOKIES) expect(names).not.toContain(name);
       expect(names).toContain("anderes"); // nur die Einwilligung wird vergessen
     });
+
+    test(`${path}: vergisst eine alte App-Anmeldung dieses Ursprungs (daftar.token/daftar.user), sonst nichts`, async ({ page }) => {
+      // Security-Review M3: Früher lief die App samt Anmeldung auf der Hauptdomain – das Token läge hier neben AdSense.
+      await page.goto(BASE + "/robots.txt"); // derselbe Ursprung, ohne Skripte
+      await page.evaluate(() => {
+        localStorage.setItem("daftar.token", "altes-token");
+        localStorage.setItem("daftar.user", "{}");
+        localStorage.setItem("anderes", "bleibt");
+      });
+      await page.goto(BASE + path, { waitUntil: "load" });
+      expect(await page.evaluate(() => [localStorage.getItem("daftar.token"), localStorage.getItem("daftar.user"), localStorage.getItem("anderes")]))
+        .toEqual([null, null, "bleibt"]);
+    });
   }
 
   const WITHOUT_ADS = [
