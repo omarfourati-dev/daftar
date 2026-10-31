@@ -133,7 +133,7 @@ def test_late_appointment_patients(
     appt("08:30", a, status="arrived")
     appt("08:20", a, status="cancelled")
     with_ticket = appt("08:45", b)
-    client.post("/api/queue", json={"patientId": with_ticket.patient_id}, headers=staff)  # there, not marked arrived
+    client.post("/api/queue", json={"patientId": with_ticket.patient_id}, headers=staff)  # there: the ticket is the arrival (M4)
     make_appointment(make_patient(lac), practitioner_id=a, starts_at=at(FRI, "08:40") - timedelta(days=1))
     assert [x["id"] for x in nxt(client, staff)["lateAppointments"]] == [late_a.id, late_b.id]
     assert [x["id"] for x in nxt(client, staff, practitionerId=a)["lateAppointments"]] == [late_a.id]
