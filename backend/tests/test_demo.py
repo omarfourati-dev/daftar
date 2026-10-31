@@ -165,6 +165,39 @@ def test_global_daily_limit(client: TestClient, monkeypatch: pytest.MonkeyPatch,
     assert start(client, ip="3.3.3.3").status_code == 201
 
 
+@pytest.mark.parametrize(
+    ("ip", "network"),
+    [
+        ("41.226.10.7", "41.226.10.0/24"),
+        ("41.226.10.250", "41.226.10.0/24"),
+        ("2001:db8:abcd:12:1:2:3:4", "2001:db8:abcd:12::/64"),
+        ("2001:db8:abcd:12:ffff::1", "2001:db8:abcd:12::/64"),
+        ("::ffff:41.226.10.7", "41.226.10.0/24"),  # IPv4 written as IPv6
+        ("unknown", "unknown"),  # no client address: the value itself
+    ],
+)
+def test_demo_limits_count_per_address_range(ip: str, network: str) -> None:
+    """Security review N8: an IPv4 /24 or an IPv6 /64 is usually one customer or one provider pool."""
+    assert demo_module.network_of(ip) == network
+
+
+def test_twenty_demos_per_address_range_and_day(client: TestClient, monkeypatch: pytest.MonkeyPatch, clock: Any) -> None:
+    """Security review N8: 60 addresses used to empty the global 300 a day for everybody."""
+    assert demo_module.PER_NETWORK_PER_DAY == 20
+    monkeypatch.setattr(demo_module, "PER_NETWORK_PER_DAY", 3)
+    for host in (1, 2, 3):
+        assert start(client, ip=f"41.226.10.{host}").status_code == 201
+    res = start(client, ip="41.226.10.4")  # a fresh address of the same /24
+    assert_problem(res, 429, "too_many_requests")
+    assert int(res.headers["Retry-After"]) > 0
+    assert start(client, ip="41.226.11.4").status_code == 201  # the next /24
+    for host in (1, 2, 3):
+        assert start(client, ip=f"2001:db8:1:2::{host}").status_code == 201
+    assert_problem(start(client, ip="2001:db8:1:2:aaaa::9"), 429, "too_many_requests")  # same /64
+    clock.advance(days=1, seconds=1)
+    assert start(client, ip="41.226.10.4").status_code == 201
+
+
 def test_an_expired_demo_ends_the_session_and_is_deleted(
     client: TestClient, db: Engine, clock: Any, make_practice: Factory
 ) -> None:

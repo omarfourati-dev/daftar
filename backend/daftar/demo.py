@@ -13,12 +13,14 @@ Realistic (fixlist 2): today's appointments that ended before now are done (at m
 dashboard has nothing "Non venus ?" to ask; most patients never missed an appointment, some once, the two unreliable
 ones of the story twice.
 
-Limits: 5 demos per IP and hour, 300 per day in total → 429. The job ``demo-cleanup`` (every 30 min) deletes expired
+Limits: 5 demos per IP and hour, 20 per address range and day (IPv4 /24, IPv6 /64 – security review N8: otherwise 60
+addresses empty the daily total for everybody), 300 per day in total → 429. The job ``demo-cleanup`` (every 30 min) deletes expired
 demo practices with everything in them (ON DELETE CASCADE).
 """
 
 from __future__ import annotations
 
+import ipaddress
 import random
 import secrets
 import uuid
@@ -58,6 +60,7 @@ from .tables import (
 router = APIRouter(prefix="/api/demo", tags=["demo"])
 
 PER_IP = 5
+PER_NETWORK_PER_DAY = 20
 GLOBAL_PER_DAY = 300
 DEMO_TTL = timedelta(hours=24)
 PATIENTS = 25
@@ -530,13 +533,30 @@ def seed_demo(conn: Connection, *, now: datetime, lang: str, specialty: str, rng
     return seeder.user_id
 
 
+def network_of(ip: str) -> str:
+    """The address range a demo limit counts: the /24 of an IPv4 address, the /64 of an IPv6 one (IPv4 written as
+    IPv6 counts as IPv4); something that is not an address counts as itself."""
+    try:
+        address = ipaddress.ip_address(ip)
+    except ValueError:
+        return ip
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        address = address.ipv4_mapped
+    prefix = 24 if address.version == 4 else 64
+    return str(ipaddress.ip_network(f"{address}/{prefix}", strict=False))
+
+
 @router.post("", status_code=201)
 def start_demo(ctx: Ctx, conn: Conn, ip: ClientIp, body: Annotated[DemoIn | None, Body()] = None) -> Session:
     body = body or DemoIn()
     everyone = ctx.limiter("demo-global", GLOBAL_PER_DAY, timedelta(days=1))
-    if not everyone.allowed():
-        raise too_many_requests(TOO_MANY, retry_after=everyone.retry_after())
+    per_network = ctx.limiter("demo-network", PER_NETWORK_PER_DAY, timedelta(days=1))
+    network = network_of(ip)
+    for limiter, key in ((everyone, ""), (per_network, network)):  # peek first: a refused demo counts nowhere
+        if not limiter.allowed(key):
+            raise too_many_requests(TOO_MANY, retry_after=limiter.retry_after(key))
     ctx.limiter("demo-ip", PER_IP, timedelta(hours=1)).enforce(ip, TOO_MANY)
+    per_network.enforce(network, TOO_MANY)
     everyone.enforce("", TOO_MANY)
     user_id = seed_demo(conn, now=ctx.clock.now(), lang=body.lang, specialty=body.specialty)
     ctx.metrics.demo_started.inc()
