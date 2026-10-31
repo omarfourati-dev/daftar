@@ -341,12 +341,16 @@ Daten (ohne Admin-Felder) plus Schließtage, Leistungen, Behandler und sieht sei
   buchbare Behandler, `horizonDays`) · `GET /api/public/practices/{slug}/slots?date=&serviceId=&practitionerId=` →
   `{date, slots:["09:00",…]}` · `POST /api/public/practices/{slug}/bookings {serviceId, practitionerId?, startsAt,
   firstName, lastName, phone, lang, reminderConsent, note?, website}` → 201 `{status:'requested'|'confirmed', startsAt,
-  serviceName, practitionerName, manageToken}`; 409 Slot weg; 422 `blocked` wenn diese Telefonnummer in der Praxis
-  ≥ `booking_block_no_shows` Nichterscheinen hat („Merci d'appeler le cabinet“); 429 (20 Versuche/h je IP – Patienten
-  hinter Mobilfunk-NAT teilen sich eine –, 3 Versuche/h je Telefonnummer und Praxis, höchstens 2 künftige
-  Online-Buchungen je Telefonnummer und Praxis, `booking_max_per_day`; die Buchungen einer Praxis laufen per
-  `pg_advisory_xact_lock` nacheinander, damit parallele Anfragen die Grenzen nicht gemeinsam überspringen). Patient wird
-  über Telefon **und** Nachname (ohne Groß/Klein) wiedererkannt, sonst neu angelegt.
+  serviceName, practitionerName, manageToken}`. Geprüft wird **zuerst der Termin** (für alle gleich, wie `/slots`):
+  422 `too_soon`/`outside_horizon`, 429 `day_full` (`booking_max_per_day`), 409 Slot weg. **Danach die Person** – jede
+  dieser Ablehnungen gibt dieselbe Antwort 422 `booking_refused` „Merci d'appeler le cabinet pour prendre rendez-vous“
+  (AR „يُرجى الاتصال بالعيادة لحجز موعد“), damit das Formular nicht verrät, ob eine Nummer Patient der Praxis ist
+  (Security-Review M1): die Telefonnummer hat in der Praxis ≥ `booking_block_no_shows` Nichterscheinen, sie hat schon
+  2 künftige Online-Buchungen, oder der wiedererkannte Patient hat zu dieser Zeit schon einen Termin. 429 (20
+  Versuche/h je IP – Patienten hinter Mobilfunk-NAT teilen sich eine –, 3 Versuche/h je Telefonnummer und Praxis); die
+  Buchungen einer Praxis laufen per `pg_advisory_xact_lock` nacheinander, damit parallele Anfragen die Grenzen nicht
+  gemeinsam überspringen. Patient wird über Telefon **und** Nachname (ohne Groß/Klein) wiedererkannt, sonst neu
+  angelegt.
   Verwaltung mit dem Token im Body (Fix-Liste 3; die Seite `/rdv#<token>` hält ihn aus Caddy- und App-Logs):
   `POST /api/public/bookings/lookup {token}` → Termin, Status, Praxis-Kontakt · `POST /api/public/bookings/cancel
   {token}` → storniert (bis `booking_min_notice_hours` vorher). Der Link, den die Buchungsbestätigung zeigt (auch zum

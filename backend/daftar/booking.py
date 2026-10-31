@@ -10,12 +10,15 @@ Practice pages (``/r/<slug>`` and ``https://<slug>.<BASE_DOMAIN>``); suspended o
 - ``POST /api/public/practices/{slug}/bookings {serviceId, practitionerId?, startsAt, firstName, lastName, phone, lang,
   reminderConsent, note?, website}`` → 201 ``{status: requested|confirmed, startsAt, endsAt, serviceName,
   practitionerName, manageToken}``. The patient is recognized by phone **and** last name (case-insensitive), else
-  created. 409 ``slot_unavailable``; 422 ``too_soon`` / ``outside_horizon`` / ``blocked`` (this phone number has
-  ``booking_block_no_shows`` no-shows in the practice); 429 ``booking_limit`` (2 future online bookings per phone),
-  ``day_full`` (``booking_max_per_day``), ``too_many_requests`` (20 attempts per IP and hour – patients behind a
-  carrier's NAT share one –, 3 attempts per phone number and practice and hour). Bookings of one practice run one
-  after the other (``pg_advisory_xact_lock``), so parallel requests cannot pass both limits. ``website`` is a
-  honeypot: when filled, the answer looks like a success and nothing is stored.
+  created. First the time itself (the same for everybody): 422 ``too_soon`` / ``outside_horizon``, 429 ``day_full``
+  (``booking_max_per_day``), 409 ``slot_unavailable``. Only then the checks per person, which all answer the same
+  422 ``booking_refused`` "Merci d'appeler le cabinet" (security review M1 – no oracle for "is this number a patient
+  here, with no-shows or bookings?"): the phone number has ``booking_block_no_shows`` no-shows in the practice, it
+  holds 2 future online bookings, or the recognized patient already has an appointment at that time. 429
+  ``too_many_requests``: 20 attempts per IP and hour (patients behind a carrier's NAT share one), 3 attempts per
+  phone number and practice and hour. Bookings of one practice run one after the other (``pg_advisory_xact_lock``),
+  so parallel requests cannot pass both limits. ``website`` is a honeypot: when filled, the answer looks like a
+  success and nothing is stored.
 
 The patient's link ``/rdv#<manageToken>`` (only the SHA-256 is stored; in the fragment the token never reaches a
 server log):
@@ -50,7 +53,7 @@ from .problems import ApiError, conflict, not_found, unprocessable
 from .scheduling import StartsAt, load_calendar, local_day
 from .schemas import ApiModel, Lang, Name, TunisDateTime
 from .slugs import slug_problem
-from .tables import FREEING_STATUSES, appointment, patient, practice, practitioner, service
+from .tables import FREEING_STATUSES, PATIENT_OVERLAP, appointment, patient, practice, practitioner, service
 
 router = APIRouter(prefix="/api/public", tags=["public"])
 
@@ -261,6 +264,23 @@ def _slot_taken() -> ApiError:
     return conflict("Ce créneau n'est plus disponible. Choisissez un autre horaire.", code="slot_unavailable")
 
 
+def _refused() -> ApiError:
+    """The one answer for every refusal that depends on the person (security review M1)."""
+    return unprocessable("Merci d'appeler le cabinet pour prendre rendez-vous.", code="booking_refused")
+
+
+def _patient_busy(conn: Connection, practice_id: int, patient_id: int, start: datetime, end: datetime) -> bool:
+    return conn.execute(
+        select(appointment.c.id).where(
+            appointment.c.practice_id == practice_id,
+            appointment.c.patient_id == patient_id,
+            appointment.c.status.notin_(FREEING_STATUSES),
+            appointment.c.starts_at < end,
+            appointment.c.ends_at > start,
+        ).limit(1)
+    ).first() is not None
+
+
 # --- practice pages -------------------------------------------------------------------------------------------------
 
 
@@ -330,6 +350,15 @@ def create_booking(slug: str, body: BookingIn, ctx: Ctx, conn: Conn, ip: ClientI
     if day > last_day:
         raise unprocessable("Cette date est trop lointaine pour une réservation en ligne.", code="outside_horizon")
     _one_at_a_time(conn, row.id)
+    # 1. the time – the same for everybody (what /slots shows)
+    if _online_that_day(conn, row.id, day) >= row.booking_max_per_day:
+        raise ApiError(429, "Plus de réservations en ligne ce jour-là. Appelez le cabinet.", code="day_full")
+    chosen = dict(_free(conn, row, day, svc.duration_min, resources, now)).get(body.starts_at)
+    if not chosen:
+        raise _slot_taken()
+    doctor = chosen[0]
+    ends_at = body.starts_at + timedelta(minutes=svc.duration_min)
+    # 2. the person – every reason gets the same answer
     same_phone = select(patient.c.id).where(patient.c.practice_id == row.id, patient.c.phone == body.phone)
     if row.booking_block_no_shows > 0:
         no_shows = conn.execute(
@@ -337,7 +366,7 @@ def create_booking(slug: str, body: BookingIn, ctx: Ctx, conn: Conn, ip: ClientI
                                        appointment.c.status == "no_show")
         ).scalar_one()
         if no_shows >= row.booking_block_no_shows:
-            raise unprocessable("Merci d'appeler le cabinet pour prendre rendez-vous.", code="blocked")
+            raise _refused()
     future = conn.execute(
         select(func.count()).where(
             appointment.c.patient_id.in_(same_phone.scalar_subquery()),
@@ -347,9 +376,7 @@ def create_booking(slug: str, body: BookingIn, ctx: Ctx, conn: Conn, ip: ClientI
         )
     ).scalar_one()
     if future >= MAX_FUTURE_PER_PHONE:
-        raise ApiError(429, "Vous avez déjà des rendez-vous à venir. Appelez le cabinet.", code="booking_limit")
-    if _online_that_day(conn, row.id, day) >= row.booking_max_per_day:
-        raise ApiError(429, "Plus de réservations en ligne ce jour-là. Appelez le cabinet.", code="day_full")
+        raise _refused()
     known = conn.execute(
         select(patient.c.id)
         .where(patient.c.practice_id == row.id, patient.c.phone == body.phone,
@@ -357,11 +384,8 @@ def create_booking(slug: str, body: BookingIn, ctx: Ctx, conn: Conn, ip: ClientI
         .order_by(patient.c.id)
         .limit(1)
     ).scalar()
-    free = dict(_free(conn, row, day, svc.duration_min, resources, now, patient_id=known))
-    chosen = free.get(body.starts_at)
-    if not chosen:
-        raise _slot_taken()
-    doctor = chosen[0]
+    if known is not None and _patient_busy(conn, row.id, known, body.starts_at, ends_at):
+        raise _refused()
     patient_id = known or conn.execute(
         insert(patient)
         .values(practice_id=row.id, first_name=body.first_name, last_name=body.last_name, phone=body.phone,
@@ -369,7 +393,6 @@ def create_booking(slug: str, body: BookingIn, ctx: Ctx, conn: Conn, ip: ClientI
         .returning(patient.c.id)
     ).scalar_one()
     token = new_token()
-    ends_at = body.starts_at + timedelta(minutes=svc.duration_min)
     status = "confirmed" if row.online_auto_confirm else "requested"
     try:
         with conn.begin_nested():
@@ -382,6 +405,8 @@ def create_booking(slug: str, body: BookingIn, ctx: Ctx, conn: Conn, ip: ClientI
                 )
             )
     except IntegrityError as exc:  # taken in the same instant by somebody else
+        if constraint_name(exc) == PATIENT_OVERLAP:  # the patient's own appointment: a reason of the person
+            raise _refused() from exc
         if constraint_name(exc) not in scheduling.OVERLAP_CONSTRAINTS:
             raise
         raise _slot_taken() from exc

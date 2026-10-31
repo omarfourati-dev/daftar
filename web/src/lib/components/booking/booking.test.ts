@@ -196,8 +196,8 @@ describe('online booking page', () => {
 		expect(screen.getByLabelText('Prénom')).toHaveValue('Mounia');
 	});
 
-	it('asks blocked patients (422) to call and explains limits (429)', async () => {
-		let answer = problem(422, 'blocked');
+	it('asks the patient to call for every refusal of the person (422, one answer) and explains limits (429)', async () => {
+		let answer = problem(422, 'booking_refused');
 		mockApi({
 			[PROFILE]: () => json(200, profile),
 			[slotsUrl('2026-11-02')]: () => json(200, { date: '2026-11-02', slots: ['10:20'] }),
@@ -208,7 +208,8 @@ describe('online booking page', () => {
 		await fillDetails();
 		await fireEvent.click(screen.getByRole('button', { name: 'Réserver ce rendez-vous' }));
 		const alert = await screen.findByRole('alert');
-		expect(alert).toHaveTextContent('Merci d’appeler le cabinet');
+		// the same text whatever the reason (no-shows, two bookings, already an appointment then): security review M1
+		expect(alert).toHaveTextContent(/^Merci d’appeler le cabinet pour prendre rendez-vous\.\s*Appeler/);
 		expect(within(alert).getByRole('link', { name: 'Appeler' })).toHaveAttribute('href', 'tel:+21673123456');
 		answer = problem(429, 'too_many_requests');
 		await fireEvent.click(screen.getByRole('button', { name: 'Réserver ce rendez-vous' }));

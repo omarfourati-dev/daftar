@@ -54,9 +54,9 @@ export const booking = {
 		outside_horizon: 'Cette date est trop lointaine pour réserver en ligne. Choisissez un jour plus proche.',
 		invalid_service: 'Cet acte ne se réserve plus en ligne. Choisissez-en un autre.',
 		invalid_practitioner: 'Ce praticien ne prend plus de rendez-vous en ligne. Choisissez « Peu importe ».',
-		blocked: 'La réservation en ligne n’est pas possible pour ce numéro. Merci d’appeler le cabinet.',
+		/** one answer for every refusal that depends on the person (security review M1) */
+		booking_refused: 'Merci d’appeler le cabinet pour prendre rendez-vous.',
 		too_many_requests: 'Trop de demandes depuis cette connexion. Réessayez dans une heure ou appelez le cabinet.',
-		booking_limit: 'Vous avez déjà deux rendez-vous en ligne à venir dans ce cabinet. Pour un autre rendez-vous, appelez le cabinet.',
 		day_full: 'Le cabinet ne prend plus de rendez-vous en ligne ce jour-là. Choisissez un autre jour ou appelez.',
 		booking_disabled: 'Ce cabinet ne prend plus de rendez-vous en ligne. Merci d’appeler le cabinet.',
 		too_late: 'Il est trop tard pour annuler en ligne. Merci d’appeler le cabinet.',

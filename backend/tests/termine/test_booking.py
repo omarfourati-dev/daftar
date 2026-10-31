@@ -246,7 +246,7 @@ def test_patients_who_did_not_come_are_blocked(client: TestClient, lac: Any, mak
     assert book(client, "cabinet-lac", serviceId=lac.consultation.id).status_code == 201  # one no-show: fine
     make_appointment(son, starts_at=clock.now() - timedelta(days=20), status="no_show")
     res = book(client, "cabinet-lac", serviceId=lac.consultation.id, startsAt=iso(MON, "11:00"), lastName="Nouveau")
-    assert_problem(res, 422, "blocked")
+    assert_refused(res)
     with db.begin() as conn:
         conn.execute(update(practice).where(practice.c.id == lac.id).values(booking_block_no_shows=0))
     assert book(client, "cabinet-lac", serviceId=lac.consultation.id, startsAt=iso(MON, "11:00")).status_code == 201
@@ -262,7 +262,49 @@ def test_at_most_two_future_online_bookings_per_phone(
     s = lac.consultation.id
     assert book(client, "cabinet-lac", serviceId=s, startsAt=iso(MON, "09:00")).status_code == 201
     assert book(client, "cabinet-lac", serviceId=s, startsAt=iso(MON, "10:00")).status_code == 201
-    assert_problem(book(client, "cabinet-lac", serviceId=s, startsAt=iso(MON, "11:00")), 429, "booking_limit")
+    assert_refused(book(client, "cabinet-lac", serviceId=s, startsAt=iso(MON, "11:00")))
+
+
+def assert_refused(res: Any) -> None:
+    """Security review M1: every refusal that depends on the person is one and the same answer."""
+    body = assert_problem(res, 422, "booking_refused")
+    assert body["detail"] == "Merci d'appeler le cabinet pour prendre rendez-vous."
+    assert set(body) == {"type", "title", "status", "detail", "code"}
+
+
+def test_personal_refusals_are_one_answer_and_come_after_the_slot_check(
+    client: TestClient, lac: Any, make_patient: Factory, make_appointment: Factory, clock: Any, db: Any
+) -> None:
+    """Security review M1: the booking form is no oracle for "is this number a (no-show) patient here?". A time that
+    is not free answers 409 for everybody; only a free time reaches the checks per person, and those all answer the
+    same – no-shows, two future online bookings, or the known patient already has an appointment then. Nothing is
+    stored."""
+    s = lac.consultation.id
+    blocked = make_patient(lac, last_name="Kefi", phone="+21620111222")
+    make_appointment(blocked, starts_at=clock.now() - timedelta(days=30), status="no_show")
+    make_appointment(blocked, starts_at=clock.now() - timedelta(days=20), status="no_show")
+    busy = make_patient(lac, last_name="Gharbi", phone="+21620333444")
+    make_appointment(busy, starts_at=at(MON, "11:00"), source="staff", practitioner_id=lac.practitioners[0].id)
+    full = make_patient(lac, last_name="Jlassi", phone="+21620555666")
+    for hhmm in ("09:00", "10:00"):
+        make_appointment(full, starts_at=at(TUE, hhmm), source="online")
+    with db.connect() as conn:
+        before = conn.execute(select(func.count()).select_from(appointment)).scalar_one()
+
+    # off the grid (03:07 is inside the booking window): the same 409 as for a stranger, whoever the number is
+    for phone in ("20 111 222", "20 555 666", "20 999 999"):
+        assert_problem(book(client, "cabinet-lac", serviceId=s, startsAt=iso(MON, "09:07"), phone=phone, lastName="X"),
+                       409, "slot_unavailable")
+    # a free time: one answer for every reason that depends on the person
+    assert_refused(book(client, "cabinet-lac", serviceId=s, startsAt=iso(MON, "09:30"), phone="20 111 222"))
+    assert_refused(book(client, "cabinet-lac", serviceId=s, startsAt=iso(MON, "09:30"), phone="20 555 666"))
+    assert_refused(book(client, "cabinet-lac", serviceId=s, startsAt=iso(MON, "11:00"), phone="20 333 444",
+                        lastName="gharbi"))  # Dr. B is free at 11:00, the patient is not
+    with db.connect() as conn:
+        assert conn.execute(select(func.count()).select_from(appointment)).scalar_one() == before
+    # somebody else with the same number but another name is a new patient: booked
+    assert book(client, "cabinet-lac", serviceId=s, startsAt=iso(MON, "11:00"), phone="20 333 444",
+                lastName="Autre").status_code == 201
 
 
 def test_booking_max_per_day(client: TestClient, lac: Any, db: Any) -> None:
@@ -309,8 +351,9 @@ def test_three_booking_attempts_per_phone_and_practice_and_hour(
 
 
 def meet_before_the_slot_check(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Parallel bookings wait for each other right before the slot check, after the limits were read - without a
-    lock both would pass them. A request that waits for the other one's lock never arrives: the first goes on alone."""
+    """Parallel bookings wait for each other right at the slot check, before the limits per phone and per day are
+    read - without a lock both would pass them. A request that waits for the other one's lock never arrives: the first
+    goes on alone."""
     barrier = threading.Barrier(2)
     real = booking_module._free
 
@@ -338,8 +381,8 @@ def test_two_future_bookings_per_phone_hold_under_parallel_requests(
     s = lac.consultation.id
     results = in_parallel(lambda: book(client, "cabinet-lac", serviceId=s, startsAt=iso(MON, "09:00")),
                           lambda: book(client, "cabinet-lac", serviceId=s, startsAt=iso(MON, "10:00")))
-    assert sorted(r.status_code for r in results) == [201, 429], [r.text for r in results]
-    assert_problem(next(r for r in results if r.status_code == 429), 429, "booking_limit")
+    assert sorted(r.status_code for r in results) == [201, 422], [r.text for r in results]
+    assert_refused(next(r for r in results if r.status_code == 422))
     with db.connect() as conn:
         assert conn.execute(select(func.count()).select_from(appointment)).scalar_one() == 2
 
@@ -421,8 +464,9 @@ def test_a_race_ends_in_409_without_other_patients_data(
 
 
 def test_the_same_patient_cannot_book_the_same_time_twice(client: TestClient, lac: Any) -> None:
+    """Dr. B is still free at 09:00, the patient is not: a reason of the person, so the neutral answer (M1)."""
     assert book(client, "cabinet-lac", serviceId=lac.consultation.id).status_code == 201
-    assert_problem(book(client, "cabinet-lac", serviceId=lac.consultation.id), 409, "slot_unavailable")
+    assert_refused(book(client, "cabinet-lac", serviceId=lac.consultation.id))
 
 
 # --- the patient's link /rdv#<token>: the token only ever travels in a request body (fixlists 3 and 2) -----------

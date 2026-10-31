@@ -2,8 +2,9 @@
 	/**
 	 * The booking page of a practice (sections 11.3, 13; story C1), mostly opened on a phone from WhatsApp:
 	 * practice profile → act → practitioner ("peu importe") → day strip → free times → name, phone, consent, note
-	 * → confirmation with the personal link. 409 (time taken) goes back to the times; 422 blocked and 429 limits
-	 * are explained with a call button.
+	 * → confirmation with the personal link. 409 (time taken) goes back to the times; 422 `booking_refused` (one
+	 * answer for every reason of the person – no-shows, bookings, an appointment at that time) and 429 limits are
+	 * explained with a call button.
 	 */
 	import { onMount, tick } from 'svelte';
 	import { api, ApiError } from '../../api';
