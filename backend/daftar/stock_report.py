@@ -43,6 +43,8 @@ CATEGORY_FR = {
     "pansements": "Pansements", "bureau": "Bureau", "autre": "Autre",
 }
 KIND_FR = {"receipt": "Réception", "use": "Utilisation", "adjust": "Inventaire", "waste": "Perte"}
+UNIT_FR = {"piece": "pièce", "boite": "boîte", "flacon": "flacon", "carpule": "carpule", "paquet": "paquet",
+           "sachet": "sachet", "tube": "tube", "rouleau": "rouleau", "paire": "paire", "ml": "ml", "g": "g"}
 
 
 class Amount(ApiModel):
@@ -256,7 +258,7 @@ def export_csv(user: OwnerUser, ctx: Ctx, conn: Conn, month: Month = None) -> Re
         amount = line.quantity * line.unit_price_millimes if line.unit_price_millimes is not None else None
         rows.append(((line.received_on, 0, line.id), [
             line.received_on.strftime("%d/%m/%Y"), KIND_FR["receipt"], defuse(line.product_name), CATEGORY_FR[line.category],
-            str(line.quantity), line.unit, _dinars(line.unit_price_millimes), _dinars(amount),
+            str(line.quantity), UNIT_FR[line.unit], _dinars(line.unit_price_millimes), _dinars(amount),
             defuse(line.supplier_name or ""), defuse(line.reference), "", defuse(line.lot), defuse(line.created_by_name or ""),
         ]))
     moved = _movements(conn, user.pid, *_instants(year, mon), ("use", "adjust", "waste"))
@@ -266,7 +268,7 @@ def export_csv(user: OwnerUser, ctx: Ctx, conn: Conn, month: Month = None) -> Re
         unit_cost = m.unit_cost_millimes
         rows.append(((day, 1, m.id), [
             day.strftime("%d/%m/%Y"), KIND_FR[m.kind], defuse(m.product_name), CATEGORY_FR[m.category], str(m.quantity),
-            m.unit, _dinars(unit_cost), _dinars(-costs[m.id] if costs[m.id] else None), "", "",
+            UNIT_FR[m.unit], _dinars(unit_cost), _dinars(-costs[m.id] if costs[m.id] else None), "", "",
             defuse(m.service_name or ""), defuse(m.reason), defuse(m.created_by_name or ""),
         ]))
     out = io.StringIO()
