@@ -11,12 +11,14 @@ Staff (reading: every role; changing: staff of a practice that is not suspended)
   in_treatment, done) as long as it is arrived, in treatment or done
 - ``DELETE /api/queue/{id}`` → 204
 
-``position`` (only for waiting, 1-based), ``peopleAhead`` = waiting before me + called ones, ``estimatedWaitMin`` =
+``position`` (only for waiting, 1-based) in the calling order of section 16.2 (:func:`next_in_line` without a
+practitioner: patients of due appointments first – code review N4, the screen and the ticket page tell the order in
+which people are really called), ``peopleAhead`` = waiting before me + called ones, ``estimatedWaitMin`` =
 peopleAhead × the practice's default duration (whole minutes).
 
 Public, rate-limited per IP, **never names, phone numbers or alerts** (only ticket numbers):
 - ``GET /api/public/display/{displayToken}`` → ``{practiceName, called: [ticketNo] (called/in treatment, newest
-  call first, max 3), next: [ticketNo] (max 5), waiting}``
+  call first, max 3), next: [ticketNo] (in calling order, max 5), waiting}``
 - ``GET /api/public/ticket/{ticketToken}`` → ``{practiceName, practicePhone, ticketNo, status, position, peopleAhead,
   estimatedWaitMin, day}``
 
@@ -127,28 +129,28 @@ def _day_rows(conn: Connection, practice_id: int, day: date) -> list[Row[Any]]:
     )
 
 
-def _waits(rows: list[Row[Any]], minutes_each: int) -> dict[int, tuple[int | None, int, int]]:
-    """ticket id → (position, peopleAhead, estimatedWaitMin) for a day ordered by ticket number."""
+def _waits(rows: list[Row[Any]], minutes_each: int, line: list[int]) -> dict[int, tuple[int | None, int, int]]:
+    """ticket id → (position, peopleAhead, estimatedWaitMin); ``line`` = the waiting tickets in calling order."""
     called = sum(1 for r in rows if r.status == "called")
-    result: dict[int, tuple[int | None, int, int]] = {}
-    position = 0
-    for r in rows:
-        if r.status == "waiting":
-            position += 1
-            ahead = position - 1 + called
-            result[r.id] = (position, ahead, ahead * minutes_each)
-        else:
-            result[r.id] = (None, 0, 0)
+    result: dict[int, tuple[int | None, int, int]] = {r.id: (None, 0, 0) for r in rows}
+    for position, entry_id in enumerate(line, start=1):
+        ahead = position - 1 + called
+        result[entry_id] = (position, ahead, ahead * minutes_each)
     return result
+
+
+def calling_order(conn: Connection, practice_id: int, day: date, now: datetime) -> list[int]:
+    """The waiting tickets of ``day`` in the order they will be called (section 16.2, every practitioner)."""
+    return [entry_id for entry_id, _ in next_in_line(conn, practice_id, day, now)]
 
 
 def _default_minutes(conn: Connection, practice_id: int) -> int:
     return conn.execute(select(practice.c.default_duration_min).where(practice.c.id == practice_id)).scalar_one()
 
 
-def day_entries(conn: Connection, practice_id: int, day: date) -> list[QueueEntryOut]:
+def day_entries(conn: Connection, practice_id: int, day: date, now: datetime) -> list[QueueEntryOut]:
     rows = _day_rows(conn, practice_id, day)
-    waits = _waits(rows, _default_minutes(conn, practice_id))
+    waits = _waits(rows, _default_minutes(conn, practice_id), calling_order(conn, practice_id, day, now))
     out = [
         QueueEntryOut(
             **{k: getattr(r, k) for k in QueueEntryOut.model_fields if k not in ("position", "people_ahead", "estimated_wait_min")},
@@ -161,13 +163,13 @@ def day_entries(conn: Connection, practice_id: int, day: date) -> list[QueueEntr
     return sorted(out, key=lambda e: (e.status not in ACTIVE, e.ticket_no))
 
 
-def entry_out(conn: Connection, practice_id: int, entry_id: int) -> QueueEntryOut:
+def entry_out(conn: Connection, practice_id: int, entry_id: int, now: datetime) -> QueueEntryOut:
     day = conn.execute(
         select(queue_entry.c.day).where(queue_entry.c.id == entry_id, queue_entry.c.practice_id == practice_id)
     ).scalar()
     if day is None:
         raise not_found()
-    return next(e for e in day_entries(conn, practice_id, day) if e.id == entry_id)
+    return next(e for e in day_entries(conn, practice_id, day, now) if e.id == entry_id)
 
 
 def next_ticket_no(conn: Connection, practice_id: int, day: date) -> int:
@@ -270,7 +272,7 @@ def status_values(status: str, now: datetime, called_at: datetime | None) -> dic
 
 @router.get("")
 def list_queue(user: StaffUser, ctx: Ctx, conn: Conn, day: date | None = None) -> list[QueueEntryOut]:
-    return day_entries(conn, user.pid, day or today_tunis(ctx.clock))
+    return day_entries(conn, user.pid, day or today_tunis(ctx.clock), ctx.clock.now())
 
 
 @router.post("", status_code=201)
@@ -301,13 +303,14 @@ def take_ticket(body: QueueIn, user: StaffWriter, ctx: Ctx, conn: Conn) -> Queue
         appointment_id = _todays_appointment(conn, user.pid, body.patient_id, day)
     if not name:
         raise unprocessable("Indiquez un patient ou un nom.", code="name_required")
+    now = ctx.clock.now()
     entry_id = add_to_queue(
-        conn, user.pid, now=ctx.clock.now(), day=day, name=name, phone=phone, patient_id=body.patient_id,
+        conn, user.pid, now=now, day=day, name=name, phone=phone, patient_id=body.patient_id,
         appointment_id=appointment_id,
     )
     if appointment_id is not None:
         conn.execute(update(appointment).where(appointment.c.id == appointment_id).values(status="arrived"))
-    return entry_out(conn, user.pid, entry_id)
+    return entry_out(conn, user.pid, entry_id, now)
 
 
 def set_queue_status(conn: Connection, practice_id: int, entry_id: int, status: str, now: datetime) -> None:
@@ -375,8 +378,9 @@ def next_in_line(
 
 @router.post("/{entry_id}/status")
 def change_status(entry_id: int, body: StatusIn, user: StaffWriter, ctx: Ctx, conn: Conn) -> QueueEntryOut:
-    set_queue_status(conn, user.pid, entry_id, body.status, ctx.clock.now())
-    return entry_out(conn, user.pid, entry_id)
+    now = ctx.clock.now()
+    set_queue_status(conn, user.pid, entry_id, body.status, now)
+    return entry_out(conn, user.pid, entry_id, now)
 
 
 @router.delete("/{entry_id}", status_code=204)
@@ -408,10 +412,9 @@ def display(display_token: str, ctx: Ctx, conn: Conn, ip: ClientIp) -> DisplayOu
         .order_by(desc(queue_entry.c.called_at).nulls_last(), queue_entry.c.ticket_no.desc())
         .limit(3)
     ).scalars().all()
-    waiting = conn.execute(
-        select(queue_entry.c.ticket_no).where(*where, queue_entry.c.status == "waiting").order_by(queue_entry.c.ticket_no)
-    ).scalars().all()
-    return DisplayOut(practice_name=found.name, called=list(called), next=list(waiting[:5]), waiting=len(waiting))
+    numbers = dict(conn.execute(select(queue_entry.c.id, queue_entry.c.ticket_no).where(*where)).all())
+    line = [numbers[entry_id] for entry_id in calling_order(conn, found.id, day, ctx.clock.now())]
+    return DisplayOut(practice_name=found.name, called=list(called), next=line[:5], waiting=len(line))
 
 
 @public_router.get("/ticket/{ticket_token}")
@@ -427,7 +430,8 @@ def ticket(ticket_token: str, ctx: Ctx, conn: Conn, ip: ClientIp) -> TicketOut:
         raise not_found()
     rows = _day_rows(conn, found.practice_id, found.day)
     mine = next(r for r in rows if r.id == found.id)
-    position, ahead, wait = _waits(rows, found.default_duration_min)[found.id]
+    line = calling_order(conn, found.practice_id, found.day, ctx.clock.now())
+    position, ahead, wait = _waits(rows, found.default_duration_min, line)[found.id]
     return TicketOut(
         practice_name=found.name, practice_phone=found.phone, ticket_no=mine.ticket_no, status=mine.status,
         position=position, people_ahead=ahead, estimated_wait_min=wait, day=found.day,

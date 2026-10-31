@@ -82,7 +82,7 @@ def who_is_next(
     _check_practitioner(conn, user.pid, practitioner_id)
     day, now = today_tunis(ctx.clock), ctx.clock.now()
     line = queue.next_in_line(conn, user.pid, day, now, practitioner_id)
-    entries = {e.id: e for e in queue.day_entries(conn, user.pid, day)}
+    entries = {e.id: e for e in queue.day_entries(conn, user.pid, day, now)}
     return NextOut(
         entry=entries[line[0][0]] if line else None,
         reason=line[0][1] if line else None,
@@ -107,4 +107,4 @@ def call_next(
         raise conflict("Personne n'attend.", code="queue_empty")
     entry_id = line[0][0]
     queue.set_queue_status(conn, user.pid, entry_id, "called", now)
-    return queue.entry_out(conn, user.pid, entry_id)
+    return queue.entry_out(conn, user.pid, entry_id, now)

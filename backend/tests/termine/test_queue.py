@@ -324,6 +324,27 @@ def test_public_pages_never_show_names_phones_or_alerts(client: TestClient, lac:
             assert secret not in text, (secret, text)
 
 
+def test_screen_and_ticket_page_follow_the_calling_order(
+    client: TestClient, lac: Any, make_patient: Factory, make_appointment: Factory, make_queue_entry: Factory,
+    as_user: Factory,
+) -> None:
+    """Code review N4: patients of due appointments are called first (16.2) – the screen and the tickets say so."""
+    for n in (1, 2, 5, 6):
+        make_queue_entry(lac, n, name=f"Fini {n}", status="done")
+    walk_ins = {n: make_queue_entry(lac, n, name=f"Passant {n}", status="waiting") for n in (3, 4)}
+    for n, hhmm in ((7, "08:50"), (8, "09:00")):  # due appointments, patients waiting
+        pat = make_patient(lac)
+        appt = make_appointment(pat, starts_at=at(FRI, hhmm), status="arrived")
+        make_queue_entry(lac, n, name=f"RDV {n}", status="waiting", patient_id=pat.id, appointment_id=appt.id)
+    assert client.get(f"/api/public/display/{lac.display_token}").json()["next"] == [7, 8, 3, 4]
+    three = client.get(f"/api/public/ticket/{walk_ins[3].ticket_token}").json()
+    assert (three["position"], three["peopleAhead"], three["estimatedWaitMin"]) == (3, 2, 40)
+    listed = {e["ticketNo"]: e["position"] for e in client.get("/api/queue", headers=as_user(lac, "assistant")).json()}
+    assert (listed[7], listed[8], listed[3], listed[4]) == (1, 2, 3, 4)
+    called = client.post("/api/queue/call-next", headers=as_user(lac, "assistant")).json()
+    assert called["ticketNo"] == 7  # the screen announced the right one
+
+
 def test_unknown_or_old_tokens_are_404(client: TestClient, lac: Any, as_user: Factory, busy: list[dict[str, Any]]) -> None:
     assert_problem(client.get("/api/public/display/" + "0" * 32), 404, "not_found")
     assert_problem(client.get("/api/public/ticket/" + "0" * 32), 404, "not_found")
