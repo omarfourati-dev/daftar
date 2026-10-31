@@ -81,12 +81,15 @@ test('A5 – the first steps open the settings sections (no missing anchors)', a
 	await signIn(page, p);
 	await page.goto(APP + '/app');
 	const steps = page.getByRole('region', { name: 'Premiers pas' });
-	await steps.getByRole('link', { name: 'Praticiens' }).click();
-	await expect(page).toHaveURL(/\/app\/reglages\/praticiens$/);
-	await expect(page.getByRole('heading', { level: 2, name: 'Praticiens' })).toBeVisible();
-	await page.goto(APP + '/app/reglages#equipe'); // an old link with an anchor
+	// newPractice creates two practitioners: that step is done (struck through, no link); the team is still to invite
+	await expect(steps.getByRole('link', { name: 'Praticiens' })).toHaveCount(0);
+	await expect(steps.getByText('Praticiens', { exact: true })).toHaveClass(/line-through/);
+	await steps.getByRole('link', { name: 'Inviter l’équipe' }).click();
 	await expect(page).toHaveURL(/\/app\/reglages\/equipe$/);
 	await expect(page.getByRole('heading', { level: 2, name: 'Équipe' })).toBeVisible();
+	await page.goto(APP + '/app/reglages#praticiens'); // an old link with an anchor
+	await expect(page).toHaveURL(/\/app\/reglages\/praticiens$/);
+	await expect(page.getByRole('heading', { level: 2, name: 'Praticiens' })).toBeVisible();
 });
 
 test('B4 – on a phone: appointment by phone and patient search from "Aujourd’hui" and the menu "Plus"', async ({ page, request }) => {

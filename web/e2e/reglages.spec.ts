@@ -84,7 +84,8 @@ test('A2/A3 – team: invitation link for an assistant, reset link for her, role
 	const { owner, slug } = await practiceWithOwner(admin);
 	await signInAs(page, owner);
 	await page.goto(APP + '/app/reglages/equipe');
-	await page.getByLabel('Rôle', { exact: true }).selectOption('assistant');
+	// the select sits inside its <label>: getByLabel would also read the option texts, the accessible name is just "Rôle"
+	await page.getByRole('combobox', { name: 'Rôle', exact: true }).selectOption('assistant');
 	await page.getByRole('button', { name: 'Créer le lien d’invitation' }).click();
 	const link = await page.getByRole('textbox', { name: 'Lien d’invitation (Assistant(e))' }).inputValue();
 	expect(link).toContain(`${practiceOrigin(slug)}/invitation#`);
@@ -159,7 +160,7 @@ test('my account: name, language and password; other roles only see their accoun
 	await page.getByRole('button', { name: 'Enregistrer le nom' }).click();
 	await expect(page.getByText('Nom enregistré.')).toBeVisible();
 	await page.getByLabel('Mot de passe actuel').fill(owner.password);
-	await page.getByLabel('Nouveau mot de passe').fill('un-mot-de-passe-tout-neuf');
+	await page.getByLabel('Nouveau mot de passe', { exact: true }).fill('un-mot-de-passe-tout-neuf');
 	await page.getByLabel('Confirmer le nouveau mot de passe').fill('un-mot-de-passe-tout-neuf');
 	await page.getByRole('button', { name: 'Changer le mot de passe' }).click();
 	await expect(page.getByText(/Mot de passe changé/)).toBeVisible();

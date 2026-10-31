@@ -95,13 +95,13 @@ test('A1/I1 – the admin edits status, plan and notes; A3 – owner reset link 
 	await page.goto(`${APP}/app/admin/cabinets/${practice.id}`);
 	await expect(page.getByRole('heading', { level: 1, name: practice.name })).toBeVisible();
 	await expect(page.getByText(`Titulaire : Dr Amira Ben Salah (${owner.email})`)).toBeVisible();
-	await page.getByLabel('Statut').selectOption('active');
+	await page.getByLabel('Statut', { exact: true }).selectOption('active');
 	await page.getByLabel('Formule').selectOption('cabinet_mensuel');
 	await page.getByLabel(/^Notes internes/).fill('Rencontré au congrès de Sousse');
 	await page.getByRole('button', { name: 'Enregistrer les modifications' }).click();
 	await expect(page.getByText('Modifications enregistrées.')).toBeVisible();
 	await page.reload();
-	await expect(page.getByLabel('Statut')).toHaveValue('active');
+	await expect(page.getByLabel('Statut', { exact: true })).toHaveValue('active');
 	await expect(page.getByLabel(/^Notes internes/)).toHaveValue('Rencontré au congrès de Sousse');
 	await expectAccessible(page, 'admin edit');
 
