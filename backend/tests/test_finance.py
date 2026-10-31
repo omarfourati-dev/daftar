@@ -276,3 +276,17 @@ def test_open_balances_largest_first(
     assert len(client.get("/api/balances?limit=1", headers=auth_headers(setup.owner)).json()) == 1
     assert_problem(client.get("/api/balances?limit=0", headers=auth_headers(setup.owner)), 422, "validation")
     assert_problem(client.get("/api/balances?limit=501", headers=auth_headers(setup.owner)), 422, "validation")
+
+
+def test_the_total_owed_covers_every_patient_not_only_the_list(
+    client: TestClient, setup: Any, make_patient: Factory, make_treatment: Factory, auth_headers: Factory,
+) -> None:
+    """Code review M7: the cash book showed the sum of the 100 largest balances as "Total dû"."""
+    for i in range(101):
+        make_treatment(make_patient(setup.practice), 1_000 + i)
+    h = auth_headers(setup.owner)
+    assert len(client.get("/api/balances?limit=100", headers=h).json()) == 100
+    expected = sum(1_000 + i for i in range(101))
+    assert client.get("/api/balances/summary", headers=h).json() == {"totalMillimes": expected, "patients": 101}
+    assert client.get("/api/dashboard", headers=h).json()["dueTotalMillimes"] == expected  # one figure everywhere
+    assert_problem(client.get("/api/balances/summary"), 401, "unauthorized")

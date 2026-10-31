@@ -37,6 +37,7 @@ export const caisse: Messages['caisse'] = {
 		title: 'المبالغ المستحقّة',
 		hint: 'المرضى الذين ما زالوا مدينين، من الأكبر إلى الأصغر.',
 		total: 'المجموع المستحقّ: {amount}',
+		largest: 'أكبر {shown} مبلغًا من أصل {count} مريضًا',
 		lastPayment: 'آخر دفعة: {date}',
 		never: 'لا توجد دفعات',
 		empty: 'لا توجد مبالغ مستحقّة. تمّ دفع كل شيء.'

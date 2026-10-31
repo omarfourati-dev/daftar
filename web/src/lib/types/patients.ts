@@ -113,3 +113,9 @@ export interface Balance {
 	dueMillimes: number;
 	lastPaymentAt: string | null;
 }
+
+/** `GET /api/balances/summary` – every positive balance of the practice (code review M7). */
+export interface BalancesSummary {
+	totalMillimes: number;
+	patients: number;
+}

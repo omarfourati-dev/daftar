@@ -1,7 +1,8 @@
 <script lang="ts">
 	/**
 	 * /app/caisse – the cash book (story F2): what came in on a day, split by payment method, each payment with its
-	 * receipt; the cash closing with difference and owner verification (section 16.3); what patients still owe.
+	 * receipt; the cash closing with difference and owner verification (section 16.3); what patients still owe – the
+	 * total from the server over every patient, the list only the largest amounts (code review M7).
 	 * Address: `?day=YYYY-MM-DD`.
 	 */
 	import { onMount } from 'svelte';
@@ -12,7 +13,7 @@
 	import { displayPhone } from '#lib/agenda/links';
 	import { PAYMENT_METHODS } from '#lib/agenda/payments';
 	import { addDays, formatDate, formatDay, formatTime, t, todayTunis, translate } from '#lib/i18n.svelte';
-	import type { Balance, CashDay } from '#lib/types/patients';
+	import type { Balance, BalancesSummary, CashDay } from '#lib/types/patients';
 	import Icon from '../../../lib/components/daily/Icon.svelte';
 	import CashClosing from '../../../lib/components/caisse/CashClosing.svelte';
 
@@ -21,7 +22,10 @@
 	const asked = new URLSearchParams(location.search).get('day') ?? '';
 	let day = $state(DAY.test(asked) ? asked : today);
 	let cash = $state<CashDay | null>(null);
+	const SHOWN = 100;
 	let balances = $state<Balance[] | null>(null);
+	/** All positive balances (null while loading or when it failed: then no total rather than a wrong one). */
+	let owed = $state<BalancesSummary | null>(null);
 	let error = $state('');
 	let seq = 0;
 
@@ -38,9 +42,12 @@
 
 	onMount(() => {
 		void load();
-		void api<Balance[]>('/api/balances?limit=100')
+		void api<Balance[]>(`/api/balances?limit=${SHOWN}`)
 			.then((b) => (balances = b))
 			.catch(() => (balances = []));
+		void api<BalancesSummary>('/api/balances/summary')
+			.then((o) => (owed = o))
+			.catch(() => (owed = null));
 	});
 
 	function go(next: string) {
@@ -57,7 +64,6 @@
 					.sort((a, b) => b.amount - a.amount)
 			: []
 	);
-	const dueTotal = $derived((balances ?? []).reduce((sum, b) => sum + b.dueMillimes, 0));
 </script>
 
 <svelte:head><title>{t('caisse.title')} · Daftar</title></svelte:head>
@@ -147,9 +153,12 @@
 	<section id="impayes" aria-labelledby="balances-title" class="card flex flex-col gap-3 p-5">
 		<div class="flex flex-wrap items-baseline justify-between gap-2">
 			<h2 id="balances-title" class="text-lg font-bold">{t('caisse.balances.title')}</h2>
-			{#if balances?.length}<p class="font-semibold text-rose-800">{t('caisse.balances.total', { amount: money(dueTotal) })}</p>{/if}
+			{#if balances?.length && owed}<p class="font-semibold text-rose-800">{t('caisse.balances.total', { amount: money(owed.totalMillimes) })}</p>{/if}
 		</div>
 		<p class="text-sm text-slate-600">{t('caisse.balances.hint')}</p>
+		{#if balances?.length && owed && owed.patients > balances.length}
+			<p class="text-sm font-semibold text-slate-700">{t('caisse.balances.largest', { shown: balances.length, count: owed.patients })}</p>
+		{/if}
 		{#if balances === null}
 			<p class="text-slate-600" aria-busy="true">{t('common.loading')}</p>
 		{:else if !balances.length}

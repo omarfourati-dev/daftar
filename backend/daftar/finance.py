@@ -6,7 +6,8 @@ Balance of a patient = Σ treatment.price − Σ payment.amount (negative when o
 - ``POST /api/patients/{id}/treatments`` → 201 · ``PATCH/DELETE /api/treatments/{id}``
 - ``POST /api/patients/{id}/payments`` → 201 · ``GET /api/payments/{id}`` (receipt) · ``DELETE`` (owner)
 - ``GET /api/cash?day=`` (default today, with the day's ``closing``) · ``GET /api/balances?limit=100`` (only due > 0,
-  largest first)
+  largest first) · ``GET /api/balances/summary`` → ``{totalMillimes, patients}`` over **all** positive balances (the
+  "Total dû" of the cash book – code review M7: the list is only the largest ones; the dashboard's figure is the same)
 - Cash closing (section 16.3): ``POST /api/cash/close {day, countedCashMillimes, note?}`` (staff) compares the counted
   drawer with the day's **cash** payments (``differenceMillimes`` = counted − expected; negative = missing); it can be
   repeated until the owner verifies it with ``POST /api/cash/{day}/verify`` (then 409). ``stale`` = cash payments of the
@@ -142,12 +143,18 @@ def balances_subquery(practice_id: int) -> Any:
     )
 
 
+def due_summary(conn: Connection, practice_id: int) -> tuple[int, int]:
+    """(Σ of all positive balances, number of patients who owe something)."""
+    dues = balances_subquery(practice_id)
+    total, count = conn.execute(
+        select(func.coalesce(func.sum(dues.c.due_millimes), 0), func.count()).where(dues.c.due_millimes > 0)
+    ).one()
+    return int(total), int(count)
+
+
 def due_total(conn: Connection, practice_id: int) -> int:
     """Σ of all positive balances (what patients still owe the practice)."""
-    dues = balances_subquery(practice_id)
-    return int(
-        conn.execute(select(func.coalesce(func.sum(dues.c.due_millimes), 0)).where(dues.c.due_millimes > 0)).scalar_one()
-    )
+    return due_summary(conn, practice_id)[0]
 
 
 def payments_of_day(conn: Connection, practice_id: int, day: date) -> list[PaymentOut]:
@@ -311,6 +318,11 @@ class BalanceOut(ApiModel):
     phone: str
     due_millimes: int
     last_payment_at: TunisDateTime | None
+
+
+class BalancesSummary(ApiModel):
+    total_millimes: int
+    patients: int
 
 
 def _require_patient(conn: Connection, practice_id: int, patient_id: int) -> None:
@@ -495,6 +507,12 @@ def verify_cash(day: date, user: OwnerWriter, ctx: Ctx, conn: Conn) -> CashClosi
     closing = load_closing(conn, user.pid, day)
     assert closing is not None
     return closing
+
+
+@router.get("/api/balances/summary")
+def balances_summary(user: StaffUser, conn: Conn) -> BalancesSummary:
+    total, count = due_summary(conn, user.pid)
+    return BalancesSummary(total_millimes=total, patients=count)
 
 
 @router.get("/api/balances")

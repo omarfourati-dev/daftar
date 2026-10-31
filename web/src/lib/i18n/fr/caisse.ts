@@ -36,6 +36,7 @@ export const caisse = {
 		title: 'Montants dus',
 		hint: 'Patients qui doivent encore de l’argent, du plus grand montant au plus petit.',
 		total: 'Total dû : {amount}',
+		largest: 'Les {shown} plus gros montants sur {count} patients',
 		lastPayment: 'Dernier paiement : {date}',
 		never: 'Aucun paiement',
 		empty: 'Aucun montant dû. Tout est payé.'

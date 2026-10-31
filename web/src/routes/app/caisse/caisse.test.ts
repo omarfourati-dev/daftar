@@ -37,6 +37,7 @@ function cashApi(extra: Record<string, Handler> = {}) {
 	return mockApi({
 		'GET /api/cash?day=2026-10-30': () => json(200, day),
 		'GET /api/balances?limit=100': () => json(200, balances),
+		'GET /api/balances/summary': () => json(200, { totalMillimes: 430000, patients: 2 }),
 		...extra
 	});
 }
@@ -73,6 +74,24 @@ describe('/app/caisse – the cash book of the day', () => {
 		expect(owed.getByRole('link', { name: /Sami Trabelsi/ })).toHaveAttribute('href', '/app/patients/7');
 		expect(owed.getByRole('link', { name: /Sami Trabelsi/ })).toHaveTextContent('390 DT');
 		expect(owed.getByRole('link', { name: /Rim Haddad/ })).toHaveTextContent('Aucun paiement');
+		expect(owed.queryByText(/plus gros montants/)).not.toBeInTheDocument(); // the whole list is shown
+	});
+
+	it('takes the total owed from the server and says when the list shows only the largest (code review M7)', async () => {
+		cashApi({ 'GET /api/balances/summary': () => json(200, { totalMillimes: 1250500, patients: 180 }) });
+		render(Page);
+		const owed = within(await screen.findByRole('region', { name: 'Montants dus' }));
+		expect(await owed.findByText('Total dû : 1 250,500 DT')).toBeInTheDocument();
+		expect(owed.getByText('Les 2 plus gros montants sur 180 patients')).toBeInTheDocument();
+		expect(owed.queryByText('Total dû : 430 DT')).not.toBeInTheDocument();
+	});
+
+	it('shows no wrong total when the server sum cannot be loaded', async () => {
+		cashApi({ 'GET /api/balances/summary': () => problem(500, 'server_error') });
+		render(Page);
+		const owed = within(await screen.findByRole('region', { name: 'Montants dus' }));
+		expect(await owed.findByRole('link', { name: /Sami Trabelsi/ })).toBeInTheDocument();
+		expect(owed.queryByText(/Total dû/)).not.toBeInTheDocument();
 	});
 
 	it('closes the cash with the counted amount and shows the difference', async () => {
