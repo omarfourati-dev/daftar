@@ -82,7 +82,10 @@
 		const p = base.practitioners.find((x) => x.id === a.practitionerId);
 		return p ? practitionerLabel(p) : a.practitionerName;
 	});
-	const cancellable = $derived(!['cancelled', 'no_show', 'done'].includes(a.status));
+	/** Sessions of a series from this day on can be cancelled while the appointment is not over. */
+	const seriesCancellable = $derived(!['cancelled', 'no_show', 'done'].includes(a.status));
+	/** Not during the consultation: the server allows only "arrivé" or "terminé" from there (code review N2). */
+	const cancellable = $derived(seriesCancellable && a.status !== 'in_treatment');
 	const when = $derived(dateAndTime(a.startsAt));
 
 	const whatsappMessage = $derived(sendMessage ? appointmentMessage(a, sendMessage, base.practice) : '');
@@ -248,7 +251,7 @@
 	</div>
 
 	{#snippet footer()}
-		{#if a.seriesId && cancellable}
+		{#if a.seriesId && seriesCancellable}
 			<button type="button" class="btn-secondary text-rose-800" onclick={() => (confirmingCancel = 'series')}><Icon name="repeat" />{t('agenda.series.cancelFrom')}</button>
 		{/if}
 		{#if cancellable && a.status !== 'requested'}

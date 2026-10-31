@@ -200,6 +200,13 @@ describe('AppointmentDetail – only the steps the server accepts', () => {
 		expect(dialog.queryByRole('button', { name: 'Déplacer / modifier' })).not.toBeInTheDocument();
 	});
 
+	it('offers no cancelling during the consultation – the server refuses it (code review N2)', () => {
+		mockApi({});
+		const { dialog } = open(appt({ id: 94, status: 'in_treatment' }));
+		expect(dialog.queryByRole('button', { name: 'Annuler le rendez-vous' })).not.toBeInTheDocument();
+		expect(dialog.getByRole('button', { name: 'Terminé' })).toBeInTheDocument();
+	});
+
 	it('explains the server’s refusal in plain words', async () => {
 		const a = appt({ id: 93, status: 'confirmed' });
 		mockApi({ 'POST /api/appointments/93/status': () => problem(409, 'not_today', 'Not today.') });
