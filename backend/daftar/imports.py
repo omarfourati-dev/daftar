@@ -17,8 +17,10 @@ Counting: every non-empty data row ends up in exactly one of created / updated /
 appointments) / errorCount (rows with at least one unusable value).
 
 Rules: a patient is the same when phone, last name and first name agree (case, accents and spaces ignored) – families
-share phone numbers. Duplicates: ``skip`` (default), ``update`` (fills birth year, alerts, language, reminders, adds
-notes; the opening balance only once) or ``create``. An opening balance becomes the act "Reprise de solde".
+share phone numbers. Duplicates: ``skip`` (default), ``update`` (fills birth year, language, reminders, adds notes
+and medical alerts that are not there yet – an alert is never replaced, one that does not fit into the 500 characters
+is left out and named in the report (code review M3); the opening balance only once; a second line of the same
+person in the file is a duplicate in the file, skipped – code review M2) or ``create``. An opening balance becomes the act "Reprise de solde".
 Appointments: date + time (or one date-time column), duration from the column, the end time, the service or the
 practice default; the patient is found by phone + name (or by name alone when unique) and created when missing (then a
 phone number is needed); past appointments are ``done``; appointments that overlap one of the practitioner (or
@@ -98,6 +100,8 @@ MAX_OPEN_JOBS = 3
 #: Uploads per user and hour; every upload is parsed, failed ones too.
 UPLOADS_PER_HOUR = 10
 OPENING_BALANCE = "Reprise de solde"
+#: Length of a patient's medical alerts (the API's limit too).
+MAX_ALERTS = 500
 
 Kind = Literal["patients", "appointments"]
 PATIENT_FIELDS = ("lastName", "firstName", "fullName", "phone", "birthDate", "birthYear", "notes", "alerts", "lang",
@@ -373,6 +377,8 @@ class Plan:
     duplicates: list[Duplicate] = field(default_factory=list)
     conflicts: list[Overlap] = field(default_factory=list)
     skipped_lines: list[dict[str, Any]] = field(default_factory=list)
+    #: Report lines of rows that were imported anyway (e.g. an alert that did not fit) – not counted.
+    notices: list[dict[str, Any]] = field(default_factory=list)
     creates: list[dict[str, Any]] = field(default_factory=list)  # patients or appointments to insert
     updates: list[tuple[int, dict[str, Any]]] = field(default_factory=list)
     new_patients: dict[tuple[str | None, str, str], dict[str, Any]] = field(default_factory=dict)
@@ -389,7 +395,7 @@ class Plan:
     def report_lines(self) -> list[dict[str, Any]]:
         lines = [{"row": p.row, "field": LABELS.get(p.field, p.field), "message": p.message, "value": p.value}
                  for p in self.errors]
-        lines += self.skipped_lines
+        lines += self.skipped_lines + self.notices
         return sorted(lines, key=lambda line: line["row"])
 
 
@@ -420,7 +426,7 @@ def _patient_values(row: Row, options: ImportOptions, today: date) -> dict[str, 
         "phone": phone,
         "birth_year": birth_year,
         "notes": notes,
-        "alerts": row.free_text("alerts", 500) if "alerts" in row.used else "",
+        "alerts": row.free_text("alerts", MAX_ALERTS) if "alerts" in row.used else "",
         "lang": row.parse("lang", parse_lang),
         "reminder_consent": row.parse("reminderConsent", parse_bool),
         "opening_balance": row.parse("openingBalance", parse_millimes),
@@ -440,9 +446,11 @@ def plan_patients(conn: Connection, practice_id: int, table: Table, used: dict[s
                   today: date) -> Plan:
     plan = Plan("patients")
     existing: dict[tuple[str | None, str, str], int] = {}
-    for p in conn.execute(select(patient.c.id, patient.c.phone, patient.c.last_name, patient.c.first_name)
+    alerts_of: dict[int, str] = {}
+    for p in conn.execute(select(patient.c.id, patient.c.phone, patient.c.last_name, patient.c.first_name, patient.c.alerts)
                           .where(patient.c.practice_id == practice_id).order_by(patient.c.id)):
         existing.setdefault(person_key(p.phone, p.last_name, p.first_name), p.id)
+        alerts_of[p.id] = p.alerts
     seen: set[tuple[str | None, str, str]] = set()
     for number, cells in table.rows:
         plan.total += 1
@@ -466,6 +474,8 @@ def plan_patients(conn: Connection, practice_id: int, table: Table, used: dict[s
                                            "message": f"Patient déjà présent (ignoré) : {name}"})
                 continue
             if options.duplicates == "update":
+                seen.add(key)  # a second line of this person: a duplicate in the file (code review M2)
+                values = {**values, "alerts": _added_alerts(plan, number, alerts_of[existing[key]], values["alerts"])}
                 plan.updates.append((existing[key], values))
                 _add_sample(plan, _patient_sample(number, values, options))
                 continue
@@ -473,6 +483,20 @@ def plan_patients(conn: Connection, practice_id: int, table: Table, used: dict[s
         plan.creates.append(values)
         _add_sample(plan, _patient_sample(number, values, options))
     return plan
+
+
+def _added_alerts(plan: Plan, number: int, old: str, new: str) -> str:
+    """The alerts of an existing patient with ``new`` added (code review M3), or "" when nothing changes: ``new`` is
+    empty or already there, or it does not fit – then the report names it, the patient's alerts stay as they are."""
+    if not new or new.casefold() in old.casefold():
+        return ""
+    merged = f"{old}\n{new}" if old else new
+    if len(merged) > MAX_ALERTS:
+        plan.notices.append({"row": number, "field": LABELS["alerts"], "value": new,
+                             "message": f"Alerte médicale non ajoutée : la fiche en contient déjà trop ({MAX_ALERTS} "
+                                        "caractères au maximum). À reporter à la main."})
+        return ""
+    return merged
 
 
 def _add_sample(plan: Plan, item: dict[str, Any]) -> None:
@@ -493,6 +517,7 @@ def commit_patients(conn: Connection, practice_id: int, plan: Plan, options: Imp
                 "price_millimes": amount, "performed_on": today, "appointment_id": None, "created_at": now}
 
     balances = []
+    balanced: set[int] = set()  # at most one opening balance per patient and import (code review M2)
     if plan.creates:
         rows = [{
             "practice_id": practice_id, "first_name": v["first_name"], "last_name": v["last_name"], "phone": v["phone"],
@@ -521,7 +546,8 @@ def commit_patients(conn: Connection, practice_id: int, plan: Plan, options: Imp
         has_balance = conn.execute(
             select(treatment.c.id).where(treatment.c.patient_id == patient_id, treatment.c.label == OPENING_BALANCE)
         ).first()
-        if v["opening_balance"] and has_balance is None:
+        if v["opening_balance"] and has_balance is None and patient_id not in balanced:
+            balanced.add(patient_id)
             balances.append(balance(patient_id, v["opening_balance"]))
     _insert_balances(conn, balances)
     return len(plan.creates)

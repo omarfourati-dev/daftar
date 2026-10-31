@@ -290,6 +290,46 @@ def test_commit_with_update_fills_the_existing_file_once(client: TestClient, db:
     assert balances == [50_000]
 
 
+def test_update_with_the_same_person_twice_in_the_file_takes_the_balance_once(
+    client: TestClient, db: Engine, owner: Any, make_patient: Factory, auth_headers: Factory
+) -> None:
+    """Code review M2: the second line of an existing patient is a duplicate in the file, not a second update."""
+    existing = make_patient(_pid(owner), first_name="Amira", last_name="Trabelsi", phone="+21620123456")
+    twice = csv_bytes(["Nom;Prénom;Tél;Solde", "Trabelsi;Amira;20 123 456;50", "TRABELSI;amira;20123456;50"])
+    h = auth_headers(owner)
+    job = upload(client, h, twice, "t.csv").json()["id"]
+    body = {"kind": "patients", "mapping": {"lastName": 0, "firstName": 1, "phone": 2, "openingBalance": 3},
+            "options": {"duplicates": "update"}}
+    preview = client.post(f"/api/imports/{job}/preview", json=body, headers=h).json()
+    assert (preview["willCreate"], preview["willUpdate"], preview["willSkip"]) == (0, 1, 1)
+    assert client.post(f"/api/imports/{job}/commit", json=body, headers=h).json() == {
+        "created": 0, "updated": 1, "skipped": 1, "errorCount": 0, "patientsCreated": 0}
+    with db.connect() as conn:
+        balances = conn.execute(select(treatment.c.price_millimes).where(treatment.c.patient_id == existing.id)).scalars().all()
+    assert balances == [50_000]
+
+
+def test_update_adds_medical_alerts_and_never_drops_one(
+    client: TestClient, db: Engine, owner: Any, make_patient: Factory, auth_headers: Factory
+) -> None:
+    """Code review M3: "Sous anticoagulant" must survive an import that brings "Pénicilline"."""
+    amira = make_patient(_pid(owner), first_name="Amira", last_name="Trabelsi", phone="+21620123456", alerts="Anticoagulant")
+    full = make_patient(_pid(owner), first_name="Sami", last_name="Ben Ali", phone="+21698765432", alerts="x" * 495)
+    data = csv_bytes(["Nom;Prénom;Tél;Allergies", "Trabelsi;Amira;20123456;Pénicilline", "Ben Ali;Sami;98765432;Latex"])
+    body = {"kind": "patients", "mapping": {"lastName": 0, "firstName": 1, "phone": 2, "alerts": 3},
+            "options": {"duplicates": "update"}}
+    h = auth_headers(owner)
+    for _ in range(2):  # twice: nothing is added a second time
+        job = upload(client, h, data, "a.csv").json()["id"]
+        assert client.post(f"/api/imports/{job}/commit", json=body, headers=h).status_code == 200
+    with db.connect() as conn:
+        alerts = dict(conn.execute(select(patient.c.id, patient.c.alerts)).all())  # type: ignore[arg-type]
+    assert alerts[amira.id] == "Anticoagulant\nPénicilline"
+    assert alerts[full.id] == "x" * 495  # no room left: unchanged, and the report says so
+    report = client.get(f"/api/imports/{job}/report.csv", headers=h).content.decode("utf-8-sig")
+    assert "Latex" in report and "Alertes médicales" in report
+
+
 # --- commit ----------------------------------------------------------------------------------------------------
 
 def test_commit_creates_patients_with_opening_balances_and_deletes_the_file(
