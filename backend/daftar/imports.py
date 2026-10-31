@@ -21,7 +21,8 @@ share phone numbers. Duplicates: ``skip`` (default), ``update`` (fills birth yea
 and medical alerts that are not there yet – an alert is never replaced, one that does not fit into the 500 characters
 is left out and named in the report (code review M3); the opening balance only once; a second line of the same
 person in the file is a duplicate in the file, skipped – code review M2) or ``create``. An opening balance becomes the act "Reprise de solde".
-Appointments: date + time (or one date-time column), duration from the column, the end time, the service or the
+Appointments: date + time (or one date-time column; one that holds only days takes the time column – code review M5;
+two-digit years in the century nearest to today – N10), duration from the column, the end time, the service or the
 practice default; the patient is found by phone + name (or by name alone when unique) and created when missing (then a
 phone number is needed); past appointments are ``done``; appointments that overlap one of the practitioner (or
 "no practitioner") or of the patient are not imported but listed. A row without practitioner in a practice with
@@ -57,6 +58,7 @@ from .import_values import (
     as_text,
     clean_name,
     is_blank,
+    is_date_only,
     norm,
     parse_bool,
     parse_date,
@@ -601,13 +603,16 @@ def plan_appointments(conn: Connection, practice_id: int, table: Table, used: di
         plan.total += 1
         row = Row(number, cells, used)
         start = None
-        if "datetime" in used and not is_blank(row.get("datetime")):
-            start = row.parse("datetime", lambda v: parse_datetime(v, options.date_format, today=today))
-        elif "date" in used and "time" in used:
-            day = row.parse("date", lambda v: parse_date(v, options.date_format, today=today))
+        fmt = options.date_format
+        # a date-time column that holds only the day takes the time column (code review M5: "RDV" + "Heure")
+        day_column = "datetime" if "datetime" in used and not is_blank(row.get("datetime")) else "date"
+        if day_column == "datetime" and not ("time" in used and is_date_only(row.get("datetime"), fmt, today=today)):
+            start = row.parse("datetime", lambda v: parse_datetime(v, fmt, today=today, nearest_century=True))
+        elif day_column in used and "time" in used:
+            day = row.parse(day_column, lambda v: parse_date(v, fmt, today=today, nearest_century=True))
             moment = row.parse("time", parse_time)
-            if day is None and not any(x.field == "date" for x in row.problems):
-                row.fail("date", "Date manquante.")
+            if day is None and not any(x.field == day_column for x in row.problems):
+                row.fail(day_column, "Date manquante.")
             if moment is None and not any(x.field == "time" for x in row.problems):
                 row.fail("time", "Heure manquante.")
             if day is not None and moment is not None:

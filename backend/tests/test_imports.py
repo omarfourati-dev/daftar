@@ -464,6 +464,26 @@ def test_appointments_import(client: TestClient, db: Engine, owner: Any, make_pa
     assert all(r.source == "staff" and r.created_by == owner.id for r in rows)
 
 
+def test_a_rdv_column_of_days_takes_the_time_column(client: TestClient, db: Engine, owner: Any, auth_headers: Factory) -> None:
+    """Code review M5 (all visits at 00:00) and N10 ("05/01/27" became 1927 and "done")."""
+    data = xlsx(("RDV", [["RDV", "Heure", "Nom", "Prénom", "Tél"],
+                         [datetime(2026, 11, 5), "09:00", "Trabelsi", "Amira", "20123456"],
+                         [datetime(2026, 11, 5), "09:30", "Gharbi", "Leila", "98765432"],
+                         ["05/01/27", "10:00", "Jlassi", "Mehdi", "22333444"]]))
+    h = auth_headers(owner)
+    up = upload(client, h, data, "rdv.xlsx").json()
+    suggested = up["suggestedMapping"]
+    assert (suggested["date"], suggested["time"], suggested["datetime"]) == (0, 1, None)
+    saved_before = {"datetime": 0, "time": 1, "lastName": 2, "firstName": 3, "phone": 4}  # a template from before the fix
+    res = client.post(f"/api/imports/{up['id']}/commit", json={"kind": "appointments", "mapping": saved_before}, headers=h)
+    assert res.json() == {"created": 3, "updated": 0, "skipped": 0, "errorCount": 0, "patientsCreated": 3}
+    with db.connect() as conn:
+        rows = conn.execute(select(appointment.c.starts_at, appointment.c.status).order_by(appointment.c.starts_at)).all()
+    assert [tuple(r) for r in rows] == [
+        (datetime(2026, 11, 5, 8, 0, tzinfo=UTC), "scheduled"), (datetime(2026, 11, 5, 8, 30, tzinfo=UTC), "scheduled"),
+        (datetime(2027, 1, 5, 9, 0, tzinfo=UTC), "scheduled")]
+
+
 def test_imported_appointments_without_practitioner_get_the_only_one(
     client: TestClient, db: Engine, make_practice: Factory, make_user: Factory, make_patient: Factory,
     make_appointment: Factory, auth_headers: Factory,

@@ -10,7 +10,9 @@ Amounts (``parse_millimes``) – one clear rule, in dinars:
   100 000 DT are refused; 0 is 0 (the caller creates no balance for it).
 
 Dates: Excel serial numbers (1910–2099), ``dd/mm/yyyy`` (or ``mm/dd/yyyy`` with the option ``mdy``),
-``yyyy-mm-dd``, 2-digit years (≤ this year → 20yy, else 19yy), separators ``/ - .``, an optional time after it.
+``yyyy-mm-dd``, 2-digit years (birth dates: ≤ this year → 20yy, else 19yy; appointments with ``nearest_century``:
+the century nearest to today – "05/01/27" is January 2027, code review N10), separators ``/ - .``, an optional time
+after it. :func:`is_date_only` tells a day without a time of day (an "RDV" column next to "Heure", code review M5).
 Phones: numbers from Excel (``20123456.0``, ``2.0123456E7``, ``21620123456`` without its leading ``00``) are
 repaired; with several numbers in one cell the first valid one counts.
 """
@@ -141,16 +143,22 @@ def _serial_date(number: float) -> date:
     return EXCEL_EPOCH + timedelta(days=int(number))
 
 
-def _split_date(raw: str, fmt: DateFormat, today: date) -> tuple[date, str | None]:
+def _full_year(two_digits: int, today: date, nearest: bool) -> int:
+    if not nearest:
+        return two_digits + (2000 if two_digits <= today.year % 100 else 1900)
+    century = today.year - today.year % 100
+    return min((century - 100 + two_digits, century + two_digits, century + 100 + two_digits),
+               key=lambda year: abs(year - today.year))
+
+
+def _split_date(raw: str, fmt: DateFormat, today: date, nearest: bool = False) -> tuple[date, str | None]:
     t = " ".join(raw.split())
     try:
         if m := _YMD.match(t):
             return date(int(m[1]), int(m[2]), int(m[3])), m[4]
         if m := _DMY.match(t):
             first, second, year = int(m[1]), int(m[2]), m[3]
-            y = int(year)
-            if len(year) == 2:
-                y += 2000 if y <= today.year % 100 else 1900
+            y = _full_year(int(year), today, nearest) if len(year) == 2 else int(year)
             day, month = (second, first) if fmt == "mdy" else (first, second)
             return date(y, month, day), m[4]
     except ValueError:
@@ -158,7 +166,7 @@ def _split_date(raw: str, fmt: DateFormat, today: date) -> tuple[date, str | Non
     raise ImportValueError("Date invalide (jj/mm/aaaa).")
 
 
-def parse_date(raw: Any, fmt: DateFormat, *, today: date) -> date | None:
+def parse_date(raw: Any, fmt: DateFormat, *, today: date, nearest_century: bool = False) -> date | None:
     if is_blank(raw):
         return None
     if isinstance(raw, datetime):
@@ -170,7 +178,23 @@ def parse_date(raw: Any, fmt: DateFormat, *, today: date) -> date | None:
     text = str(raw).strip()
     if _SERIAL.fullmatch(text):
         return _serial_date(float(text))
-    return _split_date(text, fmt, today)[0]
+    return _split_date(text, fmt, today, nearest_century)[0]
+
+
+def is_date_only(raw: Any, fmt: DateFormat, *, today: date) -> bool:
+    """True for a cell that holds a day without a time of day: an Excel date cell (midnight), a whole serial number,
+    a text date without time."""
+    if isinstance(raw, datetime):
+        return (raw.hour, raw.minute) == (0, 0)
+    if isinstance(raw, date):
+        return True
+    text = str(raw).strip()
+    if _is_number(raw) or _SERIAL.fullmatch(text):
+        return float(raw).is_integer()
+    try:
+        return _split_date(text, fmt, today)[1] is None
+    except ImportValueError:
+        return False
 
 
 def parse_time(raw: Any) -> time | None:
@@ -196,7 +220,7 @@ def parse_time(raw: Any) -> time | None:
     return time(hour, minute)
 
 
-def parse_datetime(raw: Any, fmt: DateFormat, *, today: date) -> datetime | None:
+def parse_datetime(raw: Any, fmt: DateFormat, *, today: date, nearest_century: bool = False) -> datetime | None:
     """A naive local (Tunis) date and time."""
     if is_blank(raw):
         return None
@@ -206,7 +230,7 @@ def parse_datetime(raw: Any, fmt: DateFormat, *, today: date) -> datetime | None
         number = float(raw)
         day = _serial_date(number)
         return datetime.combine(day, parse_time(number - int(number)) or time(0, 0))
-    day, rest = _split_date(str(raw).strip(), fmt, today)
+    day, rest = _split_date(str(raw).strip(), fmt, today, nearest_century)
     moment = parse_time(rest) if rest else None
     if moment is None:
         raise ImportValueError("Heure manquante.")
@@ -383,4 +407,7 @@ def suggest_mapping(headers: list[str]) -> dict[str, int | None]:
                 mapping[field] = index
                 used.add(index)
                 break
+    if mapping["datetime"] is not None and mapping["time"] is not None and mapping["date"] is None:
+        # "RDV" next to "Heure": the column holds the day, the other one the time (code review M5)
+        mapping["date"], mapping["datetime"] = mapping["datetime"], None
     return mapping

@@ -6,6 +6,7 @@ import pytest
 
 from daftar.import_values import (
     ImportValueError,
+    is_date_only,
     parse_bool,
     parse_date,
     parse_datetime,
@@ -250,3 +251,29 @@ def test_each_column_is_suggested_once() -> None:
     m = suggest_mapping(["Téléphone", "Téléphone 2", "Nom"])
     assert m["phone"] == 0 and m["lastName"] == 2
     assert list(m.values()).count(0) == 1
+
+
+def test_an_appointment_column_rdv_next_to_a_time_column_is_the_date() -> None:
+    """Code review M5: "RDV" (Excel date cells) + "Heure" used to become one date-time column – every visit at 00:00."""
+    m = suggest_mapping(["RDV", "Heure", "Nom", "Prénom", "Tél"])
+    assert (m["date"], m["time"], m["datetime"]) == (0, 1, None)
+    assert suggest_mapping(["Rendez-vous", "Nom"])["datetime"] == 0  # without a time column it holds both
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [(datetime(2026, 11, 5), True), (date(2026, 11, 5), True), (46331, True), ("46331", True), ("05/11/2026", True),
+     (datetime(2026, 11, 5, 9, 30), False), (46331.375, False), ("05/11/2026 09:30", False), ("demain", False)],
+)
+def test_a_cell_with_a_day_but_no_time(raw: object, expected: bool) -> None:
+    assert is_date_only(raw, "dmy", today=date(2026, 10, 31)) is expected
+
+
+def test_two_digit_years_of_appointments_take_the_nearest_century() -> None:
+    """Code review N10: "05/01/27" in a list of visits is January 2027, not 1927; birth dates stay in the past."""
+    today = date(2026, 10, 31)
+    assert parse_date("05/01/27", "dmy", today=today, nearest_century=True) == date(2027, 1, 5)
+    assert parse_date("20/10/26", "dmy", today=today, nearest_century=True) == date(2026, 10, 20)
+    assert parse_date("14/03/98", "dmy", today=today, nearest_century=True) == date(1998, 3, 14)
+    assert parse_datetime("05/01/27 09:00", "dmy", today=today, nearest_century=True) == datetime(2027, 1, 5, 9, 0)
+    assert parse_date("05/01/27", "dmy", today=today) == date(1927, 1, 5)  # a birth date
