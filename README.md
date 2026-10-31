@@ -77,7 +77,9 @@ der `DATABASE_URL` steht), `JWT_SECRET` (≥ 32 Zeichen), `ADMIN_PASSWORD` (≥ 
 
 Caddy (Wildcard-DNS `*.daftar` → Server, On-Demand-TLS fragt das Backend; `app.daftar.omarfourati.de` läuft über den
 Wildcard-Block, der tls-check antwortet für `app` mit 200). HSTS setzt die App selbst (nur über HTTPS, ohne
-`includeSubDomains`):
+`includeSubDomains`). Das Zugriffslog von Daftar lässt den Suchbegriff `q` weg (`GET /api/patients?q=…` enthält Namen
+und Telefonnummern – Security-Review N2); die Ausgabe (`output …`) bleibt wie im gemeinsamen Snippet `access_log` des
+Servers, nur das Format bekommt den Filter (Caddy ≥ 2.8):
 
 ```
 {
@@ -85,15 +87,26 @@ Wildcard-Block, der tls-check antwortet für `app` mit 200). HSTS setzt die App 
 		ask http://daftar:8080/api/public/tls-check
 	}
 }
+(daftar_log) {
+	log {
+		# output … wie im Snippet access_log
+		format filter {
+			request>uri query {
+				delete q
+			}
+			wrap json
+		}
+	}
+}
 daftar.omarfourati.de {
-	import access_log
+	import daftar_log
 	respond /metrics 404
 	request_body { max_size 2MB }
 	reverse_proxy daftar:8080
 }
 *.daftar.omarfourati.de {
 	tls { on_demand }
-	import access_log
+	import daftar_log
 	respond /metrics 404
 	request_body { max_size 2MB }
 	reverse_proxy daftar:8080
