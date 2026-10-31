@@ -336,7 +336,8 @@ def test_screen_and_ticket_page_follow_the_calling_order(
     walk_ins = {n: make_queue_entry(lac, n, name=f"Passant {n}", status="waiting") for n in (3, 4)}
     for n, hhmm in ((7, "08:50"), (8, "09:00")):  # due appointments, patients waiting
         pat = make_patient(lac)
-        appt = make_appointment(pat, starts_at=at(FRI, hhmm), status="arrived")
+        # 10 minutes each, so the two appointments do not overlap in the practice's calendar
+        appt = make_appointment(pat, starts_at=at(FRI, hhmm), duration_min=10, status="arrived")
         make_queue_entry(lac, n, name=f"RDV {n}", status="waiting", patient_id=pat.id, appointment_id=appt.id)
     assert client.get(f"/api/public/display/{lac.display_token}").json()["next"] == [7, 8, 3, 4]
     three = client.get(f"/api/public/ticket/{walk_ins[3].ticket_token}").json()
