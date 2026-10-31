@@ -58,7 +58,7 @@ describe('/app – today at a glance', () => {
 		expect(tiles.getByRole('link', { name: /Rendez-vous 12/ })).toHaveTextContent('3 terminés, 6 à venir');
 		expect(tiles.getByRole('link', { name: /En salle d’attente 3/ })).toHaveAttribute('href', '/app/salle');
 		expect(tiles.getByRole('link', { name: /Caisse du jour 185 DT/ })).toHaveAttribute('href', '/app/caisse');
-		expect(tiles.getByRole('link', { name: /Rappels de demain 6/ })).toHaveAttribute('href', '/app/rappels');
+		expect(tiles.getByRole('link', { name: /Rappels à envoyer 6/ })).toHaveAttribute('href', '/app/rappels');
 		expect(tiles.getByRole('link', { name: /Montants dus 1 240,500 DT/ })).toHaveAttribute('href', '/app/caisse#impayes');
 		const upcoming = within(screen.getByRole('region', { name: 'Prochains rendez-vous' }));
 		expect(upcoming.getByText('Leila Karoui')).toBeInTheDocument();

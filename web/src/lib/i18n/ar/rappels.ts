@@ -6,6 +6,7 @@ export const rappels: Messages['rappels'] = {
 	previousDay: 'اليوم السابق',
 	nextDay: 'اليوم التالي',
 	tomorrow: 'غدًا',
+	nextOpenDay: 'يوم العمل التالي',
 	intro: 'الرسالة جاهزة بلغة المريض. نقرة واحدة تفتح واتساب أو الإرساليات القصيرة، ويُسجَّل التذكير كمُرسَل.',
 	summary: '{count} موعد، {sent} تذكير مُرسَل',
 	whatsapp: 'واتساب',

@@ -1,15 +1,17 @@
 import { expect, test } from '@playwright/test';
 import { addDays, APP, axe, iso, newPatient, newPractice, signIn, tunisNow } from './daily';
 
-/** Story G1 – reminders of tomorrow by click (wa.me / sms:), consent respected, marked as sent. */
+/** Story G1 – reminders of the next opening day by click (wa.me / sms:), consent respected, marked as sent. */
 
 test('G1 – tomorrow’s reminders with WhatsApp/SMS links, no buttons without consent, marked as sent', async ({ page, request }) => {
 	const p = await newPractice(request);
 	const yes = await newPatient(p, { firstName: 'Youssef', lastName: 'Accord', reminderConsent: true });
 	const no = await newPatient(p, { firstName: 'Anis', lastName: 'Refus', reminderConsent: false });
-	const tomorrow = addDays(tunisNow().day, 1);
-	await p.api.post('/api/appointments', { patientId: yes.id, startsAt: iso(tomorrow, '09:00'), durationMin: 20, reason: 'Consultation' });
-	await p.api.post('/api/appointments', { patientId: no.id, startsAt: iso(tomorrow, '09:30'), durationMin: 20, reason: 'Contrôle' });
+	// the next opening day (code review M6): tomorrow, or Monday when tomorrow is Sunday (default hours Mon–Sat)
+	let day = addDays(tunisNow().day, 1);
+	if (new Date(`${day}T12:00:00Z`).getUTCDay() === 0) day = addDays(day, 1);
+	await p.api.post('/api/appointments', { patientId: yes.id, startsAt: iso(day, '09:00'), durationMin: 20, reason: 'Consultation' });
+	await p.api.post('/api/appointments', { patientId: no.id, startsAt: iso(day, '09:30'), durationMin: 20, reason: 'Contrôle' });
 
 	await signIn(page, p);
 	await page.goto(APP + '/app/rappels');

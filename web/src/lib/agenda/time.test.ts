@@ -5,6 +5,7 @@ import {
 	hhmm,
 	isoWeekday,
 	layoutLanes,
+	nextOpenDay,
 	pixelsPerMinute,
 	minutesOfDay,
 	parseHHMM,
@@ -105,3 +106,16 @@ describe('agenda time helpers (Africa/Tunis, UTC+1 all year)', () => {
 	});
 });
 
+
+describe('nextOpenDay – the day whose reminders go out today (code review M6)', () => {
+	const closures = [{ id: 1, startsOn: '2026-11-02', endsOn: '2026-11-02', label: 'Férié' }];
+	it('skips days without opening hours and closures', () => {
+		expect(nextOpenDay(HOURS, [], '2026-10-30')).toBe('2026-10-31'); // Friday → Saturday
+		expect(nextOpenDay(HOURS, [], '2026-10-31')).toBe('2026-11-02'); // Saturday → Monday (Sunday closed)
+		expect(nextOpenDay(HOURS, closures, '2026-10-31')).toBe('2026-11-03');
+	});
+	it('falls back to tomorrow when the practice never opens', () => {
+		expect(nextOpenDay({}, [], '2026-10-31')).toBe('2026-11-01');
+		expect(nextOpenDay(undefined, [], '2026-10-31')).toBe('2026-11-01');
+	});
+});

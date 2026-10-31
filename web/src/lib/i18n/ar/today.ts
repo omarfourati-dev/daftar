@@ -12,8 +12,8 @@ export const today: Messages['today'] = {
 		waiting: 'في قاعة الانتظار',
 		waitingHint: '{called} تمّت مناداتهم',
 		cash: 'صندوق اليوم',
-		reminders: 'تذكيرات الغد',
-		remindersHint: 'للإرسال',
+		reminders: 'تذكيرات للإرسال',
+		remindersHint: 'ليوم العمل التالي',
 		due: 'المبالغ المستحقّة',
 		dueHint: 'كل المرضى'
 	},

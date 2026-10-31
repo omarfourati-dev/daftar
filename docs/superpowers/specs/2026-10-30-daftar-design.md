@@ -174,8 +174,8 @@ Feldnamen camelCase. Zeitpunkte ISO-8601 mit Offset (`2026-10-30T09:30:00+01:00`
 - `GET /api/balances?limit=100` → `[{patientId,name,phone,dueMillimes,lastPaymentAt}]` (nur due > 0, absteigend)
 
 **Erinnerungen & Übersicht**
-- `GET /api/reminders?day=` (Standard morgen) → `[{appointment:Appointment,patientLang,reminderConsent,phoneDigits,message}]`; `message` = Vorlage der Patientensprache mit `{patient} {date} {time} {practice} {phone}` ersetzt (Datum `jj/mm/aaaa`, Zeit `HH:MM`); stornierte Termine fehlen. `phoneDigits` ohne `+` für `wa.me`.
-- `GET /api/dashboard` → `{today,appointments:{total,byStatus:{…}},upcoming:[Appointment] (heute, ab jetzt, max 5),queue:{waiting,called},cashTodayMillimes,remindersPending,dueTotalMillimes,patientsCount}`
+- `GET /api/reminders?day=` (Standard: der **nächste Öffnungstag** – der erste Tag nach heute mit Öffnungszeiten, der kein Schließtag ist; samstags also Montag, vor einem Feiertag der Tag danach; Code-Review M6) → `[{appointment:Appointment,patientLang,reminderConsent,phoneDigits,message}]`; `message` = Vorlage der Patientensprache mit `{patient} {date} {time} {practice} {phone}` ersetzt (Datum `jj/mm/aaaa`, Zeit `HH:MM`); stornierte Termine fehlen. `phoneDigits` ohne `+` für `wa.me`.
+- `GET /api/dashboard` → `{today,appointments:{total,byStatus:{…}},upcoming:[Appointment] (heute, ab jetzt, max 5),queue:{waiting,called},cashTodayMillimes,remindersPending (offene Erinnerungen des nächsten Öffnungstags),dueTotalMillimes,patientsCount}`
 
 **Demo, Pilot, Admin**
 - `POST /api/demo {lang?}` → 201 `{token,user}`: neue Praxis „Cabinet Dentaire Démo“ (`is_demo`, läuft nach 24 h ab), Besitzer `demo-<zufall>@demo.daftar.invalid`, gefüllt mit erfundenen Daten relativ zu heute (25 Patienten mit tunesischen Namen, Telefon **`+21600000001…`** – die Vorwahl 00 existiert nicht; Termine −14…+7 Tage mit realistischen Status inkl. Nichterscheinen; heute 3 Wartende, 1 in Behandlung; Leistungen und Teilzahlungen; Termine morgen für Erinnerungen). Drosselung: 5 je IP und Stunde, 20 je Adressbereich (IPv4 /24, IPv6 /64) und Tag (Security-Review N8), 300 je Tag gesamt → 429. Aufräumjob alle 30 min löscht abgelaufene Demo-Praxen (CASCADE) und abgelaufene unbenutzte Einladungen älter als 30 Tage.
@@ -202,7 +202,7 @@ FR ist Standard, AR wählbar (RTL, `dir="rtl"`, westliche Ziffern). Sprache gesp
 | `/app/salle` | Warteschlange heute: Ticket ziehen (Patient oder nur Name/Telefon), Aufrufen, In Behandlung, Fertig, Gegangen; je Ticket WhatsApp-Link mit Ticket-Seite und QR-Code zum Abfotografieren; Link zum Wartezimmer-Bildschirm |
 | `/app/patients`, `/app/patients/[id]` | Liste mit Suche; Akte: Daten, Zuverlässigkeit (gekommen/nicht gekommen), Termine, Leistungen, Zahlungen, Saldo, Zahlung/Leistung erfassen, Quittung |
 | `/app/caisse` | Kasse des Tages nach Zahlart, Liste; offene Beträge |
-| `/app/rappels` | Termine morgen: je Zeile WhatsApp- und SMS-Knopf mit fertiger Nachricht, „Envoyé“ markieren; ohne Einwilligung ausgegraut; in Demo-Praxen öffnen die Knöpfe nichts, sondern zeigen einen Hinweis |
+| `/app/rappels` | Termine des nächsten Öffnungstags (Standard; Knopf „Demain“ bzw. „Prochain jour d’ouverture“, blättern möglich): je Zeile WhatsApp- und SMS-Knopf mit fertiger Nachricht, „Envoyé“ markieren; ohne Einwilligung ausgegraut; in Demo-Praxen öffnen die Knöpfe nichts, sondern zeigen einen Hinweis |
 | `/app/recu/[paymentId]` | druckbare Quittung |
 | `/app/reglages` | Praxis, Zeiten, Vorlagen FR/AR, Bildschirm-Link (neu erzeugen), Team & Einladungen (owner), Export (owner), eigenes Konto/Passwort/Sprache, Abmelden überall |
 | `/app/admin` | nur admin: Praxen, neue Praxis + Einladungslink kopieren, Pilot-Anfragen |

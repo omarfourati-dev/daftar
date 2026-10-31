@@ -83,6 +83,18 @@ export function closureOn(closures: readonly Closure[], day: string): Closure | 
 	return closures.find((c) => c.startsOn <= day && day <= c.endsOn) ?? null;
 }
 
+/**
+ * The first day after `today` with opening hours that is not a closing day – the day whose reminders go out today
+ * (code review M6: on Saturday it is Monday). Same rule as the server; tomorrow when nothing opens within 31 days.
+ */
+export function nextOpenDay(hours: WeeklyHours | undefined | null, closures: readonly Closure[], today: string): string {
+	for (let offset = 1; offset <= 31; offset++) {
+		const day = addDays(today, offset);
+		if (windowsOn(hours, day).length && !closureOn(closures, day)) return day;
+	}
+	return addDays(today, 1);
+}
+
 export interface Span {
 	id: number;
 	start: number;

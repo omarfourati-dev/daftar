@@ -1,4 +1,9 @@
-"""``GET /api/reminders?day=`` (default tomorrow): appointments of a day with a ready-made reminder (section 5).
+"""``GET /api/reminders?day=`` (default: the next opening day): appointments of a day with a ready-made reminder
+(section 5).
+
+The next opening day (code review M6) is the first day after today with opening hours that is not a closing day –
+on Saturday (Sunday closed) the reminders are for Monday, before a holiday for the day after it. The dashboard counts
+the open reminders of the same day. Without any opening within 31 days it is tomorrow.
 
 Each item: ``{appointment, patientLang, reminderConsent, phoneDigits, message}``. ``message`` is the practice's
 template in the patient's language with ``{patient} {date} {time} {practice} {phone}`` replaced (date
@@ -9,7 +14,7 @@ sent from the server. Left out: cancelled, no-show and online requests that are 
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Set
 from datetime import date, timedelta
 from typing import Any
 
@@ -19,7 +24,9 @@ from sqlalchemy import Connection, func, select
 from .appointments import AppointmentOut, load_appointments
 from .clock import TUNIS, today_tunis, tunis_day_bounds
 from .deps import Conn, Ctx, StaffUser
+from .hours import windows_for
 from .phone import phone_digits
+from .scheduling import closed_days
 from .schemas import ApiModel
 from .tables import appointment, patient, practice
 
@@ -27,6 +34,8 @@ router = APIRouter(prefix="/api/reminders", tags=["reminders"])
 
 #: Appointments that get no reminder.
 SKIPPED_STATUSES = ("cancelled", "no_show", "requested")
+#: How far the next opening day is looked for.
+OPENING_LOOKAHEAD_DAYS = 31
 PLACEHOLDERS = ("patient", "date", "time", "practice", "phone")
 _PLACEHOLDER = re.compile(r"\{(" + "|".join(PLACEHOLDERS) + r")\}")
 
@@ -42,6 +51,22 @@ class ReminderOut(ApiModel):
 def render_message(template: str, values: Mapping[str, str]) -> str:
     """Replaces only the known placeholders, in one pass (no ``str.format`` – templates are user input)."""
     return _PLACEHOLDER.sub(lambda m: values[m.group(1)], template)
+
+
+def first_open_day(weekly_hours: Mapping[str, Any], closed: Set[date], today: date) -> date:
+    """The first day after ``today`` with opening hours that is not in ``closed``; tomorrow when there is none."""
+    for offset in range(1, OPENING_LOOKAHEAD_DAYS + 1):
+        day = today + timedelta(days=offset)
+        if windows_for(dict(weekly_hours), day) and day not in closed:
+            return day
+    return today + timedelta(days=1)
+
+
+def next_opening_day(conn: Connection, practice_id: int, today: date) -> date:
+    """The day whose reminders are sent today (code review M6)."""
+    hours = conn.execute(select(practice.c.weekly_hours).where(practice.c.id == practice_id)).scalar_one()
+    closed = closed_days(conn, practice_id, today + timedelta(days=1), today + timedelta(days=OPENING_LOOKAHEAD_DAYS))
+    return first_open_day(hours, closed, today)
 
 
 def reminder_conditions(day: date) -> list[Any]:
@@ -65,7 +90,7 @@ def pending_count(conn: Connection, practice_id: int, day: date) -> int:
 
 @router.get("")
 def reminders(user: StaffUser, ctx: Ctx, conn: Conn, day: date | None = None) -> list[ReminderOut]:
-    day = day or today_tunis(ctx.clock) + timedelta(days=1)
+    day = day or next_opening_day(conn, user.pid, today_tunis(ctx.clock))
     p = conn.execute(
         select(
             practice.c.name, practice.c.name_ar, practice.c.phone,

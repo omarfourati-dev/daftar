@@ -11,8 +11,8 @@ export const today = {
 		waiting: 'En salle d’attente',
 		waitingHint: '{called} appelé(s)',
 		cash: 'Caisse du jour',
-		reminders: 'Rappels de demain',
-		remindersHint: 'à envoyer',
+		reminders: 'Rappels à envoyer',
+		remindersHint: 'prochain jour d’ouverture',
 		due: 'Montants dus',
 		dueHint: 'tous patients'
 	},

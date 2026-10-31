@@ -1,13 +1,13 @@
 """Reminders (section 5): tomorrow's appointments with a ready message in the patient's language."""
 
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
-from daftar.reminders import render_message
+from daftar.reminders import first_open_day, render_message
 from tests.conftest import T0
 from tests.helpers import assert_problem
 
@@ -88,3 +88,28 @@ def test_templates_only_replace_known_placeholders() -> None:
     assert render_message("{phone}{phone}", values) == "7171"
     # a value that itself looks like a placeholder is not expanded again
     assert render_message("{patient} {date}", {**values, "patient": "{date}"}) == "{date} 31/10/2026"
+
+
+def test_on_saturday_the_reminders_are_for_monday(
+    client: TestClient, practice_row: Any, make_user: Factory, make_patient: Factory, make_appointment: Factory,
+    auth_headers: Factory, clock: Any,
+) -> None:
+    """Code review M6: Sunday is closed – Saturday's list (and the dashboard) must hold Monday's appointments."""
+    clock.set(datetime(2026, 10, 31, 15, 0, tzinfo=UTC))  # Saturday 16:00 in Tunis
+    pat = make_patient(practice_row, reminder_consent=True)
+    monday = make_appointment(pat, starts_at=datetime(2026, 11, 2, 8, 0, tzinfo=UTC))
+    tuesday = make_appointment(pat, starts_at=datetime(2026, 11, 3, 8, 0, tzinfo=UTC))
+    h = auth_headers(make_user(practice_row, "assistant"))
+    assert [i["appointment"]["id"] for i in client.get("/api/reminders", headers=h).json()] == [monday.id]
+    assert client.get("/api/dashboard", headers=h).json()["remindersPending"] == 1
+    owner = auth_headers(make_user(practice_row, "owner"))
+    assert client.post("/api/closures", json={"startsOn": "2026-11-02", "label": "Férié"}, headers=owner).status_code == 201
+    assert [i["appointment"]["id"] for i in client.get("/api/reminders", headers=h).json()] == [tuesday.id]
+
+
+def test_the_next_opening_day_skips_days_without_hours_and_closures() -> None:
+    hours = {"1": [["08:00", "12:00"]], "3": [["08:00", "12:00"]]}  # Monday and Wednesday only
+    saturday = date(2026, 10, 31)
+    assert first_open_day(hours, set(), saturday) == date(2026, 11, 2)
+    assert first_open_day(hours, {date(2026, 11, 2)}, saturday) == date(2026, 11, 4)
+    assert first_open_day({}, set(), saturday) == date(2026, 11, 1)  # never open: tomorrow, as before

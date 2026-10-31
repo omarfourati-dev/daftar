@@ -4,7 +4,7 @@ Dashboard (section 5, online requests from 11.3)::
 
     {today, appointments:{total, byStatus:{<every status>: n}}, upcoming:[Appointment] (today, from now, max 5),
      onlineRequests:[Appointment] (requested, not over yet, max 20), onlineRequestsCount,
-     queue:{waiting, called, inTreatment}, cashTodayMillimes, remindersPending (tomorrow), dueTotalMillimes,
+     queue:{waiting, called, inTreatment}, cashTodayMillimes, remindersPending (the next opening day), dueTotalMillimes,
      patientsCount, unverifiedCashDays:[{day, differenceMillimes, closedBy}] (owner only, section 16.3; else [])}
 
 ``appointments.total`` leaves cancelled appointments out (``byStatus`` still lists them).
@@ -19,7 +19,7 @@ new patients, top 5 services (by catalog name, cancelled appointments not counte
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
@@ -29,7 +29,7 @@ from .appointments import AppointmentOut, load_appointments, overdue_conditions
 from .clock import TUNIS, now_tunis, today_tunis, tunis_day_bounds
 from .deps import Conn, Ctx, OwnerUser, StaffUser
 from .finance import UnverifiedDay, due_total, unverified_cash_days
-from .reminders import pending_count
+from .reminders import next_opening_day, pending_count
 from .schemas import ApiModel
 from .tables import APPOINTMENT_STATUSES, appointment, patient, payment, queue_entry, service
 
@@ -147,7 +147,7 @@ def dashboard(user: StaffUser, ctx: Ctx, conn: Conn) -> DashboardOut:
             waiting=queue.get("waiting", 0), called=queue.get("called", 0), in_treatment=queue.get("in_treatment", 0)
         ),
         cash_today_millimes=int(cash_today),
-        reminders_pending=pending_count(conn, pid, today + timedelta(days=1)),
+        reminders_pending=pending_count(conn, pid, next_opening_day(conn, pid, today)),
         due_total_millimes=due_total(conn, pid),
         patients_count=_count(conn, patient, patient.c.practice_id == pid),
         unverified_cash_days=unverified_cash_days(conn, pid) if user.is_owner else [],

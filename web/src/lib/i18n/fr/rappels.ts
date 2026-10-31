@@ -5,6 +5,7 @@ export const rappels = {
 	previousDay: 'Jour précédent',
 	nextDay: 'Jour suivant',
 	tomorrow: 'Demain',
+	nextOpenDay: 'Prochain jour d’ouverture',
 	intro: 'Message prêt dans la langue du patient. Un clic ouvre WhatsApp ou les SMS ; le rappel est alors noté comme envoyé.',
 	summary: '{count} rendez-vous, {sent} rappel(s) envoyé(s)',
 	whatsapp: 'WhatsApp',

@@ -1,7 +1,8 @@
 <script lang="ts">
 	/**
-	 * /app/rappels – reminders by click (story G1): tomorrow's appointments (or another day) with the message ready in
-	 * the patient's language; WhatsApp (`wa.me`) and SMS (`sms:`) open with it and the reminder is noted as sent.
+	 * /app/rappels – reminders by click (story G1): the appointments of the next opening day (code review M6: on
+	 * Saturday Monday's, before a holiday the day after it – or another day) with the message ready in the patient's
+	 * language; WhatsApp (`wa.me`) and SMS (`sms:`) open with it and the reminder is noted as sent.
 	 * Without consent the buttons are greyed out; in demo practices nothing opens, a note explains instead.
 	 */
 	import { onMount } from 'svelte';
@@ -11,13 +12,16 @@
 	import { errorText } from '#lib/agenda/errors';
 	import { personName } from '#lib/agenda/format';
 	import { smsUrl, whatsappUrl } from '#lib/agenda/links';
+	import { nextOpenDay } from '#lib/agenda/time';
 	import { addDays, formatDay, formatTime, t, todayTunis } from '#lib/i18n.svelte';
-	import type { Appointment } from '#lib/types/agenda';
+	import type { Appointment, Closure, PracticeSettings } from '#lib/types/agenda';
 	import Icon from '../../../lib/components/daily/Icon.svelte';
 
 	type Reminder = { appointment: Appointment; patientLang: string; reminderConsent: boolean; phoneDigits: string; message: string };
 
 	const tomorrow = addDays(todayTunis(clock.now()), 1);
+	/** The day whose reminders go out today; tomorrow until the opening hours are known (or when they cannot be read). */
+	let openDay = $state(tomorrow);
 	let day = $state(tomorrow);
 	let items = $state<Reminder[] | null>(null);
 	let error = $state('');
@@ -38,7 +42,16 @@
 			if (mine === seq) error = t('rappels.loadError');
 		}
 	}
-	onMount(load);
+	onMount(async () => {
+		try {
+			const [practice, closures] = await Promise.all([api<PracticeSettings>('/api/practice'), api<Closure[]>('/api/closures')]);
+			openDay = nextOpenDay(practice.weeklyHours, closures, todayTunis(clock.now()));
+			if (day === tomorrow) day = openDay;
+		} catch {
+			// the opening hours are only a convenience: tomorrow then, as before
+		}
+		await load();
+	});
 
 	function go(next: string) {
 		day = next;
@@ -72,7 +85,9 @@
 		</div>
 		<div class="flex items-center gap-1">
 			<button type="button" class="btn-secondary min-w-11 px-2" aria-label={t('rappels.previousDay')} onclick={() => go(addDays(day, -1))}><Icon name="start" /></button>
-			<button type="button" class="btn-secondary" disabled={day === tomorrow} onclick={() => go(tomorrow)}>{t('rappels.tomorrow')}</button>
+			<button type="button" class="btn-secondary" disabled={day === openDay} onclick={() => go(openDay)}
+				>{openDay === tomorrow ? t('rappels.tomorrow') : t('rappels.nextOpenDay')}</button
+			>
 			<button type="button" class="btn-secondary min-w-11 px-2" aria-label={t('rappels.nextDay')} onclick={() => go(addDays(day, 1))}><Icon name="end" /></button>
 		</div>
 	</div>

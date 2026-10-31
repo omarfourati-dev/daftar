@@ -5,7 +5,7 @@ import { auth } from '#lib/auth.svelte';
 import { clock } from '#lib/clock';
 import { i18n } from '#lib/i18n.svelte';
 import { calls, json, mockApi, problem, type Handler } from '#lib/test-utils';
-import { appt, assistant, NOW, practiceBrief } from '#lib/agenda/fixtures';
+import { appt, assistant, NOW, practice, practiceBrief } from '#lib/agenda/fixtures';
 
 const youssef = {
 	appointment: appt({ id: 31, startsAt: '2026-10-31T09:00:00+01:00', reason: 'Séance de rééducation', patient: { id: 1, firstName: 'Youssef', lastName: 'Marzouki', phone: '+21620000031', noShows: 0, lang: 'fr' } }),
@@ -30,7 +30,12 @@ const anis = {
 };
 
 function rappelsApi(extra: Record<string, Handler> = {}) {
-	return mockApi({ 'GET /api/reminders?day=2026-10-31': () => json(200, [youssef, mounia, anis]), ...extra });
+	return mockApi({
+		'GET /api/practice': () => json(200, practice),
+		'GET /api/closures': () => json(200, []),
+		'GET /api/reminders?day=2026-10-31': () => json(200, [youssef, mounia, anis]),
+		...extra
+	});
 }
 const card = (name: RegExp) => within(screen.getByRole('heading', { name }).closest('li') as HTMLElement);
 
@@ -111,6 +116,31 @@ describe('/app/rappels – reminders of tomorrow by click', () => {
 		render(Page);
 		expect(screen.getByRole('heading', { level: 1, name: 'التذكيرات' })).toBeInTheDocument();
 		expect(await screen.findByRole('alert')).toHaveTextContent('تعذّر تحميل التذكيرات.');
-		await vi.waitFor(() => expect(calls()).toEqual(['GET /api/reminders?day=2026-10-31']));
+		await vi.waitFor(() => expect(calls()).toContain('GET /api/reminders?day=2026-10-31'));
+	});
+
+	it('on Saturday shows Monday – the next opening day (code review M6)', async () => {
+		clock.now = () => new Date('2026-10-31T16:00:00+01:00');
+		rappelsApi({ 'GET /api/reminders?day=2026-11-02': () => json(200, []) });
+		render(Page);
+		expect(await screen.findByText(/Rendez-vous du lundi 2 novembre 2026/)).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Prochain jour d’ouverture' })).toBeDisabled();
+		expect(calls()).not.toContain('GET /api/reminders?day=2026-11-01');
+	});
+
+	it('skips a closing day', async () => {
+		rappelsApi({
+			'GET /api/closures': () => json(200, [{ id: 1, startsOn: '2026-10-31', endsOn: '2026-10-31', label: 'Férié' }]),
+			'GET /api/reminders?day=2026-11-02': () => json(200, [])
+		});
+		render(Page);
+		expect(await screen.findByText(/Rendez-vous du lundi 2 novembre 2026/)).toBeInTheDocument();
+	});
+
+	it('falls back to tomorrow when the opening hours cannot be loaded', async () => {
+		rappelsApi({ 'GET /api/practice': () => problem(500, 'server_error') });
+		render(Page);
+		expect(await screen.findByText('3 rendez-vous, 1 rappel(s) envoyé(s)')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Demain' })).toBeDisabled();
 	});
 });
