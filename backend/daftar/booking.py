@@ -10,7 +10,8 @@ Practice pages (``/r/<slug>`` and ``https://<slug>.<BASE_DOMAIN>``); suspended o
   ``invalid_practitioner``
 - ``POST /api/public/practices/{slug}/bookings {serviceId, practitionerId?, startsAt, firstName, lastName, phone, lang,
   reminderConsent, note?, website}`` → 201 ``{status: requested|confirmed, startsAt, endsAt, serviceName,
-  practitionerName, manageToken}``. The patient is recognized by phone **and** last name (case-insensitive), else
+  practitionerName, manageToken}`` – ``serviceName`` in the patient's language (Arabic name when there is one; code
+  review N8, also for the lookup below). The patient is recognized by phone **and** last name (case-insensitive), else
   created. First the time itself (the same for everybody): 422 ``too_soon`` / ``outside_horizon``, 429 ``day_full``
   (``booking_max_per_day``), 409 ``slot_unavailable``. Only then the checks per person, which all answer the same
   422 ``booking_refused`` "Merci d'appeler le cabinet" (security review M1 – no oracle for "is this number a patient
@@ -196,7 +197,7 @@ def _bookable(row: Row[Any]) -> None:
 
 def _service(conn: Connection, practice_id: int, service_id: int) -> Row[Any]:
     row = conn.execute(
-        select(service.c.id, service.c.name_fr, service.c.duration_min).where(
+        select(service.c.id, service.c.name_fr, service.c.name_ar, service.c.duration_min).where(
             service.c.id == service_id, service.c.practice_id == practice_id, service.c.active, service.c.online_bookable
         )
     ).first()
@@ -254,6 +255,11 @@ def _free(
         return []
     return scheduling.free_starts(conn, load_calendar(conn, row.id), day, duration, resources, not_before=earliest,
                                   patient_id=patient_id)
+
+
+def _service_name(name_fr: str | None, name_ar: str | None, lang: str | None) -> str | None:
+    """The act's name for the patient: Arabic for an Arabic-speaking patient when the catalog has it (code review N8)."""
+    return name_ar if lang == "ar" and name_ar else name_fr
 
 
 def _one_at_a_time(conn: Connection, practice_id: int) -> None:
@@ -416,7 +422,8 @@ def create_booking(slug: str, body: BookingIn, ctx: Ctx, conn: Conn, ip: ClientI
     doctor_name = None
     if doctor is not None:
         doctor_name = conn.execute(select(practitioner.c.name).where(practitioner.c.id == doctor)).scalar_one()
-    return BookingCreated(status=status, starts_at=body.starts_at, ends_at=ends_at, service_name=svc.name_fr,
+    return BookingCreated(status=status, starts_at=body.starts_at, ends_at=ends_at,
+                          service_name=_service_name(svc.name_fr, svc.name_ar, body.lang) or "",
                           practitioner_name=doctor_name, manage_token=token)
 
 
@@ -427,12 +434,14 @@ def _booking(conn: Connection, token: str, *, lock: bool = False) -> Row[Any]:
     query = (
         select(
             appointment.c.id, appointment.c.status, appointment.c.starts_at, appointment.c.ends_at,
-            service.c.name_fr.label("service_name"), practitioner.c.name.label("practitioner_name"),
+            service.c.name_fr.label("service_name"), service.c.name_ar.label("service_name_ar"),
+            patient.c.lang.label("patient_lang"), practitioner.c.name.label("practitioner_name"),
             practice.c.slug, practice.c.name, practice.c.name_ar, practice.c.phone, practice.c.whatsapp,
             practice.c.address, practice.c.city, practice.c.maps_url, practice.c.booking_min_notice_hours,
         )
         .select_from(
             appointment.join(practice, practice.c.id == appointment.c.practice_id)
+            .join(patient, patient.c.id == appointment.c.patient_id)
             .outerjoin(service, service.c.id == appointment.c.service_id)
             .outerjoin(practitioner, practitioner.c.id == appointment.c.practitioner_id)
         )
@@ -450,7 +459,8 @@ def _view(row: Row[Any], now: datetime, status: str | None = None) -> BookingVie
     current = status or row.status
     cancel_until = row.starts_at - timedelta(hours=row.booking_min_notice_hours)
     return BookingView(
-        status=current, starts_at=row.starts_at, ends_at=row.ends_at, service_name=row.service_name,
+        status=current, starts_at=row.starts_at, ends_at=row.ends_at,
+        service_name=_service_name(row.service_name, row.service_name_ar, row.patient_lang),
         practitioner_name=row.practitioner_name, can_cancel=current in OPEN and now <= cancel_until,
         cancel_until=cancel_until,
         practice=PracticeContact(slug=row.slug, name=row.name, name_ar=row.name_ar, phone=row.phone,

@@ -122,6 +122,17 @@ describe('/app/salle – the waiting room at the desk', () => {
 		expect(dialog.getByRole('link', { name: 'Ouvrir la page du ticket' })).toHaveAttribute('href', `http://app.${location.host}/ticket/tk-14`);
 	});
 
+	it('writes the WhatsApp text in the patient’s language, not the screen’s (code review N8)', async () => {
+		salleApi([{ ...first, patientLang: 'ar' }, { ...second, phone: '+21620000015', patientLang: null }]);
+		render(Page);
+		const text = (name: string) =>
+			decodeURIComponent(within((screen.getByText(name)).closest('li') as HTMLElement).getByRole('link', { name: 'WhatsApp' }).getAttribute('href') ?? '');
+		await screen.findByText('Lina Zouari');
+		expect(text('Lina Zouari')).toContain('مرحبًا، هذا رقمك');
+		expect(text('Lina Zouari')).not.toContain('Bonjour');
+		expect(text('Mohamed Ali Kefi')).toContain('Bonjour, voici votre ticket'); // a walk-in: the screen's language
+	});
+
 	it('gives a ticket to a known patient and shows the QR code right away', async () => {
 		const created = entry({ id: 17, ticketNo: 17, name: 'Sami Trabelsi', position: 3, ticketToken: 'tk-17' });
 		salleApi([], {

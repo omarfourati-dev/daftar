@@ -22,7 +22,8 @@ def lac(make_practice: Factory) -> Any:
 
 
 def test_take_a_ticket_for_a_patient(client: TestClient, lac: Any, make_patient: Factory, as_user: Factory) -> None:
-    amira = make_patient(lac, first_name="Amira", last_name="Ben Ali", phone="+21620111222", alerts="Allergie pénicilline")
+    amira = make_patient(lac, first_name="Amira", last_name="Ben Ali", phone="+21620111222", alerts="Allergie pénicilline",
+                         lang="ar")
     res = client.post("/api/queue", json={"patientId": amira.id}, headers=as_user(lac, "assistant"))
     assert res.status_code == 201, res.text
     body = res.json()
@@ -31,6 +32,7 @@ def test_take_a_ticket_for_a_patient(client: TestClient, lac: Any, make_patient:
         "appointmentId": None, "appointmentAt": None, "status": "waiting", "arrivedAt": "2026-10-30T09:00:00+01:00",
         "calledAt": None, "doneAt": None, "ticketToken": body["ticketToken"], "position": 1, "peopleAhead": 0,
         "estimatedWaitMin": 0, "alerts": "Allergie pénicilline",
+        "patientLang": "ar",  # the WhatsApp text with the ticket goes out in her language (code review N8)
     }
     assert len(body["ticketToken"]) == 32
 
@@ -39,8 +41,8 @@ def test_take_a_ticket_with_only_a_name(client: TestClient, lac: Any, as_user: F
     h = as_user(lac, "dentist")
     first = client.post("/api/queue", json={"name": "Monsieur sans dossier", "phone": "20 333 444"}, headers=h).json()
     second = client.post("/api/queue", json={"name": "Passant"}, headers=h).json()
-    assert (first["ticketNo"], first["name"], first["phone"], first["patientId"], first["alerts"]) == (
-        1, "Monsieur sans dossier", "+21620333444", None, "")
+    assert (first["ticketNo"], first["name"], first["phone"], first["patientId"], first["alerts"], first["patientLang"]) == (
+        1, "Monsieur sans dossier", "+21620333444", None, "", None)
     assert (second["ticketNo"], second["phone"], second["position"], second["peopleAhead"], second["estimatedWaitMin"]) == (
         2, None, 2, 1, 20)
 

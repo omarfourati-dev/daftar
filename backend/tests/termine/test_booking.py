@@ -202,7 +202,7 @@ def test_book_as_a_new_patient(client: TestClient, lac: Any, as_user: Factory, d
     token = body.pop("manageToken")
     assert len(token) >= 40
     assert body == {"status": "requested", "startsAt": iso(MON, "09:00"), "endsAt": iso(MON, "09:30"),
-                    "serviceName": "Consultation", "practitionerName": "Dr. A"}
+                    "serviceName": "معاينة", "practitionerName": "Dr. A"}  # booked in Arabic (code review N8)
     with db.connect() as conn:
         pat = conn.execute(select(patient)).one()
         appt = conn.execute(select(appointment)).one()
@@ -502,7 +502,7 @@ def test_view_the_own_booking(client: TestClient, lac: Any) -> None:
     res = lookup(client, token)
     assert res.status_code == 200, res.text
     assert res.json() == {
-        "status": "requested", "startsAt": iso(MON, "09:00"), "endsAt": iso(MON, "09:30"), "serviceName": "Consultation",
+        "status": "requested", "startsAt": iso(MON, "09:00"), "endsAt": iso(MON, "09:30"), "serviceName": "معاينة",
         "practitionerName": "Dr. A", "canCancel": True, "cancelUntil": iso(MON, "07:00"),
         "practice": {"slug": "cabinet-lac", "name": "Cabinet du Lac", "nameAr": "عيادة البحيرة", "phone": "+21671000111",
                      "whatsapp": "+21620000111", "address": "Rue du Lac", "city": "Tunis",
@@ -510,6 +510,16 @@ def test_view_the_own_booking(client: TestClient, lac: Any) -> None:
     }
     for private in ("Amira", "Ben Ali", "111222", "Dent sensible"):
         assert private not in res.text
+
+
+def test_the_service_is_named_in_the_patients_language(client: TestClient, lac: Any) -> None:
+    """Code review N8: the confirmation and /rdv named the act in French for a patient who booked in Arabic."""
+    fr = book(client, "cabinet-lac", serviceId=lac.consultation.id, lang="fr", phone="20 333 444", lastName="Gharbi").json()
+    assert fr["serviceName"] == "Consultation"
+    assert lookup(client, fr["manageToken"]).json()["serviceName"] == "Consultation"
+    no_arabic_name = book(client, "cabinet-lac", serviceId=lac.scaling.id, startsAt=iso(MON, "10:00")).json()
+    assert no_arabic_name["serviceName"] == "Détartrage"  # no Arabic name in the catalog: the French one
+    assert lookup(client, no_arabic_name["manageToken"]).json()["serviceName"] == "Détartrage"
 
 
 def test_cancel_the_own_booking(client: TestClient, lac: Any) -> None:

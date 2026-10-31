@@ -38,7 +38,7 @@ from .clock import today_tunis, tunis_day_bounds
 from .deps import ClientIp, Conn, Ctx, StaffUser, StaffWriter
 from .phone import OptionalPhone
 from .problems import conflict, not_found, unprocessable
-from .schemas import ApiModel, TunisDateTime
+from .schemas import ApiModel, Lang, TunisDateTime
 from .tables import appointment, patient, practice, queue_entry
 
 router = APIRouter(prefix="/api/queue", tags=["queue"])
@@ -77,6 +77,8 @@ class QueueEntryOut(ApiModel):
     estimated_wait_min: int
     #: Medical warning of the linked patient – internal only, never on public pages.
     alerts: str
+    #: The linked patient's language (null for a walk-in): the ticket's WhatsApp text uses it (code review N8).
+    patient_lang: Lang | None
 
 
 class QueueIn(ApiModel):
@@ -117,6 +119,7 @@ def _day_rows(conn: Connection, practice_id: int, day: date) -> list[Row[Any]]:
                 queue_entry,
                 appointment.c.starts_at.label("appointment_at"),
                 func.coalesce(patient.c.alerts, "").label("alerts"),
+                patient.c.lang.label("patient_lang"),
             )
             .select_from(
                 queue_entry.outerjoin(appointment, appointment.c.id == queue_entry.c.appointment_id).outerjoin(

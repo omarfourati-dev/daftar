@@ -21,6 +21,8 @@ export interface QueueEntry {
 	estimatedWaitMin: number | null;
 	/** Medical alert of the linked patient (internal only). */
 	alerts?: string;
+	/** The linked patient's language (null for a walk-in) – texts to the patient use it (code review N8). */
+	patientLang?: string | null;
 }
 
 /** `GET /api/public/display/{displayToken}` – numbers only, never names. */
