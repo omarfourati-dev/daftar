@@ -381,7 +381,9 @@ Omar trägt Zahlungen (Virement, espèces) als Admin von Hand ein.
 - Täglicher Job: für `active`-Praxen 10 Tage vor `paid_until` die nächste Rechnung anlegen; nach `paid_until` →
   `past_due`; 14 Tage danach → `suspended` (Anmeldung und Export gehen weiter, alle schreibenden Fach-Endpunkte
   antworten 402 problem+json „Abonnement suspendu“, Banner in der App). Bezahlt → `active`, `paid_until` = Ende der
-  Rechnungsperiode. Pilot-Praxen bekommen keine Rechnungen, bis Omar den Plan umstellt.
+  Rechnungsperiode. Pilot-Praxen bekommen keine Rechnungen, bis Omar den Plan umstellt. `canceled` (vom Admin
+  gesetzt) wirkt wie `suspended`: Lesen, Anmeldung und Export gehen weiter, Schreiben → 402 `subscription_canceled`
+  „Abonnement résilié“, Banner in der App (Security-Review N6).
 - Besitzer: `GET /api/billing` → `{plan, status, paidUntil, plans, invoices, onlinePaymentAvailable}` ·
   `POST /api/billing/invoices/{id}/pay` → `{paymentUrl}` (Flouci-Zahlungslink, `developer_tracking_id` = Rechnungsnummer,
   Erfolg/Fehler zurück nach `/app/abonnement`) · `POST /api/billing/invoices/{id}/verify` → fragt Flouci nach dem Status.

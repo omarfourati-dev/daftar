@@ -164,6 +164,8 @@
 			{/if}
 			{#if practice?.status === 'suspended'}
 				<p class="bg-rose-100 px-4 py-2 text-center text-sm text-rose-900 print:hidden">{t('shell.suspended')}</p>
+			{:else if practice?.status === 'canceled'}
+				<p class="bg-zinc-200 px-4 py-2 text-center text-sm text-zinc-900 print:hidden">{t('shell.canceled')}</p>
 			{:else if practice?.status === 'past_due'}
 				<p class="bg-amber-100 px-4 py-2 text-center text-sm text-amber-950 print:hidden">
 					{auth.user?.role === 'owner' ? t('billing.pastDue') : t('billing.pastDueStaff')}

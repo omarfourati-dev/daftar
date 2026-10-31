@@ -14,6 +14,7 @@ export const errorsKunden = {
 	owner_missing: 'Ce cabinet n’a pas encore de titulaire : envoyez d’abord une invitation.',
 	onboarding_derived: 'Cette étape se coche toute seule dès qu’elle est faite.',
 	subscription_suspended: 'Abonnement suspendu : vous pouvez consulter vos données, mais plus les modifier.',
+	subscription_canceled: 'Abonnement résilié : vous pouvez consulter et exporter vos données, mais plus les modifier.',
 	file_too_large: 'Le fichier dépasse 2 Mo. Enregistrez seulement les colonnes utiles ou divisez le fichier.',
 	unsupported_file: 'Format non reconnu. Utilisez un fichier Excel (.xlsx, .xls) ou CSV.',
 	too_many_rows: 'Le fichier dépasse 20 000 lignes. Divisez-le en plusieurs fichiers.',

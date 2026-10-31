@@ -15,6 +15,7 @@ export const errorsKunden: typeof fr = {
 	owner_missing: 'ليس لهذه العيادة صاحب حساب بعد: أرسل دعوة أولًا.',
 	onboarding_derived: 'تُشطب هذه الخطوة تلقائيًا عند إنجازها.',
 	subscription_suspended: 'الاشتراك موقوف: يمكنك الاطلاع على بياناتك دون تعديلها.',
+	subscription_canceled: 'الاشتراك منتهٍ: يمكنك الاطلاع على بياناتك وتصديرها دون تعديلها.',
 	file_too_large: 'الملف يتجاوز 2 ميغابايت. احفظ الأعمدة المفيدة فقط أو قسّم الملف.',
 	unsupported_file: 'صيغة غير معروفة. استعمل ملف Excel ‏(.xlsx أو .xls) أو CSV.',
 	too_many_rows: 'الملف يتجاوز 20 000 سطر. قسّمه إلى عدة ملفات.',

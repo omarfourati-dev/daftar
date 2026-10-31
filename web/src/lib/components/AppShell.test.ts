@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AppShell from './AppShell.svelte';
-import { deps } from '../api';
+import { ApiError, apiErrorMessage, deps } from '../api';
 import { auth } from '../auth.svelte';
 import { i18n } from '../i18n.svelte';
 import { pwa } from '../pwa.svelte';
@@ -89,6 +89,17 @@ describe('AppShell', () => {
 		shell('/app');
 		expect(screen.getByText(/Abonnement suspendu/)).toBeInTheDocument();
 		expect(screen.getByText('Hors ligne')).toBeInTheDocument();
+	});
+
+	it('says that a canceled subscription only reads and exports (402 subscription_canceled)', async () => {
+		const canceled = { ...assistant, practice: { ...practice, status: 'canceled' } };
+		auth.set('tok', canceled);
+		mockApi({ 'GET /api/auth/me': () => json(200, canceled) });
+		shell('/app');
+		expect(screen.getByText('Abonnement résilié – vous pouvez consulter et exporter vos données, mais plus les modifier.')).toBeInTheDocument();
+		expect(apiErrorMessage(new ApiError(402, '', 'subscription_canceled'))).toBe(
+			'Abonnement résilié : vous pouvez consulter et exporter vos données, mais plus les modifier.'
+		);
 	});
 
 	it('switches the language and saves it on the account', async () => {

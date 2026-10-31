@@ -106,8 +106,8 @@ def test_registered_routers_come_before_the_catch_alls(client: TestClient) -> No
     assert client.get("/api/probe/owner").status_code == 401
 
 
-@pytest.mark.parametrize("status", ["pilot", "trial", "active", "past_due", "canceled"])
-def test_writes_are_allowed_unless_suspended(
+@pytest.mark.parametrize("status", ["pilot", "trial", "active", "past_due"])
+def test_writes_are_allowed_unless_suspended_or_canceled(
     client: TestClient, make_practice: Callable[..., Any], make_user: Callable[..., TestUser], headers: Callable[..., dict[str, str]], status: str
 ) -> None:
     for role in ("owner", "dentist", "assistant"):
@@ -123,3 +123,16 @@ def test_a_suspended_subscription_blocks_writes_with_402(
     assert body["detail"] == "Abonnement suspendu."
     assert client.get("/api/probe/owner", headers=headers(user)).status_code == 200  # reading goes on
     assert_problem(client.post("/api/probe/write", headers=headers(make_user(role="admin"))), 403, "forbidden")
+
+
+def test_a_canceled_subscription_blocks_writes_like_a_suspended_one(
+    client: TestClient, make_practice: Callable[..., Any], make_user: Callable[..., TestUser], headers: Callable[..., dict[str, str]]
+) -> None:
+    """Security review N6: a canceled practice reads and exports its data, but changes nothing any more."""
+    p = make_practice(status="canceled")
+    for role in ("owner", "dentist", "assistant"):
+        body = assert_problem(client.post("/api/probe/write", headers=headers(make_user(p, role))), 402, "subscription_canceled")
+        assert body["detail"] == "Abonnement résilié."
+    owner = make_user(p, "owner")
+    assert client.get("/api/probe/owner", headers=headers(owner)).status_code == 200
+    assert client.get("/api/practice/export", headers=headers(owner)).status_code == 200  # the data stays theirs
