@@ -15,7 +15,8 @@ const APP_SITE = "https://app.daftar.omarfourati.de";
 const APP_HOST = `app.${new URL(BASE).host}`;
 const APP_ORIGIN = `${new URL(BASE).protocol}//${APP_HOST}`;
 /** Pfade der App – auf der Hauptdomain nur noch eine 301 auf den App-Host. */
-const APP_PATHS = ["/app", "/app/demo", "/connexion", "/invitation", "/r/cabinet-test", "/rdv/abc123", "/salle/abc123", "/ticket/abc123"];
+/** (`/rdv` ist die Seite des persönlichen Links `/rdv#<token>`, Fix-Liste 2 – `/rdv/<token>` gibt es nicht mehr.) */
+const APP_PATHS = ["/app", "/app/demo", "/connexion", "/invitation", "/r/cabinet-test", "/rdv", "/salle/abc123", "/ticket/abc123"];
 const API = "**/api/public/pilot-requests";
 
 const ADSENSE_CLIENT = "ca-pub-4072840905222883";
@@ -231,7 +232,7 @@ test.describe("Verkaufsseite", () => {
   });
 
   test("keine Seite verlinkt App-Pfade der Hauptdomain, App-Links zeigen auf app.daftar.omarfourati.de", async ({ page, request }) => {
-    const appPath = /^\/(app|connexion|invitation|reinitialiser|r\/|rdv\/|salle\/|ticket\/)/;
+    const appPath = /^\/(app|connexion|invitation|reinitialiser|r\/|rdv(?:[/#?]|$)|salle\/|ticket\/)/;
     for (const spec of PAGES) {
       await page.goto(BASE + spec.path);
       const hrefs = await page.locator("a[href]").evaluateAll((els) => els.map((e) => e.getAttribute("href") ?? ""));
