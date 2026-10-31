@@ -1,0 +1,205 @@
+/* Daftar – Guide de prise en main (FR/AR), am Bildschirm lesbar und als A4-PDF druckbar (build.mjs).
+   Marke wie landing/site.css: Teal/Mint, Amber nur als Akzent, IBM Plex Sans Arabic, Motiv Seyès-Heft auf dem Titel.
+   Logische Properties: dieselbe Datei für LTR (fr) und RTL (ar). */
+
+:root {
+  --teal: #0f766e;
+  --teal-deep: #134e4a;
+  --mint: #f0fdfa;
+  --mint-strong: #ccfbf1;
+  --amber: #f59e0b;
+  --amber-soft: #fef3c7;
+  --amber-ink: #78350f;
+  --ink: #0f172a;
+  --ink-2: #334155;
+  --ink-3: #475569;
+  --line: #e2e8f0;
+  --line-strong: #cbd5e1;
+  --surface: #f8fafc;
+  --margin-line: rgb(225 29 72 / 0.38);
+  --font: "Plex Arabic", system-ui, sans-serif;
+  color-scheme: light;
+}
+
+@page {
+  size: A4;
+  margin: 15mm 15mm 17mm;
+  @bottom-center { font-family: "Plex Arabic", sans-serif; font-size: 8.5pt; color: #64748b; }
+}
+@page :first { margin: 0; }
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--surface);
+  font-synthesis: none;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+html[lang="ar"] body { font-size: 17px; line-height: 1.85; }
+h1, h2, h3 { margin: 0; line-height: 1.2; font-weight: 700; text-wrap: balance; }
+html[lang="ar"] :is(h1, h2, h3) { line-height: 1.45; }
+p { margin: 0; }
+p + p { margin-top: 0.5em; }
+ul, ol { margin: 0; padding: 0; }
+a { color: var(--teal); }
+img { display: block; max-width: 100%; }
+bdi, .ltr { unicode-bidi: isolate; }
+
+.doc { max-width: 880px; margin: 0 auto; background: #fff; box-shadow: 0 1px 3px rgb(15 23 42 / .08); }
+
+/* ---------- Begriffe der App: so geschrieben wie auf den Knöpfen ---------- */
+.ui {
+  font-weight: 600;
+  color: var(--teal-deep);
+  background: var(--mint);
+  border: 1px solid #b7e4dc;
+  border-radius: 5px;
+  padding: 0 0.3em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.path { white-space: nowrap; }
+.key { font-weight: 600; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 4px; padding: 0 0.35em; background: #fff; }
+
+/* ---------- Titelseite: Heftseite wie der Hero der Landing ---------- */
+.cover {
+  position: relative;
+  overflow: hidden;
+  min-height: 297mm;
+  padding: 40mm 22mm 24mm;
+  padding-inline-start: 34mm;
+  background: var(--mint);
+  display: flex;
+  flex-direction: column;
+  break-after: page;
+}
+.cover::before {           /* Seyès-Lineatur */
+  content: "";
+  position: absolute; inset: 0;
+  background: url("../shared/img/seyes.svg") 0 0 / 154mm 100mm repeat;
+  opacity: 0.9;
+}
+html[dir="rtl"] .cover::before { transform: scaleX(-1); }
+.cover::after {            /* roter Heftrand */
+  content: "";
+  position: absolute; top: 0; bottom: 0;
+  inset-inline-start: 24mm;
+  width: 0.5mm;
+  background: var(--margin-line);
+}
+.cover > * { position: relative; z-index: 1; }
+.cover-logo { height: 15mm; width: auto; }
+.cover h1 { margin-top: 26mm; font-size: 40pt; letter-spacing: -0.02em; color: var(--ink); }
+html[lang="ar"] .cover h1 { font-size: 36pt; letter-spacing: 0; }
+.cover .lead { margin-top: 6mm; max-width: 140mm; font-size: 15pt; line-height: 1.5; color: var(--ink-2); }
+.cover-box {
+  margin-top: 12mm;
+  max-width: 140mm;
+  padding: 6mm 7mm;
+  border-radius: 4mm;
+  background: #fff;
+  border: 1px solid #b7e4dc;
+}
+.cover-box h2 { font-size: 13pt; color: var(--teal-deep); }
+.cover-box p { margin-top: 2mm; font-size: 11pt; color: var(--ink-2); }
+.cover-box .url { font-weight: 700; color: var(--teal); }
+.cover-foot { margin-top: auto; display: flex; flex-wrap: wrap; gap: 3mm 8mm; font-size: 10pt; color: var(--ink-3); }
+.cover-foot strong { color: var(--ink-2); }
+
+/* ---------- Inhaltsverzeichnis ---------- */
+.toc { padding: 14mm 0 4mm; break-after: page; }
+.toc h2 { font-size: 20pt; color: var(--teal-deep); }
+.toc .how { margin-top: 3mm; font-size: 11pt; color: var(--ink-2); max-width: 150mm; }
+.toc ol { list-style: none; margin-top: 8mm; display: grid; gap: 3mm; }
+.toc li a {
+  display: grid; grid-template-columns: 11mm 1fr auto; align-items: center; gap: 4mm;
+  padding: 3mm 4mm; border-radius: 3mm; background: var(--mint); text-decoration: none; color: var(--ink);
+}
+.toc .n { display: grid; place-items: center; width: 9mm; height: 9mm; border-radius: 50%; background: var(--teal); color: #fff; font-weight: 700; }
+.toc .t { font-weight: 600; font-size: 12.5pt; }
+.toc .for { font-size: 9.5pt; color: var(--ink-3); }
+
+/* ---------- Kapitel ---------- */
+main { padding: 0 14mm 10mm; }
+.toc { padding-inline: 14mm; }
+@media print {
+  body { background: #fff; }
+  .doc { max-width: none; box-shadow: none; }
+  main, .toc { padding-inline: 0; }
+  .toc { padding-top: 0; }
+}
+.chapter { padding-top: 10mm; break-before: page; }
+.chapter-head { display: grid; grid-template-columns: auto 1fr; column-gap: 5mm; align-items: center; padding-bottom: 5mm; border-bottom: 0.6mm solid var(--mint-strong); break-after: avoid; }
+.chapter-no { grid-row: span 2; display: grid; place-items: center; width: 14mm; height: 14mm; border-radius: 4mm; background: var(--teal); color: #fff; font-size: 18pt; font-weight: 700; }
+.chapter-head h2 { font-size: 21pt; color: var(--ink); }
+.who { justify-self: start; margin-top: 1mm; padding: 0.3mm 3mm; border-radius: 99mm; background: var(--amber-soft); color: var(--amber-ink); font-size: 9.5pt; font-weight: 600; }
+.chapter-lead { margin-top: 5mm; font-size: 12pt; color: var(--ink-2); max-width: 165mm; }
+
+/* ---------- Schritte ---------- */
+.steps { list-style: none; counter-reset: step; margin-top: 6mm; display: grid; gap: 7mm; }
+.step { counter-increment: step; display: grid; grid-template-columns: 9mm 1fr; column-gap: 4mm; break-inside: avoid; }
+.step::before {
+  content: counter(step);
+  display: grid; place-items: center;
+  width: 8mm; height: 8mm; margin-top: 0.3mm;
+  border-radius: 50%;
+  background: var(--mint-strong); color: var(--teal-deep);
+  font-weight: 700; font-size: 11pt;
+}
+.step-body { min-width: 0; }
+.step h3 { font-size: 13pt; color: var(--ink); }
+.step p { margin-top: 1.5mm; font-size: 11pt; color: var(--ink-2); }
+html[lang="ar"] .step p { font-size: 11.5pt; }
+.step.phone .step-body { display: grid; grid-template-columns: 1fr 46mm; gap: 2mm 7mm; align-items: start; }
+.step.phone .step-body > :not(figure) { grid-column: 1; }
+.step.phone figure { grid-column: 2; grid-row: 1 / span 6; }
+
+/* Screenshots */
+.shot { margin: 3.5mm 0 0; }
+.shot img {
+  width: 100%; height: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 2.5mm;
+  background: var(--surface);
+  box-shadow: 0 0.6mm 2.4mm rgb(15 23 42 / 0.12);
+}
+.shot.wide { max-width: 158mm; }
+.shot.dialog { max-width: 125mm; }
+.shot.section { max-width: 150mm; }
+.shot.tv img { border: 2.5mm solid #0f172a; border-radius: 2.5mm; }
+.shot.mobile { margin-top: 0; }
+.shot.mobile img { border: 2mm solid #0f172a; border-radius: 6mm; box-shadow: none; }
+.shot figcaption { margin-top: 1.6mm; font-size: 9pt; line-height: 1.4; color: var(--ink-3); }
+html[lang="ar"] .shot figcaption { font-size: 9.5pt; }
+
+/* Hinweise */
+.tip, .note {
+  margin-top: 6mm; padding: 3.5mm 4.5mm; border-radius: 3mm;
+  font-size: 10.5pt; line-height: 1.5; break-inside: avoid;
+}
+.tip { background: var(--mint); border-inline-start: 1.2mm solid var(--teal); color: var(--ink-2); }
+.note { background: var(--amber-soft); border-inline-start: 1.2mm solid var(--amber); color: var(--amber-ink); }
+.tip strong, .note strong { color: inherit; }
+
+.roles { margin-top: 4mm; width: 100%; border-collapse: collapse; font-size: 10.5pt; }
+.roles th, .roles td { text-align: start; vertical-align: top; padding: 2mm 3mm; border-bottom: 1px solid var(--line); }
+.roles th { width: 42mm; color: var(--teal-deep); }
+
+/* ---------- Schluss ---------- */
+.end {
+  margin-top: 10mm; padding: 8mm; border-radius: 4mm;
+  background: var(--teal-deep); color: #d5f5ef; break-inside: avoid;
+  display: grid; grid-template-columns: 1fr auto; gap: 6mm; align-items: center;
+}
+.end h2 { color: #fff; font-size: 17pt; }
+.end p { margin-top: 2mm; font-size: 11pt; }
+.end a { color: #fff; font-weight: 600; }
+.end .price { display: inline-block; margin-top: 3mm; padding: 0.5mm 3mm; border-radius: 99mm; background: var(--amber-soft); color: var(--amber-ink); font-weight: 600; font-size: 10pt; }
+.end .qr { width: 30mm; height: 30mm; background: #fff; border-radius: 2mm; padding: 1.5mm; }
+.end .qr-url { margin-top: 1.5mm; text-align: center; font-size: 9pt; color: #fff; font-weight: 600; }

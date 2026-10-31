@@ -1,0 +1,4 @@
+node_modules/
+# fertige Videos (20–40 MB je Datei) werden verschickt bzw. hochgeladen, nicht versioniert – neu bauen mit video/render.mjs
+video/out/
+*.log

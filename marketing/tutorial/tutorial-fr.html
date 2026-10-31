@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="fr" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Daftar – Guide de prise en main</title>
+<meta name="description" content="Daftar pas à pas pour l'accueil et le médecin : installer l'application, premiers réglages, rendez-vous, salle d'attente, caisse, rappels, import Excel et réservation en ligne.">
+<!-- Tutorial FR. Texte und Knopf-Namen aus daftar-integration/web/src/lib/i18n/fr/* (Stand 31.10.2026), Ton wie die
+     Landing (vous, kurz, keine Übertreibung). Screenshots: shots/<id>-fr.png – Liste in ../shared/shots.mjs,
+     Aufnahme mit ../video/capture.mjs. PDF: node build.mjs -->
+<link rel="stylesheet" href="../shared/fonts.css">
+<link rel="stylesheet" href="tutorial.css">
+<style>@page { @bottom-center { content: "Daftar – Guide de prise en main · " counter(page) " / " counter(pages); } } @page :first { @bottom-center { content: none; } }</style>
+</head>
+<body>
+<div class="doc">
+
+<header class="cover">
+  <img class="cover-logo" src="../shared/brand/logo.svg" alt="Daftar">
+  <h1>Guide de prise en main</h1>
+  <p class="lead">Daftar pour l’accueil et le médecin&nbsp;: les gestes de tous les jours, pas à pas, avec une image pour chaque étape.</p>
+  <div class="cover-box">
+    <h2>Essayer sans risque</h2>
+    <p>Sur <span class="url">daftar.omarfourati.de</span>, touchez <span class="ui">Essayer la démo</span>&nbsp;: un cabinet fictif est créé pour vous, avec des patients et des rendez-vous inventés. Il est effacé après 24&nbsp;heures. Vous pouvez y refaire chaque étape de ce guide.</p>
+  </div>
+  <div class="cover-foot">
+    <span><strong>Pour</strong> l’accueil, l’assistante et le médecin</span>
+    <span><strong>En français et en arabe</strong> – sur PC, tablette et téléphone</span>
+    <span>Octobre 2026</span>
+  </div>
+</header>
+
+<nav class="toc" aria-labelledby="toc-title">
+  <h2 id="toc-title">Sommaire</h2>
+  <p class="how">Chaque étape tient en quelques lignes, avec une capture d’écran. Les mots <span class="ui">encadrés</span> sont écrits exactement comme sur les boutons et les menus de Daftar.</p>
+  <ol>
+    <li><a href="#avant"><span class="n">0</span><span class="t">Avant de commencer</span><span class="for">toute l’équipe</span></a></li>
+    <li><a href="#installer"><span class="n">1</span><span class="t">Installer l’application</span><span class="for">toute l’équipe</span></a></li>
+    <li><a href="#premiers-pas"><span class="n">2</span><span class="t">Premiers pas</span><span class="for">titulaire du cabinet</span></a></li>
+    <li><a href="#rendez-vous"><span class="n">3</span><span class="t">Prendre un rendez-vous</span><span class="for">accueil</span></a></li>
+    <li><a href="#accueil"><span class="n">4</span><span class="t">Accueil et salle d’attente</span><span class="for">accueil et médecin</span></a></li>
+    <li><a href="#caisse"><span class="n">5</span><span class="t">Caisse</span><span class="for">accueil, titulaire</span></a></li>
+    <li><a href="#rappels"><span class="n">6</span><span class="t">Rappels</span><span class="for">accueil</span></a></li>
+    <li><a href="#import"><span class="n">7</span><span class="t">Importer une liste Excel</span><span class="for">titulaire ou assistante</span></a></li>
+    <li><a href="#reservation"><span class="n">8</span><span class="t">Réservation en ligne côté patient</span><span class="for">vos patients</span></a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- ============================ 0 ============================ -->
+<section class="chapter" id="avant" aria-labelledby="avant-title">
+  <div class="chapter-head">
+    <span class="chapter-no">0</span>
+    <h2 id="avant-title">Avant de commencer</h2>
+    <span class="who">Pour toute l’équipe</span>
+  </div>
+  <p class="chapter-lead">Daftar s’ouvre dans le navigateur, sur le PC de l’accueil, sur une tablette ou sur un téléphone. Chaque membre de l’équipe a son propre compte et choisit sa langue.</p>
+  <ol class="steps">
+    <li class="step">
+      <div class="step-body">
+        <h3>Le menu</h3>
+        <p>Sur l’ordinateur, le menu est à gauche&nbsp;: <span class="ui">Aujourd’hui</span>, <span class="ui">Agenda</span>, <span class="ui">Salle d’attente</span>, <span class="ui">Patients</span>, <span class="ui">Caisse</span>, <span class="ui">Rappels</span> et <span class="ui">Réglages</span>. En haut&nbsp;: la recherche d’un patient (nom ou numéro) et le bouton <span class="ui">Rendez-vous par téléphone</span>.</p>
+        <p>Pour changer de langue, touchez <span class="ui">Français</span> ou <span class="ui">العربية</span> en haut de l’écran. En arabe, tout l’écran se lit de droite à gauche.</p>
+        <figure class="shot wide"><img src="shots/01-aujourdhui-fr.png" alt="Page Aujourd’hui de Daftar avec le menu à gauche"><figcaption>La page <span class="ui">Aujourd’hui</span>&nbsp;: les chiffres du jour et les prochains rendez-vous.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step phone">
+      <div class="step-body">
+        <h3>Sur le téléphone</h3>
+        <p>Le menu est en bas de l’écran&nbsp;: <span class="ui">Aujourd’hui</span>, <span class="ui">Agenda</span>, <span class="ui">Salle</span>, <span class="ui">Patients</span>.</p>
+        <p>Tout le reste est sous <span class="ui">Plus</span>&nbsp;: le rendez-vous par téléphone, la recherche d’un patient, la caisse, les rappels et les réglages.</p>
+        <table class="roles">
+          <tr><th>Titulaire du cabinet</th><td>Tout, y compris les réglages, l’équipe, les statistiques et l’export des données.</td></tr>
+          <tr><th>Assistant(e)</th><td>Agenda, salle d’attente, patients, caisse, rappels et import.</td></tr>
+          <tr><th>Praticien(ne)</th><td>Agenda, salle d’attente, patients, caisse et rappels.</td></tr>
+        </table>
+        <figure class="shot mobile"><img src="shots/02-menu-mobile-fr.png" alt="Daftar sur téléphone avec le menu Plus ouvert"><figcaption>Le menu <span class="ui">Plus</span> ouvert.</figcaption></figure>
+      </div>
+    </li>
+  </ol>
+</section>
+
+<!-- ============================ 1 ============================ -->
+<section class="chapter" id="installer" aria-labelledby="installer-title">
+  <div class="chapter-head">
+    <span class="chapter-no">1</span>
+    <h2 id="installer-title">Installer l’application</h2>
+    <span class="who">Pour toute l’équipe, sur chaque appareil</span>
+  </div>
+  <p class="chapter-lead">Daftar s’installe comme une application, sans passer par un store&nbsp;: une icône sur l’écran d’accueil ou sur le bureau, et les mises à jour arrivent toutes seules. Une connexion Internet est nécessaire.</p>
+  <ol class="steps">
+    <li class="step">
+      <div class="step-body">
+        <h3>Ouvrez l’adresse de votre cabinet</h3>
+        <p>Votre cabinet a sa propre adresse, par exemple <bdi class="ltr">cabinet-ben-salah.daftar.omarfourati.de</bdi>. Ouvrez-la et connectez-vous avec votre e-mail et votre mot de passe.</p>
+        <p>Dans le menu, <span class="ui">Installer l’application</span> (sous <span class="ui">Outils</span>) montre les étapes pour votre appareil et un QR code pour les téléphones de l’équipe.</p>
+        <figure class="shot wide"><img src="shots/03-installer-fr.png" alt="Page Installer l’application avec les étapes et le QR code"><figcaption>Les étapes s’adaptent à l’appareil utilisé.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step phone">
+      <div class="step-body">
+        <h3>Android (Chrome)</h3>
+        <p>Touchez le menu <b>⋮</b> en haut à droite.</p>
+        <p>Choisissez <span class="ui">Installer l’application</span> (ou <span class="ui">Ajouter à l’écran d’accueil</span>), puis confirmez.</p>
+        <figure class="shot mobile"><img src="shots/04-installer-android-fr.png" alt="Menu de Chrome sur Android avec Installer l’application"><figcaption>Le menu de Chrome sur Android.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step phone">
+      <div class="step-body">
+        <h3>iPhone et iPad (Safari)</h3>
+        <p>Touchez le bouton Partager, le carré avec une flèche vers le haut.</p>
+        <p>Choisissez <span class="ui">Sur l’écran d’accueil</span>, puis <span class="ui">Ajouter</span>.</p>
+        <figure class="shot mobile"><img src="shots/05-installer-iphone-fr.png" alt="Menu Partager de Safari avec Sur l’écran d’accueil"><figcaption>Le menu Partager de Safari.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Ordinateur (Chrome ou Edge)</h3>
+        <p>Cliquez sur l’icône d’installation dans la barre d’adresse (un écran avec une flèche), puis confirmez avec <span class="ui">Installer</span>. Daftar apparaît dans le menu Démarrer.</p>
+        <figure class="shot wide"><img src="shots/06-installer-pc-fr.png" alt="Barre d’adresse de Chrome avec l’icône d’installation"><figcaption>L’icône d’installation, à droite de l’adresse.</figcaption></figure>
+      </div>
+    </li>
+  </ol>
+  <p class="tip"><strong>Astuce&nbsp;:</strong> ouvrez ensuite toujours Daftar par son icône. Sur la page <span class="ui">Installer l’application</span>, touchez <span class="ui">C’est fait, l’application est installée</span> pour cocher l’étape.</p>
+</section>
+
+<!-- ============================ 2 ============================ -->
+<section class="chapter" id="premiers-pas" aria-labelledby="premiers-pas-title">
+  <div class="chapter-head">
+    <span class="chapter-no">2</span>
+    <h2 id="premiers-pas-title">Premiers pas</h2>
+    <span class="who">Pour le titulaire du cabinet, une seule fois</span>
+  </div>
+  <p class="chapter-lead">La carte <span class="ui">Premiers pas</span> sur la page <span class="ui">Aujourd’hui</span> liste ce qu’il faut régler au début. Chaque ligne ouvre la bonne page et se coche toute seule une fois l’étape faite.</p>
+  <ol class="steps">
+    <li class="step">
+      <div class="step-body">
+        <h3>La liste des premiers pas</h3>
+        <p>Touchez une ligne pour aller directement au bon réglage. <span class="ui">Masquer</span> cache la carte quand tout est prêt.</p>
+        <figure class="shot section"><img src="shots/07-premiers-pas-fr.png" alt="Carte Premiers pas avec huit étapes"><figcaption>Huit étapes, des horaires jusqu’à l’affiche.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Horaires d’ouverture</h3>
+        <p><span class="path"><span class="ui">Réglages</span> → <span class="ui">Horaires &amp; fermetures</span></span>. Pour chaque jour, indiquez les plages horaires. Une pause = deux plages, par exemple 08:00–12:30 et 14:00–18:00.</p>
+        <p><span class="ui">Copier sur les autres jours</span> reprend un jour pour toute la semaine. Puis <span class="ui">Enregistrer les horaires</span>.</p>
+        <figure class="shot wide"><img src="shots/08-horaires-fr.png" alt="Horaires d’ouverture par jour avec la pause de midi"><figcaption>Les patients ne peuvent réserver en ligne que pendant ces horaires.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Congés et jours fériés</h3>
+        <p>Sous <span class="ui">Fermetures exceptionnelles</span>, choisissez <span class="ui">Du</span>, <span class="ui">Au</span> et le <span class="ui">Motif</span> (congés, Aïd, formation…), puis <span class="ui">Ajouter la fermeture</span>. Ces jours-là, ni rendez-vous ni réservation en ligne.</p>
+        <figure class="shot section"><img src="shots/09-fermetures-fr.png" alt="Formulaire Fermetures exceptionnelles"><figcaption>Daftar prévient si des rendez-vous sont déjà prévus ces jours-là.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Actes et tarifs</h3>
+        <p><span class="path"><span class="ui">Réglages</span> → <span class="ui">Actes &amp; tarifs</span></span>. Le catalogue de votre spécialité est déjà rempli. Pour chaque acte&nbsp;: la durée (elle donne la place dans l’agenda), le prix si vous le souhaitez, et <span class="ui">En ligne</span> si vos patients peuvent le réserver eux-mêmes.</p>
+        <p><span class="ui">Nouvel acte</span> pour en ajouter un.</p>
+        <figure class="shot wide"><img src="shots/10-actes-fr.png" alt="Liste des actes avec durée, prix et réservation en ligne"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Praticiens</h3>
+        <p><span class="path"><span class="ui">Réglages</span> → <span class="ui">Praticiens</span></span>&nbsp;: les personnes qui reçoivent les patients. Chacun a sa colonne et sa couleur dans l’agenda. Un praticien n’a pas besoin de compte.</p>
+        <p><span class="ui">Nouveau praticien</span> pour en ajouter un.</p>
+        <figure class="shot wide"><img src="shots/11-praticiens-fr.png" alt="Liste des praticiens avec couleur et réservation en ligne"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Inviter l’équipe</h3>
+        <p><span class="path"><span class="ui">Réglages</span> → <span class="ui">Équipe</span></span>, sous <span class="ui">Inviter quelqu’un</span>&nbsp;: choisissez le <span class="ui">Rôle</span>, puis <span class="ui">Créer le lien d’invitation</span>.</p>
+        <p>Envoyez le lien avec <span class="ui">Envoyer par WhatsApp</span> (ou <span class="ui">Copier</span>). La personne choisit elle-même son e-mail et son mot de passe. Le lien est valable 7&nbsp;jours et ne s’affiche qu’une fois.</p>
+        <figure class="shot section"><img src="shots/12-equipe-invitation-fr.png" alt="Lien d’invitation avec les boutons Copier et Envoyer par WhatsApp"><figcaption>Dans la démo, le lien montre le principe mais ne crée aucun compte.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Réservation en ligne</h3>
+        <p><span class="path"><span class="ui">Réglages</span> → <span class="ui">Réservation en ligne</span></span>. Cochez <span class="ui">Réservation en ligne activée</span>. Choisissez si les demandes sont confirmées automatiquement, le délai minimum avant un rendez-vous et le nombre de réservations par jour, puis <span class="ui">Enregistrer</span>.</p>
+        <p>En haut&nbsp;: l’adresse de votre page de réservation, à partager sur WhatsApp, Facebook ou Google Maps, et son QR code.</p>
+        <figure class="shot wide"><img src="shots/13-reservation-reglages-fr.png" alt="Réglages de la réservation en ligne avec le lien et le QR code"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>L’affiche pour la salle d’attente</h3>
+        <p><span class="ui">Imprimer l’affiche A4</span> prépare une affiche en français et en arabe avec le QR code de votre page. Touchez <span class="ui">Imprimer l’affiche</span>.</p>
+        <p>Dans la fenêtre d’impression&nbsp;: format A4, marges «&nbsp;Aucune&nbsp;», et cochez «&nbsp;Graphiques d’arrière-plan&nbsp;».</p>
+        <figure class="shot wide"><img src="shots/14-affiche-fr.png" alt="Aperçu de l’affiche A4 avec QR code"></figure>
+      </div>
+    </li>
+  </ol>
+  <p class="tip"><strong>Mot de passe oublié&nbsp;?</strong> Dans <span class="ui">Équipe</span>, le titulaire touche <span class="ui">Mot de passe oublié</span> à côté de la personne et lui envoie le lien (valable 24&nbsp;heures).</p>
+</section>
+
+<!-- ============================ 3 ============================ -->
+<section class="chapter" id="rendez-vous" aria-labelledby="rendez-vous-title">
+  <div class="chapter-head">
+    <span class="chapter-no">3</span>
+    <h2 id="rendez-vous-title">Prendre un rendez-vous</h2>
+    <span class="who">Pour l’accueil</span>
+  </div>
+  <p class="chapter-lead">Deux façons&nbsp;: au téléphone, Daftar propose tout de suite les prochains créneaux libres&nbsp;; dans l’agenda, vous choisissez vous-même le jour et l’heure. Jamais deux rendez-vous en même temps pour le même praticien ou le même patient&nbsp;: Daftar le refuse.</p>
+  <ol class="steps">
+    <li class="step">
+      <div class="step-body">
+        <h3>Au téléphone&nbsp;: le numéro d’abord</h3>
+        <p>Touchez <span class="ui">Rendez-vous par téléphone</span> en haut de l’écran (touche <span class="key">T</span> sur l’ordinateur). Tapez le <span class="ui">Numéro de l’appelant</span>&nbsp;: les patients avec ce numéro s’affichent.</p>
+        <p>Choisissez le bon (une famille peut partager un numéro), ou <span class="ui">Nouveau patient avec ce numéro</span>.</p>
+        <figure class="shot dialog"><img src="shots/15-telephone-numero-fr.png" alt="Fenêtre Rendez-vous par téléphone avec le patient trouvé"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>L’acte, puis un créneau libre</h3>
+        <p>Choisissez l’<span class="ui">Acte / consultation</span> et, si besoin, le <span class="ui">Praticien</span> (sinon <span class="ui">Le premier libre</span>). À droite, les <span class="ui">Prochains créneaux libres</span>&nbsp;: un clic réserve le rendez-vous.</p>
+        <figure class="shot dialog"><img src="shots/16-telephone-creneaux-fr.png" alt="Prochains créneaux libres classés par jour"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Le message de confirmation</h3>
+        <p>Le rendez-vous est enregistré. Le <span class="ui">Message de confirmation</span> est prêt dans la langue du patient&nbsp;: <span class="ui">Copier le texte</span>, ou envoyez-le avec <span class="ui">WhatsApp</span> ou <span class="ui">SMS</span>. <span class="ui">Autre appel</span> pour le suivant.</p>
+        <figure class="shot dialog"><img src="shots/17-telephone-confirme-fr.png" alt="Rendez-vous enregistré avec le message de confirmation"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>L’agenda</h3>
+        <p>Ouvrez <span class="ui">Agenda</span>. <span class="ui">Jour</span> ou <span class="ui">Semaine</span>, les flèches pour changer de jour, <span class="ui">Aujourd’hui</span> pour revenir. Une colonne par praticien. Les demandes faites en ligne apparaissent en pointillés&nbsp;: <span class="ui">En ligne, à confirmer</span>.</p>
+        <figure class="shot wide"><img src="shots/18-agenda-jour-fr.png" alt="Agenda du jour avec une colonne par praticien"><figcaption>Couleur = statut&nbsp;: prévu, confirmé, arrivé, en consultation, terminé, absent.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Nouveau rendez-vous dans l’agenda</h3>
+        <p>Touchez un créneau libre, ou <span class="ui">Nouveau rendez-vous</span> (touche <span class="key">N</span>). Cherchez le patient par nom ou téléphone, ou <span class="ui">Nouveau patient</span>. Choisissez l’acte&nbsp;: la durée se remplit seule.</p>
+        <p>Vérifiez <span class="ui">Date</span>, <span class="ui">Heure</span> et <span class="ui">Praticien</span>, puis <span class="ui">Enregistrer le rendez-vous</span>.</p>
+        <figure class="shot dialog"><img src="shots/19-agenda-nouveau-fr.png" alt="Fenêtre Nouveau rendez-vous remplie"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Créneau déjà pris&nbsp;?</h3>
+        <p>Daftar affiche <span class="ui">Ce créneau est déjà pris.</span> et propose les <span class="ui">Prochains créneaux libres&nbsp;:</span> touchez-en un, puis enregistrez.</p>
+        <figure class="shot dialog"><img src="shots/20-agenda-conflit-fr.png" alt="Message Ce créneau est déjà pris avec des propositions"></figure>
+      </div>
+    </li>
+    <li class="step phone">
+      <div class="step-body">
+        <h3>Sur le téléphone</h3>
+        <p>L’agenda du jour s’affiche en liste. Touchez un rendez-vous pour l’ouvrir.</p>
+        <p>Le rendez-vous par téléphone se trouve sous <span class="ui">Plus</span>.</p>
+        <figure class="shot mobile"><img src="shots/21-agenda-mobile-fr.png" alt="Agenda du jour sur téléphone"></figure>
+      </div>
+    </li>
+  </ol>
+  <p class="tip"><strong>Séances régulières</strong> (kiné, psychologue…)&nbsp;: dans le rendez-vous, <span class="ui">Répéter (séances)</span>, choisissez les jours et le nombre de séances, puis <span class="ui">Vérifier les dates</span>. Les dates déjà prises sont signalées avant d’enregistrer.</p>
+</section>
+
+<!-- ============================ 4 ============================ -->
+<section class="chapter" id="accueil" aria-labelledby="accueil-title">
+  <div class="chapter-head">
+    <span class="chapter-no">4</span>
+    <h2 id="accueil-title">Accueil et salle d’attente</h2>
+    <span class="who">Pour l’accueil et le médecin</span>
+  </div>
+  <p class="chapter-lead">À son arrivée, chaque patient reçoit un numéro de ticket, avec ou sans rendez-vous. L’écran de la salle et le téléphone du patient n’affichent que des numéros, jamais de nom.</p>
+  <ol class="steps">
+    <li class="step">
+      <div class="step-body">
+        <h3>Le patient arrive</h3>
+        <p>Dans l’<span class="ui">Agenda</span>, touchez son rendez-vous, puis <span class="ui">Arrivé</span>. Il reçoit automatiquement un ticket dans la salle d’attente, dans l’ordre d’arrivée.</p>
+        <figure class="shot dialog"><img src="shots/22-rdv-arrive-fr.png" alt="Rendez-vous ouvert avec le bouton Arrivé"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>La salle d’attente</h3>
+        <p>Le menu <span class="ui">Salle d’attente</span> montre qui est <span class="ui">En consultation</span>, <span class="ui">Appelés</span> et <span class="ui">En attente</span>, avec la position et l’attente estimée. À droite, ce que montre l’écran de la salle.</p>
+        <p>Touchez <span class="ui">Appeler</span>&nbsp;: le numéro s’affiche sur l’écran. Puis <span class="ui">En consultation</span> et <span class="ui">Terminé</span>. <span class="ui">Parti</span> si le patient est reparti.</p>
+        <figure class="shot wide"><img src="shots/23-salle-fr.png" alt="Salle d’attente avec les tickets et l’aperçu de l’écran"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Un patient sans rendez-vous</h3>
+        <p><span class="ui">Nouveau ticket</span>&nbsp;: <span class="ui">Patient du cabinet</span> (recherche par nom ou numéro) ou <span class="ui">Juste un nom</span>, puis <span class="ui">Donner le ticket</span>.</p>
+        <figure class="shot dialog"><img src="shots/24-nouveau-ticket-fr.png" alt="Fenêtre Nouveau ticket"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Le ticket sur le téléphone du patient</h3>
+        <p><span class="ui">WhatsApp</span> envoie au patient le lien de son ticket. Ou <span class="ui">QR code</span>&nbsp;: le patient prend le code en photo et suit son tour sur son téléphone.</p>
+        <figure class="shot dialog"><img src="shots/25-ticket-qr-fr.png" alt="QR code du ticket à prendre en photo"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Patient suivant</h3>
+        <p><span class="path"><span class="ui">Salle d’attente</span> → <span class="ui">Patient suivant</span></span>&nbsp;: <span class="ui">Maintenant</span>, <span class="ui">Ensuite</span> et les patients <span class="ui">En retard</span>. <span class="ui">Appeler le suivant</span> appelle la bonne personne&nbsp;: le patient du rendez-vous s’il est là, sinon la première personne arrivée.</p>
+        <figure class="shot wide"><img src="shots/26-patient-suivant-fr.png" alt="Écran Patient suivant avec Maintenant et Ensuite"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>L’écran de la salle</h3>
+        <p><span class="ui">Écran de la salle</span> ouvre la page à afficher sur une télévision ou une tablette (l’adresse est aussi dans <span class="path"><span class="ui">Réglages</span> → <span class="ui">Écran de salle</span></span>). Touchez <span class="ui">Plein écran</span>. L’écran se met à jour tout seul.</p>
+        <figure class="shot wide tv"><img src="shots/27-ecran-salle-fr.png" alt="Écran de la salle d’attente avec le ticket appelé"><figcaption>Uniquement des numéros, aucun nom.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step phone">
+      <div class="step-body">
+        <h3>Ce que voit le patient</h3>
+        <p>Son numéro, les <span class="ui">Personnes avant vous</span> et l’<span class="ui">Attente estimée</span>. La page se met à jour toute seule.</p>
+        <p>Quand c’est son tour&nbsp;: «&nbsp;C’est votre tour&nbsp;! Présentez-vous à l’accueil.&nbsp;»</p>
+        <figure class="shot mobile"><img src="shots/28-ticket-patient-fr.png" alt="Page du ticket sur le téléphone du patient"></figure>
+      </div>
+    </li>
+  </ol>
+  <p class="tip"><strong>Non venus&nbsp;?</strong> Sur <span class="ui">Aujourd’hui</span>, Daftar liste les rendez-vous passés sans arrivée notée&nbsp;: <span class="ui">Absent</span> ou <span class="ui">Venu</span>, en un clic. Les absences sont comptées dans le dossier du patient.</p>
+</section>
+
+<!-- ============================ 5 ============================ -->
+<section class="chapter" id="caisse" aria-labelledby="caisse-title">
+  <div class="chapter-head">
+    <span class="chapter-no">5</span>
+    <h2 id="caisse-title">Caisse</h2>
+    <span class="who">Pour l’accueil – vérification par le titulaire</span>
+  </div>
+  <p class="chapter-lead">Daftar enregistre les paiements que vous recevez (espèces, D17, Flouci, carte, chèque, virement) et calcule ce qu’il reste à payer. Il n’encaisse rien lui-même.</p>
+  <ol class="steps">
+    <li class="step">
+      <div class="step-body">
+        <h3>Les actes et le reste à payer</h3>
+        <p>Ouvrez le dossier du patient (<span class="ui">Patients</span> ou la recherche en haut), onglet <span class="ui">Actes et paiements</span>. <span class="ui">Acte</span> ajoute un acte avec son prix.</p>
+        <p>Le <span class="ui">Solde</span> montre le <span class="ui">Total des actes</span>, ce qui est <span class="ui">Payé</span> et le <span class="ui">Reste à payer</span>.</p>
+        <figure class="shot wide"><img src="shots/29-dossier-solde-fr.png" alt="Dossier patient avec actes, paiements et reste à payer"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Encaisser un paiement</h3>
+        <p>Touchez <span class="ui">Paiement</span>. Indiquez le <span class="ui">Montant (DT)</span> et le <span class="ui">Mode de paiement</span>, puis <span class="ui">Enregistrer le paiement</span>.</p>
+        <p>Paiement en plusieurs fois&nbsp;? Enregistrez chaque versement le jour où il est payé&nbsp;: le reste à payer se met à jour.</p>
+        <figure class="shot dialog"><img src="shots/30-paiement-fr.png" alt="Fenêtre Nouveau paiement"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Le reçu</h3>
+        <p>Dans la liste des paiements, <span class="ui">Reçu</span> ouvre un reçu à imprimer avec <span class="ui">Imprimer</span>.</p>
+        <figure class="shot wide"><img src="shots/31-recu-fr.png" alt="Reçu imprimable"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Acompte conseillé</h3>
+        <p>Pour un patient déjà absent deux fois, le rendez-vous affiche «&nbsp;2 absences&nbsp;: acompte conseillé.&nbsp;» <span class="ui">Demander …</span> inscrit le montant dans <span class="ui">Acompte demandé (DT)</span>.</p>
+        <figure class="shot dialog"><img src="shots/32-acompte-conseille-fr.png" alt="Rendez-vous avec le message acompte conseillé"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Encaisser l’acompte</h3>
+        <p>Ouvrez le rendez-vous&nbsp;: <span class="ui">Encaisser l’acompte</span> enregistre le paiement, lié à ce rendez-vous. Dans un paiement, la case <span class="ui">C’est un acompte pour un rendez-vous</span> fait la même chose.</p>
+        <figure class="shot dialog"><img src="shots/33-acompte-encaisse-fr.png" alt="Rendez-vous avec l’acompte payé"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>La caisse du jour</h3>
+        <p>Menu <span class="ui">Caisse</span>&nbsp;: <span class="ui">Encaissé ce jour</span>, le total <span class="ui">Par mode de paiement</span> et les <span class="ui">Paiements du jour</span>. Les flèches changent de jour.</p>
+        <figure class="shot wide"><img src="shots/34-caisse-jour-fr.png" alt="Caisse du jour par mode de paiement"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Les montants dus</h3>
+        <p>Plus bas, <span class="ui">Montants dus</span>&nbsp;: les patients qui doivent encore de l’argent, du plus grand montant au plus petit, avec la date du dernier paiement.</p>
+        <figure class="shot section"><img src="shots/35-montants-dus-fr.png" alt="Liste des montants dus"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>La clôture du soir</h3>
+        <p>Comptez les espèces, notez le montant dans <span class="ui">Espèces comptées (DT)</span>, puis <span class="ui">Clôturer la caisse</span>. Daftar affiche l’écart&nbsp;: <span class="ui">La caisse est juste.</span>, <span class="ui">Manque …</span> ou <span class="ui">Excédent …</span></p>
+        <p>Le titulaire vérifie ensuite avec <span class="ui">Valider la clôture</span>. Les jours à vérifier apparaissent sur sa page <span class="ui">Aujourd’hui</span>.</p>
+        <figure class="shot section"><img src="shots/36-cloture-fr.png" alt="Clôture de caisse avec un écart à valider"></figure>
+      </div>
+    </li>
+  </ol>
+</section>
+
+<!-- ============================ 6 ============================ -->
+<section class="chapter" id="rappels" aria-labelledby="rappels-title">
+  <div class="chapter-head">
+    <span class="chapter-no">6</span>
+    <h2 id="rappels-title">Rappels</h2>
+    <span class="who">Pour l’accueil, la veille</span>
+  </div>
+  <p class="chapter-lead">Pour chaque rendez-vous du lendemain, Daftar prépare le message de rappel dans la langue du patient. C’est vous qui l’envoyez, d’un clic, par WhatsApp ou SMS&nbsp;: rien ne part automatiquement.</p>
+  <ol class="steps">
+    <li class="step">
+      <div class="step-body">
+        <h3>Les rappels de demain</h3>
+        <p>Menu <span class="ui">Rappels</span>&nbsp;: les rendez-vous de demain avec le message prêt. Touchez <span class="ui">WhatsApp</span> ou <span class="ui">SMS</span>&nbsp;: l’application s’ouvre avec le texte déjà écrit, il ne reste qu’à l’envoyer. Le rappel est alors noté <span class="ui">Envoyé</span>.</p>
+        <figure class="shot wide"><img src="shots/37-rappels-fr.png" alt="Liste des rappels de demain"><figcaption>Dans la démo, rien n’est envoyé.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step phone">
+      <div class="step-body">
+        <h3>Depuis le téléphone du cabinet</h3>
+        <p>WhatsApp ou les SMS s’ouvrent directement sur le téléphone.</p>
+        <p>Les patients qui n’ont pas donné leur accord sont grisés&nbsp;: <span class="ui">Pas d’accord pour les rappels</span>.</p>
+        <figure class="shot mobile"><img src="shots/38-rappels-mobile-fr.png" alt="Rappels sur téléphone avec WhatsApp et SMS"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Modifier le texte</h3>
+        <p><span class="path"><span class="ui">Réglages</span> → <span class="ui">Cabinet</span></span>, partie <span class="ui">Messages de rappel</span>, en français et en arabe. Les mots entre accolades sont remplacés automatiquement&nbsp;: <bdi class="ltr">{patient} {date} {time} {practice} {phone}</bdi>.</p>
+        <figure class="shot section"><img src="shots/39-rappels-modele-fr.png" alt="Modèles des messages de rappel en français et en arabe"></figure>
+      </div>
+    </li>
+  </ol>
+</section>
+
+<!-- ============================ 7 ============================ -->
+<section class="chapter" id="import" aria-labelledby="import-title">
+  <div class="chapter-head">
+    <span class="chapter-no">7</span>
+    <h2 id="import-title">Importer une liste Excel</h2>
+    <span class="who">Pour le titulaire ou l’assistante, une fois au départ</span>
+  </div>
+  <p class="chapter-lead">Vos patients ou vos rendez-vous sont dans Excel&nbsp;? Daftar les reprend. Vous choisissez quelle colonne va où, et rien n’est enregistré avant la dernière étape.</p>
+  <ol class="steps">
+    <li class="step">
+      <div class="step-body">
+        <h3>Choisir le fichier</h3>
+        <p><span class="ui">Importer</span> (sous <span class="ui">Outils</span>, ou <span class="path"><span class="ui">Réglages</span> → <span class="ui">Données</span></span>). Choisissez <span class="ui">Des patients</span> ou <span class="ui">Des rendez-vous</span>, puis <span class="ui">Choisir un fichier</span> – ou déposez-le. Excel (.xlsx, .xls) ou CSV, 2&nbsp;Mo au plus.</p>
+        <p>Si le classeur a plusieurs feuilles, choisissez la bonne et indiquez si la première ligne contient les titres, puis <span class="ui">Continuer</span>.</p>
+        <figure class="shot wide"><img src="shots/40-import-fichier-fr.png" alt="Première étape de l’import"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Correspondance des colonnes</h3>
+        <p>Pour chaque information de Daftar (<span class="ui">Nom</span>, <span class="ui">Prénom</span>, <span class="ui">Téléphone</span>…), choisissez la colonne de votre fichier. Daftar propose déjà ce qui ressemble&nbsp;: vérifiez. Les champs obligatoires sont signalés. Puis <span class="ui">Vérifier le fichier</span>.</p>
+        <figure class="shot wide"><img src="shots/41-import-correspondance-fr.png" alt="Correspondance entre les champs de Daftar et les colonnes du fichier"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Vérification</h3>
+        <p>Daftar montre ce que l’import ferait&nbsp;: lignes à créer, ignorées, en erreur, et les <span class="ui">Lignes à corriger</span>. Rien n’est encore enregistré. <span class="ui">Importer … ligne(s)</span> lance l’import.</p>
+        <figure class="shot wide"><img src="shots/42-import-verification-fr.png" alt="Vérification avant l’import avec les lignes à corriger"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Import terminé</h3>
+        <p><span class="ui">Télécharger le rapport (CSV)</span> si besoin. Pour le prochain fichier du même genre&nbsp;: <span class="ui">Garder cette correspondance pour le prochain fichier</span>, donnez un nom, puis <span class="ui">Enregistrer le modèle</span>.</p>
+        <figure class="shot wide"><img src="shots/43-import-termine-fr.png" alt="Import terminé avec le rapport"></figure>
+      </div>
+    </li>
+  </ol>
+  <p class="note"><strong>Dans la démo,</strong> l’import de fichiers n’est pas disponible. Dans votre cabinet, nous vous aidons volontiers au démarrage.</p>
+  <p class="tip"><strong>Patient déjà dans Daftar</strong> (même nom, prénom et téléphone)&nbsp;: choisissez <span class="ui">Ignorer la ligne</span>, <span class="ui">Compléter la fiche existante</span> ou <span class="ui">Créer quand même un nouveau patient</span>.</p>
+</section>
+
+<!-- ============================ 8 ============================ -->
+<section class="chapter" id="reservation" aria-labelledby="reservation-title">
+  <div class="chapter-head">
+    <span class="chapter-no">8</span>
+    <h2 id="reservation-title">Réservation en ligne côté patient</h2>
+    <span class="who">Pour vos patients – à connaître à l’accueil</span>
+  </div>
+  <p class="chapter-lead">Vos patients réservent sur la page de votre cabinet, à toute heure et sans créer de compte, par exemple <bdi class="ltr">cabinet-ben-salah.daftar.omarfourati.de</bdi>.</p>
+  <ol class="steps">
+    <li class="step phone">
+      <div class="step-body">
+        <h3>Choisir l’acte et l’heure</h3>
+        <p>Le patient choisit l’<span class="ui">Acte</span>, le <span class="ui">Praticien</span> (ou <span class="ui">Peu importe</span>), le <span class="ui">Jour</span> et un <span class="ui">Horaire</span>, puis <span class="ui">Continuer</span>.</p>
+        <p>Seuls les horaires libres sont affichés.</p>
+        <figure class="shot mobile"><img src="shots/44-reservation-choix-fr.png" alt="Page de réservation avec l’acte, le jour et l’heure"></figure>
+      </div>
+    </li>
+    <li class="step phone">
+      <div class="step-body">
+        <h3>Ses coordonnées</h3>
+        <p>Il indique <span class="ui">Prénom</span>, <span class="ui">Nom</span> et <span class="ui">Téléphone</span>, et peut demander un rappel la veille.</p>
+        <p>Puis <span class="ui">Réserver ce rendez-vous</span>.</p>
+        <figure class="shot mobile"><img src="shots/45-reservation-coordonnees-fr.png" alt="Formulaire Vos coordonnées"></figure>
+      </div>
+    </li>
+    <li class="step phone">
+      <div class="step-body">
+        <h3>Son lien personnel</h3>
+        <p><span class="ui">Demande envoyée</span> (ou <span class="ui">Rendez-vous confirmé</span> si vous confirmez automatiquement).</p>
+        <p>Le patient garde son lien personnel&nbsp;: <span class="ui">Copier</span> ou <span class="ui">Envoyer par WhatsApp</span>, et <span class="ui">Voir mon rendez-vous</span>.</p>
+        <figure class="shot mobile"><img src="shots/46-reservation-envoyee-fr.png" alt="Demande envoyée avec le lien personnel"></figure>
+      </div>
+    </li>
+    <li class="step phone">
+      <div class="step-body">
+        <h3>Annuler par le lien</h3>
+        <p>Avec son lien, le patient touche <span class="ui">Annuler ce rendez-vous</span>, puis <span class="ui">Oui, annuler</span>. Le créneau est libéré pour un autre patient.</p>
+        <p>L’annulation en ligne est possible jusqu’au délai minimum que vous avez choisi&nbsp;; ensuite, il appelle le cabinet.</p>
+        <figure class="shot mobile"><img src="shots/47-rdv-annuler-fr.png" alt="Page Votre rendez-vous avec le bouton Annuler"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>Au cabinet&nbsp;: confirmer la demande</h3>
+        <p>Les demandes arrivent sur <span class="ui">Aujourd’hui</span>, sous <span class="ui">Nouvelles demandes en ligne</span>, et en pointillés dans l’agenda. <span class="ui">Confirmer</span> ou <span class="ui">Refuser</span>, puis <span class="ui">Prévenir par WhatsApp</span>&nbsp;: le texte est prêt.</p>
+        <figure class="shot section"><img src="shots/48-demandes-en-ligne-fr.png" alt="Nouvelles demandes en ligne avec Confirmer et Refuser"></figure>
+      </div>
+    </li>
+  </ol>
+  <p class="tip"><strong>Absences répétées&nbsp;:</strong> un numéro qui a manqué plusieurs rendez-vous ne peut plus réserver en ligne (réglable dans <span class="ui">Réservation en ligne</span>)&nbsp;; la page invite le patient à appeler le cabinet.</p>
+
+  <aside class="end" aria-labelledby="end-title">
+    <div>
+      <h2 id="end-title">Une question&nbsp;?</h2>
+      <p>Dans Daftar, le bouton <b>Une idée&nbsp;? Un problème&nbsp;?</b> envoie votre message directement à Omar (sans données de patients). Par e-mail&nbsp;: <a href="mailto:info@omarfourati.de">info@omarfourati.de</a>.</p>
+      <p class="price">Phase pilote gratuite – ensuite à partir de 49&nbsp;DT par mois, sans engagement</p>
+    </div>
+    <div>
+      <img class="qr" src="img/qr-daftar.svg" alt="QR code : daftar.omarfourati.de">
+      <p class="qr-url">daftar.omarfourati.de</p>
+    </div>
+  </aside>
+</section>
+
+</main>
+</div>
+</body>
+</html>

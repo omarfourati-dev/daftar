@@ -1,0 +1,13 @@
+{
+  "name": "video-daftar",
+  "private": true,
+  "type": "module",
+  "description": "Daftar-Werbevideo (FR/AR, 1080x1920 und 1920x1080): HTML/CSS-Szenen -> MP4 (H.264) über Chromium/WebCodecs, ohne ffmpeg. Nutzt Playwright, qrcode, jsQR, pngjs aus ../flyer/node_modules bzw. ../../web/node_modules.",
+  "scripts": {
+    "capture": "node capture.mjs",
+    "render": "node render.mjs",
+    "probe": "node render.mjs --probe --lang fr",
+    "stills": "node render.mjs --stills",
+    "storyboard": "node render.mjs --storyboard"
+  }
+}

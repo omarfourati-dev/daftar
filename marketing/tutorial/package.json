@@ -1,0 +1,10 @@
+{
+  "name": "tutorial-daftar",
+  "private": true,
+  "type": "module",
+  "description": "Tutorial Daftar (FR/AR): HTML/CSS -> A4-PDF (node build.mjs). Nutzt Playwright, qrcode, jsQR, pngjs und pdf-lib aus ../flyer/node_modules bzw. ../../web/node_modules (keine eigenen Abhängigkeiten).",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "node build.mjs --strict"
+  }
+}

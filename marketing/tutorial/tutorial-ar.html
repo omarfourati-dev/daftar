@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>دفتر – دليل الاستعمال</title>
+<meta name="description" content="دفتر خطوة بخطوة للاستقبال وللطبيب: تثبيت التطبيق، الإعدادات الأولى، المواعيد، قاعة الانتظار، الصندوق، التذكيرات، استيراد Excel والحجز عبر الإنترنت.">
+<!-- Tutorial AR (RTL). Knopf- und Menünamen aus daftar-integration/web/src/lib/i18n/ar/* (Stand 31.10.2026),
+     Anrede wie die arabische Landing (Plural der Höflichkeit: افتحوا، اختاروا). Screenshots: shots/<id>-ar.png. -->
+<link rel="stylesheet" href="../shared/fonts.css">
+<link rel="stylesheet" href="tutorial.css">
+<style>@page { @bottom-center { content: "دفتر – دليل الاستعمال · " counter(page) " / " counter(pages); } } @page :first { @bottom-center { content: none; } }</style>
+</head>
+<body>
+<div class="doc">
+
+<header class="cover">
+  <img class="cover-logo" src="../shared/brand/logo.svg" alt="دفتر – Daftar">
+  <h1>دليل الاستعمال</h1>
+  <p class="lead">دفتر للاستقبال وللطبيب: أعمال كل يوم، خطوة بخطوة، مع صورة لكل خطوة.</p>
+  <div class="cover-box">
+    <h2>جرّبوا دون أي مخاطرة</h2>
+    <p>على <bdi class="url">daftar.omarfourati.de</bdi> اضغطوا على <span class="ui">جرّبوا دفتر الآن</span>: تُنشأ لكم عيادة وهمية بمرضى ومواعيد خيالية، وتُحذف بعد 24 ساعة. يمكنكم فيها تجربة كل خطوة من هذا الدليل.</p>
+  </div>
+  <div class="cover-foot">
+    <span><strong>للاستقبال</strong> والمساعِدة والطبيب</span>
+    <span><strong>بالعربية والفرنسية</strong> – على الحاسوب واللوحة الرقمية والهاتف</span>
+    <span>أكتوبر 2026</span>
+  </div>
+</header>
+
+<nav class="toc" aria-labelledby="toc-title">
+  <h2 id="toc-title">المحتويات</h2>
+  <p class="how">كل خطوة في بضعة أسطر، مع صورة من الشاشة. الكلمات <span class="ui">المؤطَّرة</span> مكتوبة تمامًا كما تظهر على أزرار دفتر وقوائمه.</p>
+  <ol>
+    <li><a href="#avant"><span class="n">0</span><span class="t">قبل البدء</span><span class="for">لكل الفريق</span></a></li>
+    <li><a href="#installer"><span class="n">1</span><span class="t">تثبيت التطبيق</span><span class="for">لكل الفريق</span></a></li>
+    <li><a href="#premiers-pas"><span class="n">2</span><span class="t">الخطوات الأولى</span><span class="for">لصاحب العيادة</span></a></li>
+    <li><a href="#rendez-vous"><span class="n">3</span><span class="t">تسجيل موعد</span><span class="for">للاستقبال</span></a></li>
+    <li><a href="#accueil"><span class="n">4</span><span class="t">الاستقبال وقاعة الانتظار</span><span class="for">للاستقبال والطبيب</span></a></li>
+    <li><a href="#caisse"><span class="n">5</span><span class="t">الصندوق</span><span class="for">للاستقبال وصاحب العيادة</span></a></li>
+    <li><a href="#rappels"><span class="n">6</span><span class="t">التذكيرات</span><span class="for">للاستقبال</span></a></li>
+    <li><a href="#import"><span class="n">7</span><span class="t">استيراد قائمة Excel</span><span class="for">لصاحب العيادة أو المساعِدة</span></a></li>
+    <li><a href="#reservation"><span class="n">8</span><span class="t">الحجز عبر الإنترنت من جهة المريض</span><span class="for">لمرضاكم</span></a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- ============================ 0 ============================ -->
+<section class="chapter" id="avant" aria-labelledby="avant-title">
+  <div class="chapter-head">
+    <span class="chapter-no">0</span>
+    <h2 id="avant-title">قبل البدء</h2>
+    <span class="who">لكل الفريق</span>
+  </div>
+  <p class="chapter-lead">يعمل دفتر في المتصفح، على حاسوب الاستقبال أو على لوحة رقمية أو على الهاتف. لكل فرد من الفريق حسابه الخاص، ويختار لغته.</p>
+  <ol class="steps">
+    <li class="step">
+      <div class="step-body">
+        <h3>القائمة</h3>
+        <p>على الحاسوب، القائمة على اليمين: <span class="ui">اليوم</span>، <span class="ui">المواعيد</span>، <span class="ui">قاعة الانتظار</span>، <span class="ui">المرضى</span>، <span class="ui">الصندوق</span>، <span class="ui">التذكيرات</span> و<span class="ui">الإعدادات</span>. وفي الأعلى: البحث عن مريض (بالاسم أو الرقم) وزرّ <span class="ui">موعد بالهاتف</span>.</p>
+        <p>لتغيير اللغة، اضغطوا على <span class="ui">العربية</span> أو <span class="ui" lang="fr">Français</span> في أعلى الشاشة. بالعربية، تُقرأ الشاشة كلها من اليمين إلى اليسار.</p>
+        <figure class="shot wide"><img src="shots/01-aujourdhui-ar.png" alt="صفحة اليوم في دفتر مع القائمة على اليمين"><figcaption>صفحة <span class="ui">اليوم</span>: أرقام اليوم والمواعيد القادمة.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step phone">
+      <div class="step-body">
+        <h3>على الهاتف</h3>
+        <p>القائمة في أسفل الشاشة: <span class="ui">اليوم</span>، <span class="ui">المواعيد</span>، <span class="ui">القاعة</span>، <span class="ui">المرضى</span>.</p>
+        <p>وكل ما تبقّى تحت <span class="ui">المزيد</span>: الموعد بالهاتف، والبحث عن مريض، والصندوق، والتذكيرات، والإعدادات.</p>
+        <table class="roles">
+          <tr><th>صاحب العيادة</th><td>كل شيء، بما في ذلك الإعدادات والفريق والإحصائيات وتصدير البيانات.</td></tr>
+          <tr><th>مساعد(ة)</th><td>المواعيد، وقاعة الانتظار، والمرضى، والصندوق، والتذكيرات، والاستيراد.</td></tr>
+          <tr><th>طبيب(ة)</th><td>المواعيد، وقاعة الانتظار، والمرضى، والصندوق، والتذكيرات.</td></tr>
+        </table>
+        <figure class="shot mobile"><img src="shots/02-menu-mobile-ar.png" alt="دفتر على الهاتف مع قائمة المزيد مفتوحة"><figcaption>قائمة <span class="ui">المزيد</span> مفتوحة.</figcaption></figure>
+      </div>
+    </li>
+  </ol>
+</section>
+
+<!-- ============================ 1 ============================ -->
+<section class="chapter" id="installer" aria-labelledby="installer-title">
+  <div class="chapter-head">
+    <span class="chapter-no">1</span>
+    <h2 id="installer-title">تثبيت التطبيق</h2>
+    <span class="who">لكل الفريق، على كل جهاز</span>
+  </div>
+  <p class="chapter-lead">يُثبَّت دفتر كتطبيق دون المرور بمتجر التطبيقات: أيقونة على الشاشة الرئيسية أو على سطح المكتب، والتحديثات تصل تلقائيًا. يتطلّب الاتصال بالإنترنت.</p>
+  <ol class="steps">
+    <li class="step">
+      <div class="step-body">
+        <h3>افتحوا عنوان عيادتكم</h3>
+        <p>لعيادتكم عنوانها الخاص، مثلًا <bdi class="ltr">cabinet-ben-salah.daftar.omarfourati.de</bdi>. افتحوه وسجّلوا الدخول ببريدكم الإلكتروني وكلمة المرور.</p>
+        <p>في القائمة، تعرض صفحة <span class="ui">تثبيت التطبيق</span> (تحت <span class="ui">أدوات</span>) خطوات جهازكم ورمز QR لهواتف الفريق.</p>
+        <figure class="shot wide"><img src="shots/03-installer-ar.png" alt="صفحة تثبيت التطبيق مع الخطوات ورمز QR"><figcaption>تتغيّر الخطوات حسب الجهاز المستعمل.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step phone">
+      <div class="step-body">
+        <h3>أندرويد (Chrome)</h3>
+        <p>المسوا القائمة <b>⋮</b> في أعلى الشاشة.</p>
+        <p>اختاروا <span class="ui">تثبيت التطبيق</span> (أو <span class="ui">إضافة إلى الشاشة الرئيسية</span>)، ثم أكّدوا.</p>
+        <figure class="shot mobile"><img src="shots/04-installer-android-ar.png" alt="قائمة Chrome على أندرويد مع تثبيت التطبيق"><figcaption>قائمة Chrome على أندرويد.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step phone">
+      <div class="step-body">
+        <h3>آيفون وآيباد (Safari)</h3>
+        <p>المسوا زرّ المشاركة، وهو المربّع مع السهم المتّجه إلى الأعلى.</p>
+        <p>اختاروا <span class="ui">إضافة إلى الشاشة الرئيسية</span>، ثم <span class="ui">إضافة</span>.</p>
+        <figure class="shot mobile"><img src="shots/05-installer-iphone-ar.png" alt="قائمة المشاركة في Safari مع إضافة إلى الشاشة الرئيسية"><figcaption>قائمة المشاركة في Safari.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>الحاسوب (Chrome أو Edge)</h3>
+        <p>انقروا على أيقونة التثبيت في طرف شريط العنوان (شاشة مع سهم)، ثم أكّدوا بالنقر على <span class="ui">تثبيت</span>. يظهر دفتر في قائمة «ابدأ».</p>
+        <figure class="shot wide"><img src="shots/06-installer-pc-ar.png" alt="شريط العنوان في Chrome مع أيقونة التثبيت"><figcaption>أيقونة التثبيت في طرف شريط العنوان.</figcaption></figure>
+      </div>
+    </li>
+  </ol>
+  <p class="tip"><strong>نصيحة:</strong> افتحوا دفتر بعد ذلك دائمًا من أيقونته. وفي صفحة <span class="ui">تثبيت التطبيق</span>، اضغطوا على <span class="ui">تمّ، التطبيق مثبّت</span> لشطب هذه الخطوة.</p>
+</section>
+
+<!-- ============================ 2 ============================ -->
+<section class="chapter" id="premiers-pas" aria-labelledby="premiers-pas-title">
+  <div class="chapter-head">
+    <span class="chapter-no">2</span>
+    <h2 id="premiers-pas-title">الخطوات الأولى</h2>
+    <span class="who">لصاحب العيادة، مرة واحدة</span>
+  </div>
+  <p class="chapter-lead">تعرض بطاقة <span class="ui">الخطوات الأولى</span> في صفحة <span class="ui">اليوم</span> ما يجب ضبطه في البداية. كل سطر يفتح الصفحة المناسبة، ويُشطب وحده عند إتمام الخطوة.</p>
+  <ol class="steps">
+    <li class="step">
+      <div class="step-body">
+        <h3>قائمة الخطوات الأولى</h3>
+        <p>اضغطوا على سطر للانتقال مباشرة إلى الإعداد المناسب. وزرّ <span class="ui">إخفاء</span> يخفي البطاقة عندما يصبح كل شيء جاهزًا.</p>
+        <figure class="shot section"><img src="shots/07-premiers-pas-ar.png" alt="بطاقة الخطوات الأولى بثماني خطوات"><figcaption>ثماني خطوات، من أوقات العمل إلى الملصق.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>أوقات العمل</h3>
+        <p><span class="path"><span class="ui">الإعدادات</span> ← <span class="ui">المواعيد والإغلاق</span></span>. حدّدوا لكل يوم فترات العمل. الاستراحة = فترتان، مثلًا <bdi>08:00–12:30</bdi> و<bdi>14:00–18:00</bdi>.</p>
+        <p>زرّ <span class="ui">نسخ إلى بقية الأيام</span> يطبّق يومًا واحدًا على الأسبوع كله. ثم <span class="ui">حفظ المواعيد</span>.</p>
+        <figure class="shot wide"><img src="shots/08-horaires-ar.png" alt="أوقات العمل لكل يوم مع استراحة منتصف النهار"><figcaption>لا يستطيع المرضى الحجز عبر الإنترنت إلا خلال هذه الأوقات.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>العطل والأعياد</h3>
+        <p>تحت <span class="ui">أيام الإغلاق الاستثنائي</span>، اختاروا <span class="ui">من</span> و<span class="ui">إلى</span> و<span class="ui">السبب</span> (عطلة، عيد، تكوين…)، ثم <span class="ui">إضافة الإغلاق</span>. في هذه الأيام لا مواعيد ولا حجز عبر الإنترنت.</p>
+        <figure class="shot section"><img src="shots/09-fermetures-ar.png" alt="استمارة أيام الإغلاق الاستثنائي"><figcaption>ينبّهكم دفتر إن كانت هناك مواعيد مبرمجة في تلك الأيام.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>الخدمات والأسعار</h3>
+        <p><span class="path"><span class="ui">الإعدادات</span> ← <span class="ui">الخدمات والأسعار</span></span>. قائمة خدمات اختصاصكم جاهزة مسبقًا. لكل خدمة: المدة (تحدّد مكانها في الأجندة)، والسعر إن أردتم، و<span class="ui">عبر الإنترنت</span> إن كان بإمكان مرضاكم حجزها بأنفسهم.</p>
+        <p>زرّ <span class="ui">خدمة جديدة</span> لإضافة خدمة.</p>
+        <figure class="shot wide"><img src="shots/10-actes-ar.png" alt="قائمة الخدمات مع المدة والسعر والحجز عبر الإنترنت"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>الأطباء والمعالجون</h3>
+        <p><span class="path"><span class="ui">الإعدادات</span> ← <span class="ui">الأطباء والمعالجون</span></span>: الأشخاص الذين يستقبلون المرضى. لكلّ منهم عموده ولونه في الأجندة، ولا يحتاج إلى حساب.</p>
+        <p>زرّ <span class="ui">إضافة طبيب/معالج</span> لإضافة شخص.</p>
+        <figure class="shot wide"><img src="shots/11-praticiens-ar.png" alt="قائمة الأطباء مع اللون والحجز عبر الإنترنت"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>دعوة الفريق</h3>
+        <p><span class="path"><span class="ui">الإعدادات</span> ← <span class="ui">الفريق</span></span>، تحت <span class="ui">دعوة شخص</span>: اختاروا <span class="ui">الدور</span>، ثم <span class="ui">إنشاء رابط الدعوة</span>.</p>
+        <p>أرسلوا الرابط بزرّ <span class="ui">إرسال عبر واتساب</span> (أو <span class="ui">نسخ</span>). يختار الشخص بنفسه بريده الإلكتروني وكلمة مروره. الرابط صالح 7 أيام، ولا يظهر إلا مرة واحدة.</p>
+        <figure class="shot section"><img src="shots/12-equipe-invitation-ar.png" alt="رابط الدعوة مع زرّي نسخ وإرسال عبر واتساب"><figcaption>في النسخة التجريبية، يوضّح الرابط الطريقة فقط ولا يُنشئ أي حساب.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>الحجز عبر الإنترنت</h3>
+        <p><span class="path"><span class="ui">الإعدادات</span> ← <span class="ui">الحجز عبر الإنترنت</span></span>. حدّدوا خانة <span class="ui">الحجز عبر الإنترنت مفعّل</span>. اختاروا إن كانت الطلبات تُؤكَّد تلقائيًا، وأدنى مهلة قبل الموعد، وعدد الحجوزات في اليوم، ثم <span class="ui">حفظ</span>.</p>
+        <p>وفي الأعلى: عنوان صفحة الحجز الخاصة بعيادتكم، لمشاركته على واتساب أو فيسبوك أو خرائط Google، ورمز QR الخاص بها.</p>
+        <figure class="shot wide"><img src="shots/13-reservation-reglages-ar.png" alt="إعدادات الحجز عبر الإنترنت مع الرابط ورمز QR"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>ملصق قاعة الانتظار</h3>
+        <p>زرّ <span class="ui">طباعة ملصق A4</span> يُحضّر ملصقًا بالعربية والفرنسية مع رمز QR لصفحتكم. اضغطوا على <span class="ui">طباعة الملصق</span>.</p>
+        <p>في نافذة الطباعة: حجم A4، الهوامش «بدون»، وفعّلوا «رسومات الخلفية».</p>
+        <figure class="shot wide"><img src="shots/14-affiche-ar.png" alt="معاينة ملصق A4 مع رمز QR"></figure>
+      </div>
+    </li>
+  </ol>
+  <p class="tip"><strong>نسيان كلمة المرور؟</strong> في <span class="ui">الفريق</span>، يضغط صاحب العيادة على <span class="ui">نسيان كلمة المرور</span> بجانب اسم الشخص، ويرسل له الرابط (صالح 24 ساعة).</p>
+</section>
+
+<!-- ============================ 3 ============================ -->
+<section class="chapter" id="rendez-vous" aria-labelledby="rendez-vous-title">
+  <div class="chapter-head">
+    <span class="chapter-no">3</span>
+    <h2 id="rendez-vous-title">تسجيل موعد</h2>
+    <span class="who">للاستقبال</span>
+  </div>
+  <p class="chapter-lead">طريقتان: بالهاتف، يقترح دفتر فورًا أقرب الأوقات الفارغة؛ وفي الأجندة، تختارون اليوم والساعة بأنفسكم. ولا موعدين في الوقت نفسه للطبيب نفسه أو للمريض نفسه أبدًا: دفتر يرفض ذلك.</p>
+  <ol class="steps">
+    <li class="step">
+      <div class="step-body">
+        <h3>بالهاتف: الرقم أولًا</h3>
+        <p>اضغطوا على <span class="ui">موعد بالهاتف</span> في أعلى الشاشة (المفتاح <span class="key">T</span> على الحاسوب). اكتبوا <span class="ui">رقم المتّصل</span>: يظهر المرضى الذين لهم هذا الرقم.</p>
+        <p>اختاروا المريض المناسب (قد تتشارك العائلة رقمًا واحدًا)، أو <span class="ui">مريض جديد بهذا الرقم</span>.</p>
+        <figure class="shot dialog"><img src="shots/15-telephone-numero-ar.png" alt="نافذة موعد بالهاتف مع المريض الذي تمّ العثور عليه"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>الخدمة، ثم وقت فارغ</h3>
+        <p>اختاروا <span class="ui">الخدمة / الاستشارة</span>، و<span class="ui">الطبيب</span> عند الحاجة (وإلا <span class="ui">أوّل طبيب متاح</span>). وبجانبها <span class="ui">أقرب الأوقات الفارغة</span>: نقرة واحدة تحجز الموعد.</p>
+        <figure class="shot dialog"><img src="shots/16-telephone-creneaux-ar.png" alt="أقرب الأوقات الفارغة مرتّبة حسب اليوم"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>رسالة التأكيد</h3>
+        <p>تم حفظ الموعد. <span class="ui">رسالة التأكيد</span> جاهزة بلغة المريض: <span class="ui">نسخ النص</span>، أو أرسلوها عبر <span class="ui">واتساب</span> أو <span class="ui">إرسالية قصيرة</span>. وزرّ <span class="ui">مكالمة أخرى</span> للمتّصل التالي.</p>
+        <figure class="shot dialog"><img src="shots/17-telephone-confirme-ar.png" alt="تم حفظ الموعد مع رسالة التأكيد"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>الأجندة</h3>
+        <p>افتحوا <span class="ui">المواعيد</span>. <span class="ui">يوم</span> أو <span class="ui">أسبوع</span>، والأسهم لتغيير اليوم، و<span class="ui">اليوم</span> للعودة. عمود لكل طبيب. وتظهر الطلبات الواردة عبر الإنترنت بخط متقطّع: <span class="ui">طلب للتأكيد</span>.</p>
+        <figure class="shot wide"><img src="shots/18-agenda-jour-ar.png" alt="مواعيد اليوم مع عمود لكل طبيب"><figcaption>اللون = الحالة: مبرمج، مؤكَّد، وصل، في الفحص، انتهى، غائب.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>موعد جديد في الأجندة</h3>
+        <p>اضغطوا على وقت فارغ، أو على <span class="ui">موعد جديد</span> (المفتاح <span class="key">N</span>). ابحثوا عن المريض بالاسم أو الهاتف، أو <span class="ui">مريض جديد</span>. اختاروا الخدمة: تُملأ المدة وحدها.</p>
+        <p>تحقّقوا من <span class="ui">التاريخ</span> و<span class="ui">الساعة</span> و<span class="ui">الطبيب</span>، ثم <span class="ui">حفظ الموعد</span>.</p>
+        <figure class="shot dialog"><img src="shots/19-agenda-nouveau-ar.png" alt="نافذة موعد جديد مملوءة"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>الوقت محجوز؟</h3>
+        <p>يعرض دفتر <span class="ui">هذا الوقت محجوز.</span> ويقترح <span class="ui">أقرب الأوقات الفارغة:</span> اختاروا واحدًا منها، ثم احفظوا.</p>
+        <figure class="shot dialog"><img src="shots/20-agenda-conflit-ar.png" alt="رسالة هذا الوقت محجوز مع اقتراحات"></figure>
+      </div>
+    </li>
+    <li class="step phone">
+      <div class="step-body">
+        <h3>على الهاتف</h3>
+        <p>تظهر مواعيد اليوم في قائمة. اضغطوا على موعد لفتحه.</p>
+        <p>والموعد بالهاتف موجود تحت <span class="ui">المزيد</span>.</p>
+        <figure class="shot mobile"><img src="shots/21-agenda-mobile-ar.png" alt="مواعيد اليوم على الهاتف"></figure>
+      </div>
+    </li>
+  </ol>
+  <p class="tip"><strong>حصص منتظمة</strong> (علاج طبيعي، أخصائي نفسي…): في الموعد، <span class="ui">تكرار (حصص)</span>، اختاروا الأيام وعدد الحصص، ثم <span class="ui">التحقق من التواريخ</span>. تظهر التواريخ المحجوزة قبل الحفظ.</p>
+</section>
+
+<!-- ============================ 4 ============================ -->
+<section class="chapter" id="accueil" aria-labelledby="accueil-title">
+  <div class="chapter-head">
+    <span class="chapter-no">4</span>
+    <h2 id="accueil-title">الاستقبال وقاعة الانتظار</h2>
+    <span class="who">للاستقبال والطبيب</span>
+  </div>
+  <p class="chapter-lead">عند وصوله، يحصل كل مريض على رقم، بموعد أو دون موعد. شاشة القاعة وهاتف المريض لا يعرضان إلا الأرقام، ولا يعرضان أي اسم.</p>
+  <ol class="steps">
+    <li class="step">
+      <div class="step-body">
+        <h3>وصول المريض</h3>
+        <p>في <span class="ui">المواعيد</span>، اضغطوا على موعده ثم على <span class="ui">وصل</span>. يحصل تلقائيًا على رقم في قاعة الانتظار، حسب ترتيب الوصول.</p>
+        <figure class="shot dialog"><img src="shots/22-rdv-arrive-ar.png" alt="موعد مفتوح مع زرّ وصل"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>قاعة الانتظار</h3>
+        <p>تعرض <span class="ui">قاعة الانتظار</span> من هو <span class="ui">في الفحص</span>، ومن <span class="ui">تمّت مناداتهم</span>، ومن هو <span class="ui">في الانتظار</span>، مع الترتيب ومدة الانتظار المتوقّعة. وعلى الجانب ما تعرضه شاشة القاعة.</p>
+        <p>اضغطوا على <span class="ui">مناداة</span>: يظهر الرقم على الشاشة. ثم <span class="ui">في الفحص</span> و<span class="ui">انتهى</span>. و<span class="ui">غادر</span> إن ذهب المريض.</p>
+        <figure class="shot wide"><img src="shots/23-salle-ar.png" alt="قاعة الانتظار مع الأرقام ومعاينة الشاشة"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>مريض دون موعد</h3>
+        <p><span class="ui">رقم جديد</span>: <span class="ui">مريض مسجّل</span> (بحث بالاسم أو الرقم) أو <span class="ui">اسم فقط</span>، ثم <span class="ui">إعطاء الرقم</span>.</p>
+        <figure class="shot dialog"><img src="shots/24-nouveau-ticket-ar.png" alt="نافذة رقم جديد"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>الرقم على هاتف المريض</h3>
+        <p>زرّ <span class="ui">واتساب</span> يرسل للمريض رابط رقمه. أو <span class="ui">رمز QR</span>: يصوّر المريض الرمز ويتابع دوره على هاتفه.</p>
+        <figure class="shot dialog"><img src="shots/25-ticket-qr-ar.png" alt="رمز QR للرقم ليصوّره المريض"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>المريض التالي</h3>
+        <p><span class="path"><span class="ui">قاعة الانتظار</span> ← <span class="ui">المريض التالي</span></span>: <span class="ui">الآن</span>، و<span class="ui">بعد ذلك</span>، والمرضى <span class="ui">متأخّرون</span>. زرّ <span class="ui">مناداة التالي</span> ينادي الشخص المناسب: مريض الموعد إن كان حاضرًا، وإلا أوّل من وصل.</p>
+        <figure class="shot wide"><img src="shots/26-patient-suivant-ar.png" alt="شاشة المريض التالي مع الآن وبعد ذلك"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>شاشة القاعة</h3>
+        <p>زرّ <span class="ui">شاشة القاعة</span> يفتح الصفحة التي تُعرض على تلفاز أو لوحة رقمية (العنوان موجود أيضًا في <span class="path"><span class="ui">الإعدادات</span> ← <span class="ui">شاشة القاعة</span></span>). اضغطوا على <span class="ui">ملء الشاشة</span>. تتحدّث الشاشة وحدها.</p>
+        <figure class="shot wide tv"><img src="shots/27-ecran-salle-ar.png" alt="شاشة قاعة الانتظار مع الرقم المنادى"><figcaption>أرقام فقط، دون أي اسم.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step phone">
+      <div class="step-body">
+        <h3>ما يراه المريض</h3>
+        <p>رقمه، و<span class="ui">أشخاص قبلك</span>، و<span class="ui">الانتظار المتوقّع</span>. تتحدّث الصفحة وحدها.</p>
+        <p>وعندما يحين دوره: «حان دورك! تفضّل إلى الاستقبال.»</p>
+        <figure class="shot mobile"><img src="shots/28-ticket-patient-ar.png" alt="صفحة الرقم على هاتف المريض"></figure>
+      </div>
+    </li>
+  </ol>
+  <p class="tip"><strong>لم يحضروا؟</strong> في صفحة <span class="ui">اليوم</span>، يعرض دفتر المواعيد التي فات وقتها دون تسجيل الوصول: <span class="ui">غائب</span> أو <span class="ui">حضر</span> بنقرة واحدة. ويُحتسب كل غياب في ملف المريض.</p>
+</section>
+
+<!-- ============================ 5 ============================ -->
+<section class="chapter" id="caisse" aria-labelledby="caisse-title">
+  <div class="chapter-head">
+    <span class="chapter-no">5</span>
+    <h2 id="caisse-title">الصندوق</h2>
+    <span class="who">للاستقبال – والمراجعة لصاحب العيادة</span>
+  </div>
+  <p class="chapter-lead">يسجّل دفتر المبالغ التي تستلمونها (نقدًا، D17، Flouci، بطاقة، صكّ، تحويل) ويحسب المبلغ المتبقّي. ولا يقبض دفتر أي مبلغ بنفسه.</p>
+  <ol class="steps">
+    <li class="step">
+      <div class="step-body">
+        <h3>الخدمات والمتبقّي للدفع</h3>
+        <p>افتحوا ملف المريض (<span class="ui">المرضى</span> أو البحث في الأعلى)، تبويب <span class="ui">الخدمات والدفعات</span>. زرّ <span class="ui">خدمة</span> يضيف خدمة بسعرها.</p>
+        <p>ويعرض <span class="ui">الرصيد</span>: <span class="ui">مجموع الخدمات</span> و<span class="ui">المدفوع</span> و<span class="ui">المتبقّي للدفع</span>.</p>
+        <figure class="shot wide"><img src="shots/29-dossier-solde-ar.png" alt="ملف المريض مع الخدمات والدفعات والمتبقّي للدفع"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>تسجيل دفعة</h3>
+        <p>اضغطوا على <span class="ui">دفعة</span>. أدخلوا <span class="ui">المبلغ (د.ت)</span> و<span class="ui">طريقة الدفع</span>، ثم <span class="ui">تسجيل الدفعة</span>.</p>
+        <p>دفع على أقساط؟ سجّلوا كل قسط يوم دفعه: يُحدَّث المتبقّي للدفع تلقائيًا.</p>
+        <figure class="shot dialog"><img src="shots/30-paiement-ar.png" alt="نافذة دفعة جديدة"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>الوصل</h3>
+        <p>في قائمة الدفعات، يفتح <span class="ui">وصل</span> وصلًا جاهزًا للطباعة بزرّ <span class="ui">طباعة</span>.</p>
+        <figure class="shot wide"><img src="shots/31-recu-ar.png" alt="وصل قابل للطباعة"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>يُنصح بطلب عربون</h3>
+        <p>لمريض تغيّب مرتين، يعرض الموعد «2 غيابات: يُنصح بطلب عربون.» وزرّ <span class="ui">طلب …</span> يكتب المبلغ في <span class="ui">العربون المطلوب (د.ت)</span>.</p>
+        <figure class="shot dialog"><img src="shots/32-acompte-conseille-ar.png" alt="موعد مع تنبيه يُنصح بطلب عربون"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>استلام العربون</h3>
+        <p>افتحوا الموعد: زرّ <span class="ui">استلام العربون</span> يسجّل الدفعة مربوطة بهذا الموعد. وفي نافذة الدفعة، خانة <span class="ui">هذا عربون لموعد</span> تؤدّي الأمر نفسه.</p>
+        <figure class="shot dialog"><img src="shots/33-acompte-encaisse-ar.png" alt="موعد مع العربون مدفوعًا"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>صندوق اليوم</h3>
+        <p><span class="ui">الصندوق</span>: <span class="ui">المقبوض اليوم</span>، والمجموع <span class="ui">حسب طريقة الدفع</span>، و<span class="ui">دفعات اليوم</span>. والأسهم لتغيير اليوم.</p>
+        <figure class="shot wide"><img src="shots/34-caisse-jour-ar.png" alt="صندوق اليوم حسب طريقة الدفع"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>المبالغ المستحقّة</h3>
+        <p>في الأسفل، <span class="ui">المبالغ المستحقّة</span>: المرضى الذين ما زالوا مدينين، من الأكبر إلى الأصغر، مع تاريخ آخر دفعة.</p>
+        <figure class="shot section"><img src="shots/35-montants-dus-ar.png" alt="قائمة المبالغ المستحقّة"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>غلق الصندوق مساءً</h3>
+        <p>عُدّوا النقود، واكتبوا المبلغ في <span class="ui">النقد المعدود (د.ت)</span>، ثم <span class="ui">غلق الصندوق</span>. يعرض دفتر الفارق: <span class="ui">الصندوق مضبوط.</span> أو <span class="ui">نقص …</span> أو <span class="ui">زيادة …</span></p>
+        <p>ثم يراجع صاحب العيادة الغلق بزرّ <span class="ui">المصادقة على الغلق</span>. وتظهر الأيام التي تنتظر المراجعة في صفحته <span class="ui">اليوم</span>.</p>
+        <figure class="shot section"><img src="shots/36-cloture-ar.png" alt="غلق الصندوق مع فارق ينتظر المصادقة"></figure>
+      </div>
+    </li>
+  </ol>
+</section>
+
+<!-- ============================ 6 ============================ -->
+<section class="chapter" id="rappels" aria-labelledby="rappels-title">
+  <div class="chapter-head">
+    <span class="chapter-no">6</span>
+    <h2 id="rappels-title">التذكيرات</h2>
+    <span class="who">للاستقبال، في اليوم السابق</span>
+  </div>
+  <p class="chapter-lead">لكل موعد في الغد، يُحضّر دفتر رسالة التذكير بلغة المريض. وأنتم من يرسلها، بنقرة واحدة، عبر واتساب أو رسالة قصيرة: لا يُرسَل شيء تلقائيًا.</p>
+  <ol class="steps">
+    <li class="step">
+      <div class="step-body">
+        <h3>تذكيرات الغد</h3>
+        <p><span class="ui">التذكيرات</span>: مواعيد الغد والرسالة جاهزة. اضغطوا على <span class="ui">واتساب</span> أو <span class="ui">إرسالية قصيرة</span>: يُفتح التطبيق والنص مكتوب، وما عليكم إلا الإرسال. ثم يُسجَّل التذكير: <span class="ui">أُرسل</span>.</p>
+        <figure class="shot wide"><img src="shots/37-rappels-ar.png" alt="قائمة تذكيرات الغد"><figcaption>في النسخة التجريبية، لا يُرسَل أي شيء.</figcaption></figure>
+      </div>
+    </li>
+    <li class="step phone">
+      <div class="step-body">
+        <h3>من هاتف العيادة</h3>
+        <p>يُفتح واتساب أو الرسائل القصيرة مباشرة على الهاتف.</p>
+        <p>المرضى الذين لم يوافقوا على التذكير يظهرون باهتين: <span class="ui">لا يقبل التذكير</span>.</p>
+        <figure class="shot mobile"><img src="shots/38-rappels-mobile-ar.png" alt="التذكيرات على الهاتف مع واتساب والرسالة القصيرة"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>تعديل النص</h3>
+        <p><span class="path"><span class="ui">الإعدادات</span> ← <span class="ui">العيادة</span></span>، قسم <span class="ui">رسائل التذكير</span>، بالعربية والفرنسية. الكلمات بين الأقواس تُستبدل تلقائيًا: <bdi class="ltr">{patient} {date} {time} {practice} {phone}</bdi>.</p>
+        <figure class="shot section"><img src="shots/39-rappels-modele-ar.png" alt="نماذج رسائل التذكير بالعربية والفرنسية"></figure>
+      </div>
+    </li>
+  </ol>
+</section>
+
+<!-- ============================ 7 ============================ -->
+<section class="chapter" id="import" aria-labelledby="import-title">
+  <div class="chapter-head">
+    <span class="chapter-no">7</span>
+    <h2 id="import-title">استيراد قائمة Excel</h2>
+    <span class="who">لصاحب العيادة أو المساعِدة، مرة واحدة في البداية</span>
+  </div>
+  <p class="chapter-lead">هل مرضاكم أو مواعيدكم في Excel؟ يسترجعها دفتر. أنتم تختارون أيّ عمود يذهب إلى أين، ولا يُحفظ شيء قبل الخطوة الأخيرة.</p>
+  <ol class="steps">
+    <li class="step">
+      <div class="step-body">
+        <h3>اختيار الملف</h3>
+        <p><span class="ui">استيراد</span> (تحت <span class="ui">أدوات</span>، أو <span class="path"><span class="ui">الإعدادات</span> ← <span class="ui">البيانات</span></span>). اختاروا <span class="ui">مرضى</span> أو <span class="ui">مواعيد</span>، ثم <span class="ui">اختيار ملف</span>، أو ضعوا الملف في الخانة. Excel ‏(.xlsx أو .xls) أو CSV، حتى 2 ميغابايت.</p>
+        <p>إن كان في المصنّف عدّة أوراق، اختاروا الورقة المناسبة، وحدّدوا إن كان السطر الأول يحتوي على العناوين، ثم <span class="ui">متابعة</span>.</p>
+        <figure class="shot wide"><img src="shots/40-import-fichier-ar.png" alt="الخطوة الأولى من الاستيراد"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>ربط الأعمدة</h3>
+        <p>لكل معلومة في دفتر (<span class="ui">اللقب</span>، <span class="ui">الاسم</span>، <span class="ui">الهاتف</span>…)، اختاروا العمود المناسب من ملفكم. يقترح دفتر مسبقًا ما يشبهها: تحقّقوا منها. الحقول الإلزامية مُشار إليها. ثم <span class="ui">التحقق من الملف</span>.</p>
+        <figure class="shot wide"><img src="shots/41-import-correspondance-ar.png" alt="ربط حقول دفتر بأعمدة الملف"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>التحقق</h3>
+        <p>يعرض دفتر ما سيفعله الاستيراد: أسطر للإنشاء، ومتجاهَلة، وفيها أخطاء، و<span class="ui">أسطر للتصحيح</span>. لم يُحفظ شيء بعد. وزرّ <span class="ui">استيراد … سطر</span> يبدأ الاستيراد.</p>
+        <figure class="shot wide"><img src="shots/42-import-verification-ar.png" alt="التحقق قبل الاستيراد مع الأسطر التي يجب تصحيحها"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>انتهى الاستيراد</h3>
+        <p><span class="ui">تنزيل التقرير (CSV)</span> عند الحاجة. وللملف القادم من النوع نفسه: <span class="ui">الاحتفاظ بهذا الربط للملف القادم</span>، اكتبوا اسمًا، ثم <span class="ui">حفظ النموذج</span>.</p>
+        <figure class="shot wide"><img src="shots/43-import-termine-ar.png" alt="انتهى الاستيراد مع التقرير"></figure>
+      </div>
+    </li>
+  </ol>
+  <p class="note"><strong>في النسخة التجريبية</strong> استيراد الملفات غير متاح. وفي عيادتكم، نساعدكم بكل سرور عند البداية.</p>
+  <p class="tip"><strong>مريض موجود في دفتر</strong> (نفس اللقب والاسم والهاتف): اختاروا <span class="ui">تجاهل السطر</span> أو <span class="ui">إكمال البطاقة الموجودة</span> أو <span class="ui">إنشاء مريض جديد رغم ذلك</span>.</p>
+</section>
+
+<!-- ============================ 8 ============================ -->
+<section class="chapter" id="reservation" aria-labelledby="reservation-title">
+  <div class="chapter-head">
+    <span class="chapter-no">8</span>
+    <h2 id="reservation-title">الحجز عبر الإنترنت من جهة المريض</h2>
+    <span class="who">لمرضاكم – ومن المفيد أن يعرفه الاستقبال</span>
+  </div>
+  <p class="chapter-lead">يحجز مرضاكم على صفحة عيادتكم، في أي ساعة ودون إنشاء حساب، مثلًا <bdi class="ltr">cabinet-ben-salah.daftar.omarfourati.de</bdi>.</p>
+  <ol class="steps">
+    <li class="step phone">
+      <div class="step-body">
+        <h3>اختيار الخدمة والساعة</h3>
+        <p>يختار المريض <span class="ui">الخدمة</span>، و<span class="ui">الطبيب</span> (أو <span class="ui">لا يهمّ</span>)، و<span class="ui">اليوم</span> و<span class="ui">الساعة</span>، ثم <span class="ui">متابعة</span>.</p>
+        <p>لا تظهر إلا الساعات الشاغرة.</p>
+        <figure class="shot mobile"><img src="shots/44-reservation-choix-ar.png" alt="صفحة الحجز مع الخدمة واليوم والساعة"></figure>
+      </div>
+    </li>
+    <li class="step phone">
+      <div class="step-body">
+        <h3>معلوماته</h3>
+        <p>يكتب <span class="ui">الاسم</span> و<span class="ui">اللقب</span> و<span class="ui">الهاتف</span>، ويمكنه طلب تذكير في اليوم السابق.</p>
+        <p>ثم <span class="ui">احجز هذا الموعد</span>.</p>
+        <figure class="shot mobile"><img src="shots/45-reservation-coordonnees-ar.png" alt="استمارة معلوماتك"></figure>
+      </div>
+    </li>
+    <li class="step phone">
+      <div class="step-body">
+        <h3>رابطه الشخصي</h3>
+        <p><span class="ui">تمّ إرسال الطلب</span> (أو <span class="ui">تمّ تأكيد الموعد</span> إن كان التأكيد تلقائيًا).</p>
+        <p>يحتفظ المريض برابطه الشخصي: <span class="ui">نسخ</span> أو <span class="ui">إرسال عبر واتساب</span>، و<span class="ui">عرض موعدي</span>.</p>
+        <figure class="shot mobile"><img src="shots/46-reservation-envoyee-ar.png" alt="تمّ إرسال الطلب مع الرابط الشخصي"></figure>
+      </div>
+    </li>
+    <li class="step phone">
+      <div class="step-body">
+        <h3>الإلغاء عبر الرابط</h3>
+        <p>برابطه، يضغط المريض على <span class="ui">إلغاء هذا الموعد</span>، ثم <span class="ui">نعم، إلغاء</span>. يُتاح الموعد لمريض آخر.</p>
+        <p>الإلغاء عبر الإنترنت ممكن حتى المهلة الدنيا التي اخترتموها؛ وبعدها يتصل بالعيادة.</p>
+        <figure class="shot mobile"><img src="shots/47-rdv-annuler-ar.png" alt="صفحة موعدك مع زرّ الإلغاء"></figure>
+      </div>
+    </li>
+    <li class="step">
+      <div class="step-body">
+        <h3>في العيادة: تأكيد الطلب</h3>
+        <p>تصل الطلبات إلى صفحة <span class="ui">اليوم</span>، تحت <span class="ui">طلبات جديدة عبر الإنترنت</span>، وتظهر بخط متقطّع في الأجندة. <span class="ui">تأكيد</span> أو <span class="ui">رفض</span>، ثم <span class="ui">إعلام عبر واتساب</span>: النص جاهز.</p>
+        <figure class="shot section"><img src="shots/48-demandes-en-ligne-ar.png" alt="طلبات جديدة عبر الإنترنت مع تأكيد ورفض"></figure>
+      </div>
+    </li>
+  </ol>
+  <p class="tip"><strong>تغيّب متكرّر:</strong> الرقم الذي تغيّب صاحبه عدّة مرات لا يستطيع الحجز عبر الإنترنت (يُضبط في <span class="ui">الحجز عبر الإنترنت</span>)، وتدعوه الصفحة إلى الاتصال بالعيادة.</p>
+
+  <aside class="end" aria-labelledby="end-title">
+    <div>
+      <h2 id="end-title">لديكم سؤال؟</h2>
+      <p>في دفتر، زرّ <b>فكرة؟ مشكلة؟</b> يرسل رسالتكم مباشرة إلى عمر (دون بيانات المرضى). وبالبريد الإلكتروني: <a href="mailto:info@omarfourati.de" dir="ltr">info@omarfourati.de</a>.</p>
+      <p class="price">المرحلة التجريبية مجانية – بعدها ابتداءً من 49 د.ت شهريًا، دون التزام</p>
+    </div>
+    <div>
+      <img class="qr" src="img/qr-daftar.svg" alt="رمز QR: daftar.omarfourati.de">
+      <p class="qr-url" dir="ltr">daftar.omarfourati.de</p>
+    </div>
+  </aside>
+</section>
+
+</main>
+</div>
+</body>
+</html>
