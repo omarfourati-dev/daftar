@@ -4,7 +4,7 @@ import Page from './+page.svelte';
 import { auth } from '#lib/auth.svelte';
 import { clock } from '#lib/clock';
 import { i18n } from '#lib/i18n.svelte';
-import { json, mockApi, problem, sentJson, type Handler } from '#lib/test-utils';
+import { calls, json, mockApi, problem, sentJson, type Handler } from '#lib/test-utils';
 import { appt, assistant, NOW, practitioners } from '#lib/agenda/fixtures';
 import type { QueueEntry } from '#lib/types/queue';
 
@@ -50,6 +50,7 @@ describe('/app/salle/suivant – who is next (section 16.2)', () => {
 		i18n.setLocale('fr');
 		clock.now = () => new Date(NOW);
 		localStorage.removeItem('daftar.next.practitioner');
+		localStorage.removeItem('daftar.next.practitioner.1');
 	});
 
 	it('shows now and then, with the reason, the alert and the late appointments', async () => {
@@ -88,7 +89,29 @@ describe('/app/salle/suivant – who is next (section 16.2)', () => {
 		expect(await within(screen.getByRole('region', { name: 'Maintenant' })).findByText('Walid Hammami')).toBeInTheDocument();
 		await fireEvent.click(screen.getByRole('button', { name: 'Appeler le suivant' }));
 		await vi.waitFor(() => expect(sentJson('POST /api/queue/call-next')).toEqual({ practitionerId: 12 }));
-		expect(localStorage.getItem('daftar.next.practitioner')).toBe('12');
+		expect(localStorage.getItem('daftar.next.practitioner.1')).toBe('12'); // per practice (code review N5)
+	});
+
+	it('forgets a practitioner remembered from another practice (code review N5)', async () => {
+		localStorage.setItem('daftar.next.practitioner', '1234'); // the old key of a demo on this computer
+		localStorage.setItem('daftar.next.practitioner.1', '1234'); // not (or no longer) a practitioner here
+		nextApi();
+		render(Page);
+		expect(await within(await screen.findByRole('region', { name: 'Maintenant' })).findByText('Lina Zouari')).toBeInTheDocument();
+		expect(calls()).not.toContain('GET /api/queue/next?practitionerId=1234');
+		expect(localStorage.getItem('daftar.next.practitioner.1')).toBeNull();
+		expect(screen.getByRole('button', { name: 'Tous les praticiens' })).toHaveAttribute('aria-pressed', 'true');
+	});
+
+	it('falls back to everybody when the server does not know the practitioner', async () => {
+		localStorage.setItem('daftar.next.practitioner.1', '12');
+		nextApi({
+			'GET /api/practitioners': () => problem(500, 'server_error'),
+			'GET /api/queue/next?practitionerId=12': () => problem(404, 'not_found')
+		});
+		render(Page);
+		expect(await within(await screen.findByRole('region', { name: 'Maintenant' })).findByText('Lina Zouari')).toBeInTheDocument();
+		expect(localStorage.getItem('daftar.next.practitioner.1')).toBeNull();
 	});
 
 	it('says when nobody waits, also when the server finds the queue empty', async () => {

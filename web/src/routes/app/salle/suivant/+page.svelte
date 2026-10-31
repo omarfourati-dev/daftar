@@ -3,10 +3,13 @@
 	 * /app/salle/suivant – "Patient suivant" for the desk or the doctor's tablet (section 16.2): who is next now and
 	 * after, by the server's rule (`GET /api/queue/next`: the patient of the due appointment if present, else the first
 	 * one waiting), one big button "Appeler le suivant" (`POST /api/queue/call-next`, race-safe), late appointments
-	 * marked. Optionally for one practitioner (remembered on this device). Refreshes every 15 s.
+	 * marked. Optionally for one practitioner (remembered on this device per practice; one that is not an active
+	 * practitioner of this practice – a demo shown earlier on the same computer – is forgotten, code review N5).
+	 * Refreshes every 15 s.
 	 */
 	import { onMount } from 'svelte';
-	import { api } from '#lib/api';
+	import { ApiError, api } from '#lib/api';
+	import { auth } from '#lib/auth.svelte';
 	import { errorText } from '#lib/agenda/errors';
 	import { personName, practitionerLabel } from '#lib/agenda/format';
 	import { telUrl } from '#lib/agenda/links';
@@ -16,7 +19,7 @@
 	import Icon from '../../../../lib/components/daily/Icon.svelte';
 
 	type Next = { entry: QueueEntry | null; reason: 'appointment' | 'waiting_list' | null; lateAppointments: Appointment[]; upcoming: QueueEntry[] };
-	const KEY = 'daftar.next.practitioner';
+	const KEY = `daftar.next.practitioner.${auth.user?.practice?.id ?? 0}`;
 	const REFRESH_MS = 15_000;
 
 	let practitioners = $state<Practitioner[]>([]);
@@ -55,15 +58,24 @@
 				error = '';
 			}
 		} catch (err) {
-			if (mine === seq) error = next ? errorText(err) : t('salle.next.loadError');
+			if (mine !== seq) return;
+			if (selected && err instanceof ApiError && err.status === 404) return choose(null); // not a practitioner here
+			error = next ? errorText(err) : t('salle.next.loadError');
 		}
 	}
 
 	onMount(() => {
+		const remembered = selected; // checked against the practice's practitioners before it is used
 		void api<Practitioner[]>('/api/practitioners')
-			.then((list) => (practitioners = list.filter((p) => p.active !== false).sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))))
-			.catch(() => undefined);
-		void load();
+			.then((list) => {
+				practitioners = list.filter((p) => p.active !== false).sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
+				if (remembered && selected === remembered && !practitioners.some((p) => p.id === remembered)) choose(null);
+				else if (remembered) void load();
+			})
+			.catch(() => {
+				if (remembered) void load();
+			});
+		if (!remembered) void load();
 		const timer = setInterval(load, REFRESH_MS);
 		return () => clearInterval(timer);
 	});
