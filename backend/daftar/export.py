@@ -23,7 +23,10 @@ from .tables import (
     appointment,
     audit_log,
     cash_closing,
+    equipment,
     feedback,
+    hygiene_task,
+    hygiene_task_done,
     import_template,
     invitation,
     invoice,
@@ -71,6 +74,9 @@ SECTIONS: tuple[tuple[str, Table], ...] = (
     ("stockReceiptLines", stock_receipt_line),
     ("stockMovements", stock_movement),
     ("auditLog", audit_log),
+    ("equipment", equipment),
+    ("hygieneTasks", hygiene_task),
+    ("hygieneTasksDone", hygiene_task_done),
 )
 
 
