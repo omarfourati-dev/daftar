@@ -5,7 +5,17 @@ from datetime import date, timedelta
 import pytest
 
 from daftar.catalog import SPECIALTIES
-from daftar.hygiene_rules import EQUIPMENT_KINDS, FREQUENCIES, Rhythm, is_due, last_due, occurrences, starter_plan
+from daftar.hygiene_rules import (
+    EQUIPMENT_KINDS,
+    FREQUENCIES,
+    Rhythm,
+    is_due,
+    last_due,
+    next_due,
+    occurrences,
+    open_weekday,
+    starter_plan,
+)
 
 MONDAY = date(2026, 10, 26)
 OPEN_WEEKDAYS = {1, 2, 3, 4, 5, 6}
@@ -34,7 +44,34 @@ def test_weekly_monthly_yearly_and_every_n_days() -> None:
     assert not is_due(yearly, date(2028, 2, 28), open_day)
     every = Rhythm("every_n_days", starts_on=MONDAY, interval_days=10)
     assert [d.isoformat() for d in occurrences(every, MONDAY, MONDAY + timedelta(days=25), open_day)] == [
-        "2026-10-26", "2026-11-05", "2026-11-15"]  # by the calendar: also on a Sunday
+        "2026-10-26", "2026-11-05", "2026-11-16"]  # by the calendar; Sunday 15.11. moves to Monday
+
+
+def test_a_due_date_on_a_closed_day_moves_to_the_next_opening_day() -> None:
+    """Review N1: a monthly check due on a Sunday is due on Monday – done that Monday, it is on time."""
+    sunday_closed = lambda day: day.isoweekday() != 7  # noqa: E731
+    monthly = Rhythm("monthly", starts_on=date(2026, 10, 15))
+    assert last_due(monthly, date(2026, 11, 15), sunday_closed) == date(2026, 10, 15)  # Sunday: not due yet
+    assert last_due(monthly, date(2026, 11, 16), sunday_closed) == date(2026, 11, 16)
+    assert next_due(monthly, date(2026, 11, 1), sunday_closed) == date(2026, 11, 16)
+    weekly = Rhythm("weekly", starts_on=date(2026, 10, 1), weekday=6)  # Saturday, in a practice open Monday–Friday
+    weekdays_only = lambda day: day.isoweekday() <= 5  # noqa: E731
+    assert [d.isoformat() for d in occurrences(weekly, date(2026, 10, 26), date(2026, 11, 9), weekdays_only)] == [
+        "2026-10-26", "2026-11-02", "2026-11-09"]  # each Saturday on the Monday after
+    holiday = lambda day: not date(2026, 8, 1) <= day <= date(2026, 8, 23) and day.isoweekday() != 7  # noqa: E731
+    mondays = Rhythm("weekly", starts_on=date(2026, 7, 1), weekday=1)
+    assert [d.isoformat() for d in occurrences(mondays, date(2026, 7, 27), date(2026, 8, 31), holiday)] == [
+        "2026-07-27", "2026-08-24", "2026-08-31"]  # three Mondays of the holiday: one test on the first day back
+    assert is_due(monthly, date(2026, 11, 15), sunday_closed)  # the rhythm's own date, before it moves
+    never_open = lambda day: False  # noqa: E731
+    assert occurrences(monthly, date(2026, 11, 1), date(2026, 11, 30), never_open) == [date(2026, 11, 15)]
+
+
+def test_the_start_plan_puts_a_weekly_task_on_an_opening_day() -> None:
+    assert open_weekday(6, {1, 2, 3, 4, 5, 6}) == 6
+    assert open_weekday(6, {1, 2, 3, 4, 5}) == 5  # Saturday closed: Friday
+    assert open_weekday(1, {2, 3, 4, 5, 6}) == 2  # Monday closed: the next day of the week
+    assert open_weekday(3, set()) == 3
 
 
 def test_last_due_is_the_current_occurrence() -> None:
@@ -44,7 +81,7 @@ def test_last_due_is_the_current_occurrence() -> None:
     daily = Rhythm("daily", starts_on=MONDAY)
     assert last_due(daily, date(2026, 11, 1), open_day) == date(2026, 10, 31)  # Sunday: Saturday's
     assert last_due(Rhythm("yearly", starts_on=date(2026, 12, 1)), date(2026, 11, 1), open_day) is None
-    assert last_due(Rhythm("yearly", starts_on=date(2025, 11, 2)), date(2026, 11, 1), open_day) == date(2025, 11, 2)
+    assert last_due(Rhythm("yearly", starts_on=date(2025, 11, 4)), date(2026, 11, 1), open_day) == date(2025, 11, 4)
 
 
 def test_rhythm_needs_its_details() -> None:

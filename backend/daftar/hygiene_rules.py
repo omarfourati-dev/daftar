@@ -8,13 +8,20 @@ A task has a rhythm (:class:`Rhythm`) that starts on ``starts_on`` (the first du
 - ``yearly``: every year on the date of ``starts_on`` (29 February → 28 February in other years);
 - ``every_n_days``: every ``interval_days`` days by the calendar.
 
+A weekly, monthly, yearly or "every N days" date that falls on a closed day moves to the next opening day (review
+N1: the monthly check due on a Sunday is done on Monday, on time); dates that meet there count once – three Mondays
+of a summer closure give one autoclave test on the first day back. Without any opening day within
+:data:`MAX_SHIFT_DAYS` the date stays where it is.
+
 The **current occurrence** (:func:`last_due`) is the latest due date up to today. It is "à faire" on its day and
 "en retard" afterwards, until it is done or the next occurrence replaces it – a missed purge of yesterday is not
 carried along (today's counts), a missed weekly autoclave test stays red until it is done or next week's is due.
-The history (:func:`occurrences`) lists every due date, so gaps stay visible.
+:func:`occurrences` lists every due date; the register writes them down day by day (:mod:`daftar.hygiene_register`),
+so a later change of the plan never rewrites the past.
 
 Start plans (:func:`starter_plan`, section 5.1): typical equipment and tasks per specialty, FR and AR – created only
-when the practice asks for them. Texts document; they never promise a legal conformity.
+when the practice asks for them, a weekly task on one of the practice's opening days (:func:`open_weekday`). Texts
+document; they never promise a legal conformity.
 """
 
 from __future__ import annotations
@@ -35,6 +42,8 @@ EQUIPMENT_KINDS: tuple[EquipmentKind, ...] = (
 )
 #: How far back the current occurrence is looked for (a yearly task plus a leap day).
 LOOK_BACK_DAYS = 400
+#: How far a due date on a closed day moves at most (a long summer closure: the first day back).
+MAX_SHIFT_DAYS = 45
 
 OpenDay = Callable[[date], bool]
 
@@ -63,6 +72,7 @@ def _same_day_of_month(anchor: date, day: date) -> bool:
 
 
 def is_due(rhythm: Rhythm, day: date, open_day: OpenDay) -> bool:
+    """The rhythm's own date (for daily tasks: an opening day) – before a closed day moves it (:func:`occurrences`)."""
     if day < rhythm.starts_on:
         return False
     match rhythm.frequency:
@@ -87,28 +97,43 @@ def _days(first: date, last: date) -> Iterator[date]:
         day += timedelta(days=1)
 
 
+def _opening_day_from(day: date, open_day: OpenDay) -> date:
+    """``day`` when the practice is open, else the next opening day (at most :data:`MAX_SHIFT_DAYS` later)."""
+    for candidate in _days(day, day + timedelta(days=MAX_SHIFT_DAYS)):
+        if open_day(candidate):
+            return candidate
+    return day
+
+
 def occurrences(rhythm: Rhythm, first: date, last: date, open_day: OpenDay) -> list[date]:
-    """Every due date in ``[first, last]``."""
-    return [d for d in _days(max(first, rhythm.starts_on), last) if is_due(rhythm, d, open_day)]
+    """Every due date in ``[first, last]``, closed days moved to the next opening day."""
+    if rhythm.frequency == "daily":
+        return [d for d in _days(max(first, rhythm.starts_on), last) if open_day(d)]
+    nominal = _days(max(first - timedelta(days=MAX_SHIFT_DAYS), rhythm.starts_on), last)
+    moved = {_opening_day_from(d, open_day) for d in nominal if is_due(rhythm, d, open_day)}
+    return sorted(d for d in moved if first <= d <= last)
 
 
 def last_due(rhythm: Rhythm, today: date, open_day: OpenDay) -> date | None:
     """The current occurrence: the latest due date up to ``today`` (None before the first one)."""
-    stop = max(rhythm.starts_on, today - timedelta(days=LOOK_BACK_DAYS))
-    day = today
-    while day >= stop:
-        if is_due(rhythm, day, open_day):
-            return day
-        day -= timedelta(days=1)
-    return None
+    found = occurrences(rhythm, today - timedelta(days=LOOK_BACK_DAYS), today, open_day)
+    return found[-1] if found else None
 
 
 def next_due(rhythm: Rhythm, after: date, open_day: OpenDay) -> date | None:
     """The first due date after ``after`` (within a bit more than a year)."""
-    for day in _days(max(after + timedelta(days=1), rhythm.starts_on), max(after, rhythm.starts_on) + timedelta(days=LOOK_BACK_DAYS)):
-        if is_due(rhythm, day, open_day):
-            return day
-    return None
+    start = max(after, rhythm.starts_on - timedelta(days=1))
+    found = occurrences(rhythm, start + timedelta(days=1), start + timedelta(days=LOOK_BACK_DAYS + MAX_SHIFT_DAYS), open_day)
+    return found[0] if found else None
+
+
+def open_weekday(weekday: int, open_weekdays: set[int]) -> int:
+    """The planned ISO weekday when the practice opens that day, else the closest earlier opening day of the week,
+    else the next one (a start plan's "Saturday" becomes Friday in a practice open Monday–Friday)."""
+    if weekday in open_weekdays or not open_weekdays:
+        return weekday
+    earlier = [d for d in sorted(open_weekdays) if d < weekday]
+    return earlier[-1] if earlier else min(open_weekdays)
 
 
 # --- start plans (section 5.1) -------------------------------------------------------------------------------------
