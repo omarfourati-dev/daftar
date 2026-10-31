@@ -25,7 +25,9 @@ from pydantic import AfterValidator, BeforeValidator, Field, StrictBool, model_v
 from sqlalchemy import Connection, Row, select, update
 
 from .catalog import Specialty
-from .deps import Conn, OwnerWriter, StaffUser
+from .clock import today_tunis
+from .deps import Conn, Ctx, OwnerWriter, StaffUser
+from .hygiene_register import replan_today, sync
 from .hours import WeeklyHours, agenda_range
 from .onboarding import flag
 from .phone import OptionalPhone, Phone
@@ -229,14 +231,19 @@ DEMO_LOCKED = ("name", "name_ar", "phone", "whatsapp", "maps_url")
 
 
 @router.patch("")
-def patch_practice(body: PracticePatch, user: OwnerWriter, conn: Conn) -> PracticeOut:
+def patch_practice(body: PracticePatch, user: OwnerWriter, ctx: Ctx, conn: Conn) -> PracticeOut:
     values = practice_columns(body)
     if user.is_demo and values:
         current = load_practice(conn, user.pid)
         if any(column in values and values[column] != getattr(current, column) for column in DEMO_LOCKED):
             raise forbidden("Dans la démo, le nom et les coordonnées du cabinet restent fixes.", code="demo_locked")
+    hours = "weekly_hours" in values
+    if hours:  # the hygiene register keeps the past with the old hours; the new ones count from today
+        sync(conn, user.pid, today_tunis(ctx.clock))
     if values:
         conn.execute(update(practice).where(practice.c.id == user.pid).values(**values))
+    if hours:
+        replan_today(conn, user.pid, today_tunis(ctx.clock))
     return practice_out(load_practice(conn, user.pid))
 
 

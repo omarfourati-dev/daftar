@@ -1,10 +1,14 @@
-"""Change log (spec stock-hygiène 8, start of the audit log of security review N4): who deleted or corrected what,
-when, old → new, and why.
+"""Change log (spec stock-hygiène 8, start of the audit log of security review N4): who changed, corrected or
+deleted what, when, old → new, and why.
 
 - :func:`record` writes one entry inside the request's transaction (the change and its entry commit together);
   ``before``/``after`` are small JSON snapshots (dates as ISO text, no secrets, no patient data beyond a name).
-- ``GET /api/audit-log?entity=&limit=`` (owner) → ``[{id, at, userName, entity, entityId, action, before, after,
-  reason}]``, newest first. The user's name is kept with the entry, so it stays readable when the account is gone.
+  :func:`diff` keeps only what changed, under the names the web shows (codes, not translations – the web words them).
+- Entities: ``stock_receipt``, ``stock_receipt_line``, ``stock_movement``, ``stock_product``, ``supplier`` (stock) and
+  ``hygiene_task``, ``equipment``, ``hygiene_task_done`` (hygiene).
+- ``GET /api/audit-log?entity=a,b&limit=`` (owner) → ``[{id, at, userName, entity, entityId, action, before, after,
+  reason}]``, newest first – each module asks for its own entities. The user's name is kept with the entry, so it
+  stays readable when the account is gone.
 """
 
 from __future__ import annotations
@@ -36,6 +40,17 @@ def jsonable(value: Any) -> Any:
     if isinstance(value, list | tuple):
         return [jsonable(v) for v in value]
     return value
+
+
+def diff(old: dict[str, Any], new: dict[str, Any], names: dict[str, str]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """``(before, after)`` of the fields in ``names`` (field → key in the log) whose value in ``new`` differs from
+    ``old``; fields missing in ``new`` did not change."""
+    before: dict[str, Any] = {}
+    after: dict[str, Any] = {}
+    for field, key in names.items():
+        if field in new and new[field] != old.get(field):
+            before[key], after[key] = old.get(field), new[field]
+    return before, after
 
 
 def record(
@@ -75,12 +90,12 @@ class AuditEntry(ApiModel):
 def list_entries(
     user: OwnerUser,
     conn: Conn,
-    entity: Annotated[str | None, Query(pattern=r"^[a-z_]{1,40}$")] = None,
+    entity: Annotated[str | None, Query(pattern=r"^[a-z_]{1,40}(,[a-z_]{1,40}){0,9}$")] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> list[AuditEntry]:
     conditions = [audit_log.c.practice_id == user.pid]
     if entity is not None:
-        conditions.append(audit_log.c.entity == entity)
+        conditions.append(audit_log.c.entity.in_(entity.split(",")))
     rows = conn.execute(
         select(audit_log).where(*conditions).order_by(audit_log.c.at.desc(), audit_log.c.id.desc()).limit(limit)
     ).all()

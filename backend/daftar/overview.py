@@ -12,7 +12,8 @@ Dashboard (section 5, online requests from 11.3)::
 Badges (section 15, polled every 60 s – kept cheap): ``{onlineRequests, overdue, stockToOrder, hygiene}``; overdue = the
 appointments of the day closing (:func:`daftar.appointments.overdue_conditions` – the same rule as
 ``/api/appointments/overdue``); stockToOrder = products "à commander" (spec stock-hygiène 8, also ``stockToOrder`` of
-the dashboard); hygiene = tasks overdue or due today (``hygiene.open`` of the dashboard, spec stock-hygiène 5.2).
+the dashboard); hygiene = tasks overdue or due today (``hygiene.open`` of the dashboard, spec stock-hygiène 5.2) – a count of
+the register's open rows (:func:`daftar.hygiene_register.open_count`).
 
 Statistics (section 15, H1): appointments of the month by status (``total`` counts every status), no-show rate
 = no_show / (done + no_show) rounded to 4 decimals (0 without data), revenue = payments of the month,
@@ -34,6 +35,7 @@ from .finance import UnverifiedDay, due_total, unverified_cash_days
 from .reminders import next_opening_day, pending_count
 from .schemas import ApiModel
 from .hygiene import TodayOut, hygiene_today
+from .hygiene_register import open_count
 from .stock import to_order_count
 from .tables import APPOINTMENT_STATUSES, appointment, patient, payment, queue_entry, service
 
@@ -172,7 +174,7 @@ def badges(user: StaffUser, ctx: Ctx, conn: Conn) -> BadgesOut:
     overdue = _count(conn, appointment, *overdue_conditions(user.pid, today_tunis(ctx.clock), now))
     return BadgesOut(online_requests=_count(conn, appointment, *_open_requests(user.pid, now)), overdue=overdue,
                      stock_to_order=to_order_count(conn, user.pid),
-                     hygiene=hygiene_today(conn, user, today_tunis(ctx.clock), now).open)
+                     hygiene=open_count(conn, user.pid, today_tunis(ctx.clock)))
 
 
 # --- statistics ------------------------------------------------------------------------------------------------

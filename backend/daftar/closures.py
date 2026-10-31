@@ -5,6 +5,9 @@
   appointments already booked in it (they stay; the practice decides whom to call);
 - ``PATCH /{id}`` / ``DELETE /{id}`` (owner). At most one year per closure; ``endsOn`` defaults to ``startsOn``.
 
+A change counts for the hygiene register from today on: the days before keep the plan they had
+(:func:`daftar.hygiene_register.replan_today`).
+
 """
 
 from __future__ import annotations
@@ -16,8 +19,9 @@ from fastapi import APIRouter, Query, Response
 from pydantic import Field
 from sqlalchemy import Connection, delete, func, insert, select, update
 
-from .clock import tunis_day_bounds
-from .deps import Conn, OwnerWriter, StaffUser
+from .clock import today_tunis, tunis_day_bounds
+from .deps import Conn, Ctx, OwnerWriter, StaffUser
+from .hygiene_register import replan_today, sync
 from .problems import not_found, unprocessable
 from .schemas import ApiModel
 from .tables import FREEING_STATUSES, appointment, practice_closure
@@ -82,14 +86,17 @@ def list_closures(
 
 
 @router.post("", status_code=201)
-def create_closure(body: ClosureIn, user: OwnerWriter, conn: Conn) -> CreatedClosure:
+def create_closure(body: ClosureIn, user: OwnerWriter, ctx: Ctx, conn: Conn) -> CreatedClosure:
     ends_on = body.ends_on or body.starts_on
     _check_range(body.starts_on, ends_on)
+    today = today_tunis(ctx.clock)
+    sync(conn, user.pid, today)
     new_id = conn.execute(
         insert(practice_closure)
         .values(practice_id=user.pid, starts_on=body.starts_on, ends_on=ends_on, label=body.label)
         .returning(practice_closure.c.id)
     ).scalar_one()
+    replan_today(conn, user.pid, today)
     start, _ = tunis_day_bounds(body.starts_on)
     _, end = tunis_day_bounds(ends_on)
     affected = conn.execute(
@@ -104,17 +111,23 @@ def create_closure(body: ClosureIn, user: OwnerWriter, conn: Conn) -> CreatedClo
 
 
 @router.patch("/{closure_id}")
-def patch_closure(closure_id: int, body: ClosurePatch, user: OwnerWriter, conn: Conn) -> ClosureOut:
+def patch_closure(closure_id: int, body: ClosurePatch, user: OwnerWriter, ctx: Ctx, conn: Conn) -> ClosureOut:
     current = _get(conn, user.pid, closure_id)
     values = {k: v for k, v in body.model_dump(exclude_unset=True, by_alias=False).items() if v is not None}
     _check_range(values.get("starts_on", current.starts_on), values.get("ends_on", current.ends_on))
     if values:
+        today = today_tunis(ctx.clock)
+        sync(conn, user.pid, today)
         conn.execute(update(practice_closure).where(practice_closure.c.id == closure_id).values(**values))
+        replan_today(conn, user.pid, today)
     return _get(conn, user.pid, closure_id)
 
 
 @router.delete("/{closure_id}", status_code=204)
-def delete_closure(closure_id: int, user: OwnerWriter, conn: Conn) -> Response:
+def delete_closure(closure_id: int, user: OwnerWriter, ctx: Ctx, conn: Conn) -> Response:
     _get(conn, user.pid, closure_id)
+    today = today_tunis(ctx.clock)
+    sync(conn, user.pid, today)
     conn.execute(delete(practice_closure).where(practice_closure.c.id == closure_id))
+    replan_today(conn, user.pid, today)
     return Response(status_code=204)

@@ -23,6 +23,7 @@ from sqlalchemy import Connection, delete, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 
 from .catalog import Specialty, insert_default_services
+from .clock import today_tunis
 from .db import constraint_name
 from .deps import AdminUser, Conn, Ctx
 from .invitations import create_invitation
@@ -30,6 +31,7 @@ from .money import Millimes
 from .password_reset import ResetLinkOut, create_reset_link
 from .phone import OptionalPhone, Phone
 from .hours import WeeklyHours
+from .hygiene_register import replan_today, sync
 from .practice_settings import (
     BOOKING_COLUMNS,
     NULLABLE,
@@ -357,8 +359,13 @@ def patch_practice(practice_id: int, body: AdminPracticePatch, user: AdminUser, 
         values["slug"] = _checked_slug(conn, values["slug"], except_id=practice_id)
     if "plan_code" in values:
         _check_plan(conn, values["plan_code"])
+    hours = "weekly_hours" in values
+    if hours:  # the hygiene register: the new hours count from today
+        sync(conn, practice_id, today_tunis(ctx.clock))
     if values:
         _write(conn, update(practice).where(practice.c.id == practice_id).values(**values))
+    if hours:
+        replan_today(conn, practice_id, today_tunis(ctx.clock))
     return admin_practice_out(conn, ctx.clock.now(), ctx.settings.base_domain, practice_id)
 
 

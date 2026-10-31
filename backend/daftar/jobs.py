@@ -25,6 +25,7 @@ from .billing import billing_job  # be-patienten
 from .demo import cleanup_demos  # be-patienten
 from .imports import cleanup_imports  # be-patienten
 from .pilot import cleanup_pilot_requests  # be-patienten
+from .hygiene_register import sync_all as write_hygiene_register
 
 log = logging.getLogger("daftar")
 
@@ -49,6 +50,7 @@ JOBS: list[Job] = [
     Job("demo-cleanup", timedelta(minutes=30), cleanup_demos),  # be-patienten
     Job("import-cleanup", timedelta(minutes=30), cleanup_imports),  # be-patienten
     Job("billing", timedelta(hours=1), billing_job),  # be-patienten – idempotent, so hourly is fine
+    Job("hygiene-register", timedelta(hours=1), write_hygiene_register),  # the day's due dates, idempotent
 ]
 
 

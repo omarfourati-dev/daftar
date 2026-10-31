@@ -492,6 +492,22 @@ hygiene_task = Table(
     Column("instructions", Text, nullable=False),
     Column("active", Boolean, nullable=False),
     _ts("created_at"),
+    Column("materialized_until", Date, nullable=True),  # last day written into hygiene_task_due (migration 0010)
+)
+
+#: One due date of a task, written down (the register as a document, migration 0010): open | done | missed, with the
+#: title and equipment of that day.
+hygiene_task_due = Table(
+    "hygiene_task_due",
+    metadata,
+    _id(),
+    _practice_id(),
+    Column("task_id", BigInteger, nullable=False),  # composite FK (task_id, practice_id)
+    Column("due_on", Date, nullable=False),
+    Column("title", Text, nullable=False),
+    Column("equipment_id", BigInteger, ForeignKey("equipment.id", ondelete="SET NULL"), nullable=True),
+    Column("equipment_name", Text, nullable=True),
+    Column("status", Text, nullable=False),
 )
 
 #: The proof of one due date of a task: who (name kept), when, ok / not ok.
@@ -511,7 +527,7 @@ hygiene_task_done = Table(
 
 #: Child tables first – the order for TRUNCATE/DELETE in tests and tools (reference data not included).
 ALL_TABLES = (
-    hygiene_task_done, hygiene_task, equipment,
+    hygiene_task_done, hygiene_task_due, hygiene_task, equipment,
     audit_log, stock_movement, stock_receipt_line, stock_receipt, stock_product, supplier,
     feedback, password_reset, import_template, import_job, cash_closing,
     pilot_request, invoice, payment, treatment, queue_entry, appointment, patient, invitation,

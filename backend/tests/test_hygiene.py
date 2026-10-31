@@ -6,7 +6,10 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import Engine, select
 
+from daftar.hygiene_register import sync_all
+from daftar.tables import hygiene_task_due
 from tests.helpers import assert_problem
 
 Factory = Callable[..., Any]
@@ -153,10 +156,12 @@ def test_a_tick_is_undone_by_its_author_soon_or_by_the_owner_and_logged(client: 
     again = tick(client, cab.assistant, daily["id"]).json()["done"]
     clock.advance(minutes=20)
     assert_problem(client.delete(f"/api/hygiene/done/{again['id']}", headers=cab.assistant), 403, "undo_too_late")
-    assert client.delete(f"/api/hygiene/done/{again['id']}", headers=cab.owner).status_code == 204
+    assert client.request("DELETE", f"/api/hygiene/done/{again['id']}", json={"reason": "Fait par erreur"},
+                          headers=cab.owner).status_code == 204
+    assert [i["state"] for i in today(client, cab.assistant)["items"]] == ["due"]  # to do again
     log = client.get("/api/audit-log?entity=hygiene_task_done", headers=cab.owner).json()
-    assert [(e["userName"], e["before"]["task"], e["before"]["doneBy"]) for e in log] == [
-        ("Dr. Fadoua", "Purge des conduits", "Nisrine"), ("Nisrine", "Purge des conduits", "Nisrine")]
+    assert [(e["userName"], e["before"]["task"], e["before"]["doneBy"], e["reason"]) for e in log] == [
+        ("Dr. Fadoua", "Purge des conduits", "Nisrine", "Fait par erreur"), ("Nisrine", "Purge des conduits", "Nisrine", "")]
 
 
 def test_a_task_with_proofs_is_deactivated_not_deleted(client: TestClient, cab: Any) -> None:
@@ -213,3 +218,222 @@ def test_the_practice_export_contains_the_hygiene_tables(client: TestClient, cab
     assert [t["title"] for t in data["hygieneTasks"]] == ["Purge des conduits"]
     assert [d["doneByName"] for d in data["hygieneTasksDone"]] == ["Nisrine"]
     assert data["equipment"] == []
+
+
+# --- the register is a document (review H1): written down day by day, never rewritten ------------------------------
+
+
+def register(client: TestClient, headers: dict[str, str], first: str, last: str) -> list[tuple[str, str, str]]:
+    res = client.get(f"/api/hygiene/history?from={first}&to={last}", headers=headers)
+    assert res.status_code == 200, res.text
+    return [(r["dueOn"], r["title"], r["status"]) for r in res.json()["rows"]]
+
+
+def test_changing_or_deactivating_a_task_keeps_the_register(client: TestClient, cab: Any, clock: Any) -> None:
+    clock.set(clock.now() - timedelta(days=4))  # Monday 26.10.
+    daily = task(client, cab.assistant, "Purge des conduits")
+    assert tick(client, cab.assistant, daily["id"]).status_code == 201
+    clock.advance(days=4)  # Friday 30.10.: Tuesday to Thursday were forgotten, nobody opened the app
+    res = client.patch(f"/api/hygiene/tasks/{daily['id']}", json={"frequency": "weekly", "weekday": 1}, headers=cab.assistant)
+    assert res.status_code == 200, res.text
+    assert res.json()["nextDueOn"] == "2026-11-02"
+    past = [("2026-10-29", "Purge des conduits", "missed"), ("2026-10-28", "Purge des conduits", "missed"),
+            ("2026-10-27", "Purge des conduits", "missed"), ("2026-10-26", "Purge des conduits", "done")]
+    assert register(client, cab.dentist, "2026-10-26", "2026-10-30") == past  # the new rhythm counts from today
+    assert client.patch(f"/api/hygiene/tasks/{daily['id']}", json={"active": False}, headers=cab.assistant).status_code == 200
+    assert register(client, cab.dentist, "2026-10-26", "2026-10-30") == past  # deactivating hides no gap
+    clock.advance(days=3)  # Monday 02.11.: a deactivated task is not due any more
+    assert today(client, cab.assistant)["items"] == []
+    assert register(client, cab.dentist, "2026-10-26", "2026-11-02") == past
+    log = client.get("/api/audit-log?entity=hygiene_task", headers=cab.owner).json()
+    assert [(e["action"], e["userName"], e["before"], e["after"]) for e in log] == [
+        ("update", "Nisrine", {"active": True}, {"active": False}),
+        ("update", "Nisrine", {"frequency": "daily", "weekday": None}, {"frequency": "weekly", "weekday": 1}),
+    ]
+
+
+def test_a_more_frequent_rhythm_does_not_rewrite_the_past(client: TestClient, cab: Any, clock: Any) -> None:
+    clock.set(clock.now() - timedelta(days=4))  # Monday 26.10.
+    weekly = task(client, cab.assistant, "Bowie-Dick", frequency="weekly", weekday=1)
+    tick(client, cab.assistant, weekly["id"])
+    clock.advance(days=4)
+    every_day = {"frequency": "daily", "weekday": None, "intervalDays": None, "title": "Bowie-Dick",
+                 "startsOn": "2026-10-26", "instructions": "", "equipmentId": None, "active": True}  # the dialog sends all
+    assert client.patch(f"/api/hygiene/tasks/{weekly['id']}", json=every_day, headers=cab.owner).status_code == 200
+    assert register(client, cab.dentist, "2026-10-26", "2026-10-30") == [
+        ("2026-10-30", "Bowie-Dick", "due"), ("2026-10-26", "Bowie-Dick", "done")]
+    log = client.get("/api/audit-log?entity=hygiene_task", headers=cab.owner).json()
+    assert [(e["before"], e["after"]) for e in log] == [({"frequency": "weekly", "weekday": 1}, {"frequency": "daily", "weekday": None})]
+
+
+def test_occurrences_never_start_before_the_task_was_created(client: TestClient, cab: Any) -> None:
+    daily = task(client, cab.assistant, "Désinfection des surfaces", startsOn="2026-01-01")
+    assert register(client, cab.dentist, "2026-01-01", "2026-10-30") == [("2026-10-30", "Désinfection des surfaces", "due")]
+    yearly = task(client, cab.assistant, "Maintenance autoclave", frequency="yearly", startsOn="2026-03-02")  # last done
+    assert yearly["nextDueOn"] == "2027-03-02"
+    assert [i["taskId"] for i in today(client, cab.assistant)["items"]] == [daily["id"]]
+
+
+def test_a_task_with_a_past_occurrence_is_deactivated_not_deleted(client: TestClient, cab: Any, clock: Any) -> None:
+    clock.set(clock.now() - timedelta(days=1))
+    forgotten = task(client, cab.assistant, "Purge")  # never ticked: Thursday stays "non fait"
+    clock.advance(days=1)
+    assert_problem(client.delete(f"/api/hygiene/tasks/{forgotten['id']}", headers=cab.assistant), 409, "task_in_use")
+    mistake = task(client, cab.assistant, "Erreur de saisie")  # created and due today, nothing done: may go
+    assert client.delete(f"/api/hygiene/tasks/{mistake['id']}", headers=cab.assistant).status_code == 204
+    assert [r[1] for r in register(client, cab.dentist, "2026-10-29", "2026-10-30")] == ["Purge", "Purge"]
+
+
+def test_opening_hours_and_closures_change_the_plan_from_today_only(client: TestClient, cab: Any, clock: Any) -> None:
+    clock.set(clock.now() - timedelta(days=4))  # Monday 26.10.
+    daily = task(client, cab.assistant, "Purge")
+    clock.advance(days=4)  # Friday: nobody looked since Monday
+    hours = {str(d): [["08:00", "13:00"]] for d in (1, 2, 4)}  # from now on: Monday, Tuesday, Thursday
+    assert client.patch("/api/practice", json={"weeklyHours": hours}, headers=cab.owner).status_code == 200
+    assert [r[0] for r in register(client, cab.dentist, "2026-10-26", "2026-10-30")] == [
+        "2026-10-29", "2026-10-28", "2026-10-27", "2026-10-26"]  # Wednesday was open then; Friday is closed now
+    clock.advance(days=3)  # Monday 02.11.
+    assert [i["dueOn"] for i in today(client, cab.assistant)["items"]] == ["2026-11-02"]
+    res = client.post("/api/closures", json={"startsOn": "2026-11-02", "label": "Malade"}, headers=cab.owner)
+    assert res.status_code == 201, res.text
+    assert today(client, cab.assistant)["items"] == []  # closed today: nothing due, no gap
+    assert_problem(tick(client, cab.assistant, daily["id"]), 422, "not_due")
+    assert [r[0] for r in register(client, cab.dentist, "2026-10-29", "2026-11-02")] == ["2026-10-29"]
+
+
+def test_the_job_writes_each_day_and_a_failed_job_is_caught_up_on_reading(
+    client: TestClient, app: Any, cab: Any, clock: Any, db: Engine
+) -> None:
+    clock.set(clock.now() - timedelta(days=4))  # Monday 26.10.
+    task(client, cab.assistant, "Purge")
+    clock.advance(days=1, hours=-8)  # Tuesday 01:00
+    sync_all(app.state.ctx)
+    with db.connect() as conn:
+        written = conn.execute(select(hygiene_task_due.c.due_on, hygiene_task_due.c.status)
+                               .order_by(hygiene_task_due.c.due_on)).all()
+    assert [(d.isoformat(), s) for d, s in written] == [("2026-10-26", "missed"), ("2026-10-27", "open")]
+    clock.advance(days=3, hours=8)  # Friday: the job did not run since
+    assert client.get("/api/badges", headers=cab.dentist).json()["hygiene"] == 1
+    assert [r[2] for r in register(client, cab.dentist, "2026-10-26", "2026-10-30")] == ["due"] + ["missed"] * 4
+
+
+def test_a_check_due_on_a_closed_day_is_on_time_the_next_opening_day(client: TestClient, cab: Any, clock: Any) -> None:
+    monthly = task(client, cab.assistant, "Vérification des péremptions", frequency="monthly", startsOn="2026-10-15")
+    assert monthly["nextDueOn"] == "2026-11-16"  # 15.11. is a Sunday
+    clock.set(clock.now() + timedelta(days=17))  # Monday 16.11.
+    assert [(i["dueOn"], i["state"]) for i in today(client, cab.assistant)["items"]] == [("2026-11-16", "due")]
+    assert tick(client, cab.assistant, monthly["id"]).status_code == 201
+    rows = client.get("/api/hygiene/history?from=2026-11-01&to=2026-11-16", headers=cab.dentist).json()["rows"]
+    assert [(r["dueOn"], r["status"], r["late"]) for r in rows] == [("2026-11-16", "done", False)]
+
+
+def test_a_weekly_test_not_done_yet_is_overdue_not_missed(client: TestClient, cab: Any, clock: Any) -> None:
+    clock.set(clock.now() - timedelta(days=4))
+    task(client, cab.assistant, "Bowie-Dick", frequency="weekly", weekday=1)
+    clock.advance(days=4)
+    assert register(client, cab.dentist, "2026-10-26", "2026-10-30") == [("2026-10-26", "Bowie-Dick", "overdue")]
+    clock.advance(days=3)  # the next Monday replaces it: now it is a gap
+    assert register(client, cab.dentist, "2026-10-26", "2026-11-02") == [
+        ("2026-11-02", "Bowie-Dick", "due"), ("2026-10-26", "Bowie-Dick", "missed")]
+
+
+def test_renaming_keeps_the_names_of_the_register(client: TestClient, cab: Any, clock: Any) -> None:
+    clock.set(clock.now() - timedelta(days=1))
+    gear = client.post("/api/hygiene/equipment", json={"name": "Fauteuil 1"}, headers=cab.assistant).json()
+    daily = task(client, cab.assistant, "Purge", equipmentId=gear["id"])
+    tick(client, cab.assistant, daily["id"])
+    clock.advance(days=1)
+    client.patch(f"/api/hygiene/tasks/{daily['id']}", json={"title": "Purge des conduits"}, headers=cab.assistant)
+    client.patch(f"/api/hygiene/equipment/{gear['id']}", json={"name": "Fauteuil bleu", "serialNumber": "SN-9"},
+                 headers=cab.owner)
+    rows = client.get("/api/hygiene/history?from=2026-10-29&to=2026-10-30", headers=cab.dentist).json()["rows"]
+    assert [(r["title"], r["equipmentName"]) for r in rows] == [("Purge des conduits", "Fauteuil bleu"), ("Purge", "Fauteuil 1")]
+    log = client.get("/api/audit-log?entity=equipment,hygiene_task", headers=cab.owner).json()
+    assert [(e["entity"], e["entityId"], e["before"], e["after"]) for e in log] == [
+        ("equipment", gear["id"], {"name": "Fauteuil 1", "serialNumber": ""}, {"name": "Fauteuil bleu", "serialNumber": "SN-9"}),
+        ("hygiene_task", daily["id"], {"title": "Purge"}, {"title": "Purge des conduits"}),
+    ]
+
+
+# --- corrections of a proof (review N8) -----------------------------------------------------------------------------
+
+
+def test_the_owner_corrects_a_proof_with_a_reason(client: TestClient, cab: Any, clock: Any) -> None:
+    weekly = task(client, cab.assistant, "Bowie-Dick", frequency="weekly", weekday=5)
+    done = tick(client, cab.dentist, weekly["id"]).json()["done"]
+    clock.advance(days=1)
+    path = f"/api/hygiene/done/{done['id']}"
+    correction = {"result": "not_ok", "note": "Indicateur non viré", "reason": "Vu le lendemain"}
+    assert_problem(client.patch(path, json=correction, headers=cab.assistant), 403, "forbidden")
+    assert_problem(client.patch(path, json={**correction, "reason": ""}, headers=cab.owner), 422, "validation")
+    res = client.patch(path, json=correction, headers=cab.owner)
+    assert res.status_code == 200, res.text
+    row = client.get("/api/hygiene/history?from=2026-10-30&to=2026-10-31", headers=cab.dentist).json()["rows"][0]
+    assert (row["status"], row["done"]["result"], row["done"]["note"], row["done"]["doneBy"]) == (
+        "done", "not_ok", "Indicateur non viré", "Dr. Karim")
+    entry = client.get("/api/audit-log?entity=hygiene_task_done", headers=cab.owner).json()[0]
+    assert (entry["action"], entry["reason"], entry["before"]["result"], entry["after"]["result"]) == (
+        "update", "Vu le lendemain", "ok", "not_ok")
+    assert (entry["before"]["task"], entry["before"]["dueOn"]) == ("Bowie-Dick", "2026-10-30")
+
+
+def test_the_owner_needs_a_reason_to_delete_a_proof_later(client: TestClient, cab: Any, clock: Any) -> None:
+    clock.set(clock.now() - timedelta(days=1))
+    daily = task(client, cab.assistant)
+    done = tick(client, cab.assistant, daily["id"]).json()["done"]
+    clock.advance(days=1)
+    path = f"/api/hygiene/done/{done['id']}"
+    assert_problem(client.delete(path, headers=cab.owner), 422, "reason_required")
+    assert client.request("DELETE", path, json={"reason": "Pas fait en réalité"}, headers=cab.owner).status_code == 204
+    assert register(client, cab.dentist, "2026-10-29", "2026-10-29") == [("2026-10-29", "Purge des conduits", "missed")]
+    entry = client.get("/api/audit-log?entity=hygiene_task_done", headers=cab.owner).json()[0]
+    assert (entry["action"], entry["reason"]) == ("delete", "Pas fait en réalité")
+
+
+# --- every id stays in its practice, every role keeps to its rights (review M4, DoD 3) ------------------------------
+
+
+def test_every_id_of_another_practice_is_not_found(client: TestClient, cab: Any, make_user: Factory,
+                                                   auth_headers: Factory) -> None:
+    gear = client.post("/api/hygiene/equipment", json={"name": "Autoclave"}, headers=cab.assistant).json()
+    mine = task(client, cab.assistant, equipmentId=gear["id"])
+    done = tick(client, cab.assistant, mine["id"]).json()["done"]
+    stranger = auth_headers(make_user(role="owner"))
+    for method, path, body in [
+        ("PATCH", f"/api/hygiene/equipment/{gear['id']}", {"name": "X"}),
+        ("DELETE", f"/api/hygiene/equipment/{gear['id']}", None),
+        ("PATCH", f"/api/hygiene/tasks/{mine['id']}", {"title": "X"}),
+        ("DELETE", f"/api/hygiene/tasks/{mine['id']}", None),
+        ("POST", f"/api/hygiene/tasks/{mine['id']}/done", {}),
+        ("PATCH", f"/api/hygiene/done/{done['id']}", {"result": "not_ok", "reason": "x"}),
+        ("DELETE", f"/api/hygiene/done/{done['id']}", {"reason": "x"}),
+    ]:
+        assert_problem(client.request(method, path, json=body, headers=stranger), 404, "not_found")
+    assert_problem(client.post("/api/hygiene/tasks", json={"title": "X", "frequency": "daily", "equipmentId": gear["id"]},
+                               headers=stranger), 422, "invalid_equipment")
+    assert_problem(client.patch(f"/api/hygiene/tasks/{mine['id']}", json={"equipmentId": 999_999}, headers=cab.owner), 422,
+                   "invalid_equipment")
+    assert client.get(f"/api/hygiene/history?equipmentId={gear['id']}", headers=stranger).json()["rows"] == []
+    assert client.get("/api/hygiene/equipment", headers=stranger).json() == []
+    assert client.get("/api/audit-log", headers=stranger).json() == []
+
+
+def test_every_endpoint_keeps_to_the_roles(client: TestClient, cab: Any) -> None:
+    gear = client.post("/api/hygiene/equipment", json={"name": "Autoclave"}, headers=cab.assistant).json()
+    mine = task(client, cab.assistant)
+    done = tick(client, cab.assistant, mine["id"]).json()["done"]
+    for method, path, body in [
+        ("PATCH", f"/api/hygiene/equipment/{gear['id']}", {"name": "X"}),
+        ("DELETE", f"/api/hygiene/equipment/{gear['id']}", None),
+        ("PATCH", f"/api/hygiene/tasks/{mine['id']}", {"title": "X"}),
+        ("DELETE", f"/api/hygiene/tasks/{mine['id']}", None),
+        ("PATCH", f"/api/hygiene/done/{done['id']}", {"result": "not_ok", "reason": "x"}),
+        ("DELETE", f"/api/hygiene/done/{done['id']}", None),  # somebody else's tick
+        ("GET", "/api/audit-log?entity=hygiene_task", None),
+    ]:
+        assert_problem(client.request(method, path, json=body, headers=cab.dentist), 403, "forbidden")
+    assert_problem(client.request("PATCH", f"/api/hygiene/done/{done['id']}", json={"result": "ok", "reason": "x"},
+                                  headers=cab.assistant), 403, "forbidden")
+    for method, path in [("GET", "/api/hygiene/today"), ("GET", "/api/hygiene/tasks"), ("GET", "/api/hygiene/history"),
+                         ("POST", f"/api/hygiene/tasks/{mine['id']}/done"), ("PATCH", f"/api/hygiene/done/{done['id']}")]:
+        assert_problem(client.request(method, path), 401, "unauthorized")
