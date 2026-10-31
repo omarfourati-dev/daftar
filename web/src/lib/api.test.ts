@@ -92,6 +92,20 @@ describe('apiErrorMessage', () => {
 		expect(apiErrorMessage(err)).toBe('البريد الإلكتروني أو كلمة المرور غير صحيحة.');
 	});
 
+	it('translates the password rules of the server (security review M4) in both languages', () => {
+		const codes = ['password_repeated', 'password_sequence', 'password_contains_email'];
+		const french = codes.map((code) => apiErrorMessage(new ApiError(422, '', code)));
+		expect(french).toEqual([
+			'Le mot de passe ne peut pas être un seul caractère répété.',
+			'Le mot de passe ne peut pas être une simple suite comme 1234567890 ou azertyuiop.',
+			'Le mot de passe ne doit pas contenir votre adresse e-mail.'
+		]);
+		i18n.setLocale('ar');
+		const arabic = codes.map((code) => apiErrorMessage(new ApiError(422, '', code)));
+		arabic.forEach((text, i) => expect(text).not.toBe(french[i]));
+		expect(arabic.every((text) => /[؀-ۿ]/.test(text))).toBe(true);
+	});
+
 	it('falls back to the server detail, then to a generic text', () => {
 		expect(apiErrorMessage(new ApiError(422, 'Nom trop long.', 'some_new_code'))).toBe('Nom trop long.');
 		expect(apiErrorMessage(new ApiError(503, '', null))).toBe(

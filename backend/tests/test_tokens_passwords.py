@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 import jwt
+import pytest
 
 from daftar.clock import FixedClock
 from daftar.passwords import hash_password, password_problem, verify_password
@@ -50,5 +51,40 @@ def test_password_policy() -> None:
         "password_too_short",
         "Le mot de passe doit contenir au moins 10 caractères.",
     )
-    assert password_problem("1234567890") is None
+    assert password_problem("mot-de-passe") is None
     assert password_problem("x" * 201)[0] == "password_too_long"  # type: ignore[index]
+
+
+@pytest.mark.parametrize(
+    ("password", "code"),
+    [
+        ("aaaaaaaaaa", "password_repeated"),
+        ("0000000000000", "password_repeated"),
+        ("1234567890", "password_sequence"),
+        ("0987654321", "password_sequence"),
+        ("123456789012", "password_sequence"),  # on and on
+        ("azertyuiop", "password_sequence"),
+        ("AZERTYUIOP", "password_sequence"),
+        ("qwertyuiop", "password_sequence"),
+        ("poiuytreza", "password_sequence"),
+        ("qwertzuiop", "password_sequence"),
+        ("abcdefghijk", "password_sequence"),
+        ("qsdfghjklm", "password_sequence"),
+        ("1234567890a", None),  # not only a sequence
+        ("azerty-2026-tunis", None),
+        ("mot-de-passe-solide", None),
+    ],
+)
+def test_password_policy_refuses_what_is_guessed_first(password: str, code: str | None) -> None:
+    """Security review M4: besides the length, no single repeated character and no pure digit or keyboard run."""
+    problem = password_problem(password)
+    assert (problem[0] if problem else None) == code
+
+
+def test_password_must_not_contain_the_email() -> None:
+    assert password_problem("amira.bensalah-2026", "Amira.BenSalah@cabinet.tn")[0] == "password_contains_email"  # type: ignore[index]
+    assert password_problem("x-amira.bensalah@cabinet.tn", "amira.bensalah@cabinet.tn")[0] == "password_contains_email"  # type: ignore[index]
+    assert password_problem("MON-CABINET-SAMI-2026", "sami@cabinet.tn")[0] == "password_contains_email"  # type: ignore[index]
+    assert password_problem("dr-ab-mot-de-passe", "ab@cabinet.tn") is None  # a local part this short is everywhere
+    assert password_problem("mot-de-passe-solide", "sami@cabinet.tn") is None
+    assert password_problem("mot-de-passe-solide", None) is None

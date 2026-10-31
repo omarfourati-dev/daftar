@@ -73,6 +73,16 @@ def test_refuses_a_short_admin_password(settings: Any, clock: Any, db: Any) -> N
         start(settings, clock, db, admin_email="omar@daftar.test", admin_password="kurz")
 
 
+def test_an_easy_admin_password_only_warns(settings: Any, clock: Any, db: Any, caplog: pytest.LogCaptureFixture) -> None:
+    """The stricter rules of the app (security review M4) must not stop a deploy: a warning, without the password."""
+    with caplog.at_level(logging.WARNING, logger="daftar"):
+        client = start(settings, clock, db, admin_email="omar@daftar.test", admin_password="omar-admin-2026")
+    assert login(client, "omar@daftar.test", "omar-admin-2026").status_code == 200
+    client.__exit__(None, None, None)
+    assert "ADMIN_PASSWORD is easy to guess" in caplog.text
+    assert "omar-admin-2026" not in caplog.text
+
+
 def test_warns_when_there_is_no_admin(settings: Any, clock: Any, db: Any, caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.WARNING, logger="daftar"):
         start(settings, clock, db).__exit__(None, None, None)

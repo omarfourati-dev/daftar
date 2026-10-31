@@ -8,7 +8,7 @@ export const invitation: Messages['invitation'] = {
 	email: 'البريد الإلكتروني',
 	password: 'كلمة المرور',
 	repeat: 'تأكيد كلمة المرور',
-	passwordHint: '10 أحرف على الأقل.',
+	passwordHint: '10 أحرف على الأقل – لا تسلسلًا مثل 1234567890، ولا بريدك الإلكتروني.',
 	signedInWarning: 'أنتم متصلون حاليًا بحساب {email}. الحساب الجديد سيحلّ محلّ هذه الجلسة.',
 	submit: 'إنشاء حسابي',
 	toLogin: 'الذهاب إلى تسجيل الدخول',

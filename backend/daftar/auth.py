@@ -127,6 +127,9 @@ def login(body: LoginIn, request: Request, ctx: Ctx, conn: Conn, ip: ClientIp) -
     if not ctx.login_throttle.reserve(email, ip):
         ctx.metrics.logins.labels("throttled").inc()
         raise too_many_requests(TOO_MANY)
+    if ctx.login_throttle.account_locked(email):  # 10 failures of this e-mail from anywhere (security review M4)
+        ctx.metrics.logins.labels("throttled").inc()
+        raise too_many_requests(TOO_MANY, retry_after=ctx.login_throttle.account_retry_after(email))
     row = conn.execute(
         select(app_user.c.id, app_user.c.password_hash, app_user.c.practice_id).where(app_user.c.email == email)
     ).first()
@@ -141,6 +144,7 @@ def login(body: LoginIn, request: Request, ctx: Ctx, conn: Conn, ip: ClientIp) -
         ok = host_practice is not None and row is not None and row.practice_id == host_practice.id
     if not ok:
         ctx.metrics.logins.labels("failed").inc()
+        ctx.login_throttle.failure(email)
         raise unauthorized("E-mail ou mot de passe incorrect.", code="invalid_credentials")
     ctx.login_throttle.success(email, ip)
     ctx.metrics.logins.labels("ok").inc()
@@ -171,7 +175,7 @@ def change_password(body: PasswordIn, user: CurrentUser, ctx: Ctx, conn: Conn) -
     if not verify_password(body.current, current_hash):
         raise bad_request("Le mot de passe actuel est incorrect.", code="wrong_password")
     ctx.login_throttle.clear_key(key)
-    if problem := password_problem(body.next):
+    if problem := password_problem(body.next, user.email):
         raise unprocessable(problem[1], code=problem[0])
     conn.execute(
         update(app_user)

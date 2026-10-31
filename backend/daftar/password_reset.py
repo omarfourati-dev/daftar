@@ -116,6 +116,8 @@ def accept(body: AcceptIn, ctx: Ctx, conn: Conn, ip: ClientIp) -> Session:
     row = _open_link(conn, body.token, now, lock=True)  # FOR UPDATE: two clicks cannot use one link twice
     if row is None:
         raise not_found(INVALID, code="reset_invalid")
+    if problem := password_problem(body.password, row.email):  # now that the account is known
+        raise unprocessable(problem[1], code=problem[0])
     conn.execute(
         update(app_user)
         .where(app_user.c.id == row.user_id)

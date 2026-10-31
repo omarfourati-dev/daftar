@@ -1,7 +1,10 @@
 """In-memory sliding-window limits (one process, one container – no Redis needed).
 
 - :class:`LoginThrottle` – like Redefluss: 20 attempts per IP and 5 per e-mail+IP within 15 minutes, counted
-  *before* the password hash runs, so a flood cannot burn CPU. A success clears its e-mail+IP bucket.
+  *before* the password hash runs, so a flood cannot burn CPU. A success clears its e-mail+IP bucket. Plus a limit
+  per account whatever the IP (security review M4): after 10 failed logins of an e-mail within 15 minutes every
+  login of it is refused (429, the right password too) until the oldest failure leaves the window; unknown e-mails
+  count the same way, so the answer tells nothing about whether an account exists.
 - :class:`RateLimiter` – a generic “N per window and key” limit for demo, pilot requests and other public endpoints.
   Get one per app with ``ctx.limiter(name, limit, window)`` (see daftar/context.py) – never as a module global,
   otherwise tests would share counters.
@@ -60,6 +63,7 @@ class LoginThrottle:
     PER_IP = 20
     PER_EMAIL_IP = 5
     PER_KEY = 5
+    FAILURES_PER_ACCOUNT = 10
     WINDOW = timedelta(minutes=15)
 
     def __init__(self, clock: Clock) -> None:
@@ -80,6 +84,29 @@ class LoginThrottle:
     def success(self, email: str, ip: str) -> None:
         with self._b.lock:
             self._b.hits.pop(f"p:{email}|{ip}", None)
+            self._b.hits.pop(f"a:{email}", None)
+
+    def failure(self, email: str) -> None:
+        """Counts a failed login of ``email`` (known or not), from whatever IP."""
+        b = self._b
+        with b.lock:
+            b.add(f"a:{email}", b.clock.now())
+
+    def account_locked(self, email: str) -> bool:
+        b = self._b
+        with b.lock:
+            return b.count(f"a:{email}", b.clock.now()) >= self.FAILURES_PER_ACCOUNT
+
+    def account_retry_after(self, email: str) -> int:
+        """Seconds until the oldest failure of ``email`` leaves the window (≥ 1)."""
+        b = self._b
+        with b.lock:
+            now = b.clock.now()
+            b.count(f"a:{email}", now)
+            oldest = b.oldest(f"a:{email}")
+            if oldest is None:
+                return 1
+            return max(1, int((oldest + self.WINDOW - now).total_seconds()) + 1)
 
     def reserve_key(self, key: str) -> bool:
         """Single-key variant (5 per 15 min), e.g. password-change guesses per user or invitation tokens per IP."""

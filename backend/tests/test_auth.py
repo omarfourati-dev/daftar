@@ -82,6 +82,34 @@ def test_throttle_window_passes(client: TestClient, clock: Any, make_user: Calla
     assert login(client, user.email).status_code == 200
 
 
+def test_ten_failures_lock_the_account_from_every_ip_without_telling_whether_it_exists(
+    client: TestClient, clock: Any, make_user: Callable[..., TestUser]
+) -> None:
+    """Security review M4: a botnet has many IPs – after 10 failed logins of an e-mail in 15 minutes, every login of
+    it is refused, the right password too, until the window passes. Unknown e-mails behave exactly the same."""
+    user = make_user()
+    for i in range(10):
+        assert login(client, user.email, "falsch-falsch", ip=f"203.0.113.{i + 1}").status_code == 401
+        assert login(client, "personne@daftar.test", "falsch-falsch", ip=f"198.51.100.{i + 1}").status_code == 401
+    locked = login(client, user.email, ip="192.0.2.50")  # the right password, from a fresh IP
+    unknown = login(client, "personne@daftar.test", ip="192.0.2.51")
+    assert assert_problem(locked, 429, "too_many_requests") == assert_problem(unknown, 429, "too_many_requests")
+    assert locked.headers["Retry-After"] == unknown.headers["Retry-After"]
+    assert login(client, make_user().email, ip="192.0.2.50").status_code == 200  # other accounts are not touched
+    clock.advance(minutes=15)
+    assert login(client, user.email, ip="192.0.2.50").status_code == 200
+
+
+def test_a_successful_login_clears_the_failures_of_the_account(client: TestClient, make_user: Callable[..., TestUser]) -> None:
+    user = make_user()
+    for i in range(9):
+        login(client, user.email, "falsch-falsch", ip=f"203.0.113.{i + 1}")
+    assert login(client, user.email, ip="192.0.2.1").status_code == 200
+    for i in range(9):
+        login(client, user.email, "falsch-falsch", ip=f"198.51.100.{i + 1}")
+    assert login(client, user.email, ip="192.0.2.2").status_code == 200
+
+
 def test_login_validation_is_422_without_echoing_the_password(client: TestClient) -> None:
     res = client.post("/api/auth/login", json={"email": "a@b.tn"})
     body = assert_problem(res, 422, "validation")
@@ -144,6 +172,9 @@ def test_change_password(client: TestClient, make_user: Callable[..., TestUser],
         422,
         "password_too_short",
     )
+    for weak, code in (("azertyuiop", "password_sequence"), ("zzzzzzzzzzzz", "password_repeated"),
+                       (f"{user.email.split('@')[0]}-2026", "password_contains_email")):
+        assert_problem(client.post("/api/auth/password", json={"current": PASSWORD, "next": weak}, headers=old), 422, code)
     res = client.post("/api/auth/password", json={"current": PASSWORD, "next": "nouveau-mot-de-passe"}, headers=old)
     assert res.status_code == 200, res.text
     new = {"Authorization": f"Bearer {res.json()['token']}"}

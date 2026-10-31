@@ -139,7 +139,7 @@ def preview(body: TokenIn, ctx: Ctx, conn: Conn, ip: ClientIp) -> PreviewOut:
 
 @router.post("/accept", status_code=201)
 def accept(body: AcceptIn, ctx: Ctx, conn: Conn, ip: ClientIp) -> Session:
-    if problem := password_problem(body.password):
+    if problem := password_problem(body.password, body.email):
         raise unprocessable(problem[1], code=problem[0])
     _reserve(ctx, ip)
     now = ctx.clock.now()

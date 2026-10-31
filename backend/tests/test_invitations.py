@@ -95,6 +95,10 @@ def test_accept_validates_input(client: TestClient, app: Any, make_practice: Cal
         client.post("/api/invitations/accept", json={"token": token, **ACCEPT, "email": "pas-une-adresse"}), 422, "validation"
     )
     assert_problem(client.post("/api/invitations/accept", json={"token": token, **ACCEPT, "name": " "}), 422, "validation")
+    assert_problem(client.post("/api/invitations/accept", json={"token": token, **ACCEPT, "password": "karim-2026-tunis"}),
+                   422, "password_contains_email")  # the local part of Karim@Example.TN
+    assert_problem(client.post("/api/invitations/accept", json={"token": token, **ACCEPT, "password": "1234567890"}),
+                   422, "password_sequence")
     with app.state.ctx.engine.connect() as conn:
         assert conn.execute(select(app_user)).first() is None
 

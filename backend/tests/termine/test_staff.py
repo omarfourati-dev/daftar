@@ -234,6 +234,11 @@ def test_reset_accept_checks_the_password(client: TestClient, team: dict[str, An
     link = _reset_link(client, team["owner"], team["dentist"], auth_headers)
     res = client.post("/api/password-reset/accept", json={"token": link["token"], "password": "court"})
     assert_problem(res, 422, "password_too_short")
+    res = client.post("/api/password-reset/accept", json={"token": link["token"], "password": "qwertyuiop"})
+    assert_problem(res, 422, "password_sequence")
+    mine = team["dentist"].email.split("@")[0] + "-nouveau"  # security review M4: not the own e-mail address
+    assert_problem(client.post("/api/password-reset/accept", json={"token": link["token"], "password": mine}), 422,
+                   "password_contains_email")
     assert client.post("/api/password-reset/preview", json={"token": link["token"]}).status_code == 200  # still usable
 
 

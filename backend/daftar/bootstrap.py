@@ -12,7 +12,7 @@ import logging
 from sqlalchemy import func, insert, select, update
 
 from .context import AppContext
-from .passwords import hash_password, password_problem, verify_password
+from .passwords import hash_password, length_problem, password_problem, verify_password
 from .settings import SettingsError
 from .tables import app_user
 
@@ -27,8 +27,10 @@ def bootstrap_admin(ctx: AppContext) -> None:
             if admins == 0:
                 log.warning("no admin account – set ADMIN_EMAIL and ADMIN_PASSWORD to create one")
             return
-        if problem := password_problem(s.admin_password):
+        if problem := length_problem(s.admin_password):
             raise SettingsError(f"ADMIN_PASSWORD: {problem[1]}")
+        if password_problem(s.admin_password, s.admin_email):  # the stricter rules of the app: warn, keep starting
+            log.warning("ADMIN_PASSWORD is easy to guess (a run, one repeated character or the e-mail) – change it")
         row = conn.execute(
             select(app_user.c.id, app_user.c.role, app_user.c.password_hash).where(app_user.c.email == s.admin_email)
         ).first()

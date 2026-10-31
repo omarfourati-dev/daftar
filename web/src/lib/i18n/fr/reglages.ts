@@ -162,7 +162,7 @@ export const reglages = {
 		password: 'Mot de passe',
 		current: 'Mot de passe actuel',
 		next: 'Nouveau mot de passe',
-		nextHint: 'Au moins 10 caractères.',
+		nextHint: 'Au moins 10 caractères – pas une suite comme 1234567890, ni votre adresse e-mail.',
 		repeat: 'Confirmer le nouveau mot de passe',
 		changePassword: 'Changer le mot de passe',
 		passwordChanged: 'Mot de passe changé. Vos autres appareils devront se reconnecter.',
