@@ -33,6 +33,9 @@ from daftar.tables import (
     feedback,
     password_reset,
     audit_log,
+    equipment,
+    hygiene_task,
+    hygiene_task_done,
     stock_movement,
     stock_product,
     stock_receipt,
@@ -296,6 +299,13 @@ def test_deleting_a_practice_deletes_everything_of_it(
                                                        receipt_line_id=line, created_by=user.id))
             conn.execute(insert(audit_log).values(practice_id=p.id, user_id=user.id, entity="stock_movement", entity_id=1,
                                                   action="delete"))
+            gear = conn.execute(insert(equipment).values(practice_id=p.id, name="Autoclave", kind="autoclave")
+                                .returning(equipment.c.id)).scalar_one()
+            task = conn.execute(insert(hygiene_task).values(practice_id=p.id, title="Bowie-Dick", equipment_id=gear,
+                                                            frequency="weekly", weekday=1, starts_on=date(2026, 10, 26))
+                                .returning(hygiene_task.c.id)).scalar_one()
+            conn.execute(insert(hygiene_task_done).values(practice_id=p.id, task_id=task, due_on=date(2026, 10, 26),
+                                                          done_by=user.id, done_at=clock.now()))
     with db.begin() as conn:
         conn.execute(delete(practice).where(practice.c.id == doomed.id))
         for table in ALL_TABLES:

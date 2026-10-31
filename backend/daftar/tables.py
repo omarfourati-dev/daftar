@@ -463,8 +463,55 @@ audit_log = Table(
     Column("reason", Text, nullable=False),
 )
 
+#: Autoclave, suction, dental unit … (spec stock-hygiène 5.1, migration 0009).
+equipment = Table(
+    "equipment",
+    metadata,
+    _id(),
+    _practice_id(),
+    Column("name", Text, nullable=False),
+    Column("kind", Text, nullable=False),
+    Column("serial_number", Text, nullable=False),
+    Column("note", Text, nullable=False),
+    Column("active", Boolean, nullable=False),
+    _ts("created_at"),
+)
+
+#: A recurring hygiene / maintenance task (rhythm rules: daftar/hygiene_rules.py).
+hygiene_task = Table(
+    "hygiene_task",
+    metadata,
+    _id(),
+    _practice_id(),
+    Column("title", Text, nullable=False),
+    Column("equipment_id", BigInteger, ForeignKey("equipment.id", ondelete="SET NULL"), nullable=True),
+    Column("frequency", Text, nullable=False),  # daily | weekly | monthly | yearly | every_n_days
+    Column("weekday", Integer, nullable=True),  # weekly only (ISO, 1 = Monday)
+    Column("interval_days", Integer, nullable=True),  # every_n_days only
+    Column("starts_on", Date, nullable=False),
+    Column("instructions", Text, nullable=False),
+    Column("active", Boolean, nullable=False),
+    _ts("created_at"),
+)
+
+#: The proof of one due date of a task: who (name kept), when, ok / not ok.
+hygiene_task_done = Table(
+    "hygiene_task_done",
+    metadata,
+    _id(),
+    _practice_id(),
+    Column("task_id", BigInteger, nullable=False),  # composite FK (task_id, practice_id)
+    Column("due_on", Date, nullable=False),
+    Column("done_by", BigInteger, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),
+    Column("done_by_name", Text, nullable=False),
+    _ts("done_at"),
+    Column("result", Text, nullable=False),  # ok | not_ok
+    Column("note", Text, nullable=False),
+)
+
 #: Child tables first – the order for TRUNCATE/DELETE in tests and tools (reference data not included).
 ALL_TABLES = (
+    hygiene_task_done, hygiene_task, equipment,
     audit_log, stock_movement, stock_receipt_line, stock_receipt, stock_product, supplier,
     feedback, password_reset, import_template, import_job, cash_closing,
     pilot_request, invoice, payment, treatment, queue_entry, appointment, patient, invitation,
