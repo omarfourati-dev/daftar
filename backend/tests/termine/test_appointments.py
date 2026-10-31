@@ -195,19 +195,19 @@ def test_without_practitioner_the_only_practitioner_is_taken(
     (x,) = p.practitioners
     svc = make_service(p, "Consultation", 30, online_bookable=True)
     h = as_user(p, "assistant")
-    res = book(client, h, patientId=make_patient(p).id, startsAt=iso(MON, "09:00"))
+    res = book(client, h, patientId=make_patient(p).id, startsAt=iso(FRI, "14:00"))  # today, the "Non attribué" of before
     assert res.status_code == 201, res.text
     assert res.json()["appointment"]["practitionerId"] == x.id
-    assert_problem(book(client, h, patientId=make_patient(p).id, startsAt=iso(MON, "09:00"), practitionerId=x.id), 409, "appointment_conflict")
-    assert_problem(book(client, h, patientId=make_patient(p).id, startsAt=iso(MON, "09:15")), 409, "appointment_conflict")
-    slots = client.get("/api/public/practices/cabinet-x/slots", params={"date": MON.isoformat(), "serviceId": svc.id}).json()["slots"]
-    assert "09:00" not in slots and "09:30" in slots
+    assert_problem(book(client, h, patientId=make_patient(p).id, startsAt=iso(FRI, "14:00"), practitionerId=x.id), 409, "appointment_conflict")
+    assert_problem(book(client, h, patientId=make_patient(p).id, startsAt=iso(FRI, "14:15")), 409, "appointment_conflict")
+    slots = client.get("/api/public/practices/cabinet-x/slots", params={"date": FRI.isoformat(), "serviceId": svc.id}).json()["slots"]
+    assert "14:00" not in slots and "14:30" in slots
     online = client.post("/api/public/practices/cabinet-x/bookings", json={
-        "serviceId": svc.id, "startsAt": iso(MON, "09:00"), "firstName": "Amira", "lastName": "Ben Ali", "phone": "20 111 222",
+        "serviceId": svc.id, "startsAt": iso(FRI, "14:00"), "firstName": "Amira", "lastName": "Ben Ali", "phone": "20 111 222",
         "lang": "fr", "reminderConsent": False, "website": ""})
     assert_problem(online, 409, "slot_unavailable")
-    after_monday = client.get("/api/availability/next", params={"limit": 50}, headers=h).json()
-    assert iso(MON, "09:00") not in [s["startsAt"] for s in after_monday]
+    by_phone = [s["startsAt"] for s in client.get("/api/availability/next", params={"limit": 50}, headers=h).json()]
+    assert iso(FRI, "14:00") not in by_phone and iso(FRI, "14:30") in by_phone
 
 
 def test_without_practitioner_the_first_free_one_is_taken(
@@ -376,7 +376,7 @@ def test_notes_and_deposit_of_a_started_appointment_can_change(
     with db.begin() as conn:  # the opening hours changed since: the appointment now lies outside them
         conn.execute(update(practice).where(practice.c.id == lac.id).values(weekly_hours={"5": [["10:00", "12:00"]]}))
     assert client.patch(url, json={**unchanged, "notes": "x"}, headers=h).status_code == 200
-    assert_problem(client.patch(url, json={"startsAt": iso(FRI, "09:15")}, headers=h), 422, "in_past")
+    assert_problem(client.patch(url, json={"startsAt": iso(FRI, "08:30")}, headers=h), 422, "in_past")  # a real move: checked
 
 
 def test_delete_an_appointment(client: TestClient, lac: Any, ids: dict[str, Any], make_appointment: Factory, as_user: Factory) -> None:
