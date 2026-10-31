@@ -21,6 +21,7 @@ export const errors: Messages['errors'] = {
 	email_taken: 'يوجد حساب مسجّل بهذا البريد الإلكتروني.',
 	invalid_phone: 'رقم الهاتف غير صالح.',
 	demo_expired: 'انتهت النسخة التجريبية. يمكنكم بدء نسخة جديدة.',
+	demo_invitation: 'هذه الدعوة من نسخة تجريبية: لا يُنشأ أي حساب. في عيادتك، ينشئ الشخص المدعو حسابه الخاص من هنا.',
 	server_error: 'حدث خطأ.',
 	...errorsKunden
 };

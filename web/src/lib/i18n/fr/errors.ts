@@ -21,6 +21,7 @@ export const errors = {
 	email_taken: 'Un compte existe déjà avec cette adresse e-mail.',
 	invalid_phone: 'Numéro de téléphone invalide.',
 	demo_expired: 'La démo est terminée. Vous pouvez en lancer une nouvelle.',
+	demo_invitation: 'Cette invitation vient d’une démo : aucun compte n’est créé. Dans votre cabinet, la personne invitée crée ici son propre compte.',
 	server_error: 'Une erreur est survenue.',
 	...errorsKunden
 };

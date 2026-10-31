@@ -119,8 +119,11 @@ Feldnamen camelCase. Zeitpunkte ISO-8601 mit Offset (`2026-10-30T09:30:00+01:00`
 - `GET /api/auth/me` → `Me {id,email,name,role,lang,practice:{id,name,isDemo,demoExpiresAt}|null}`
 - `PATCH /api/auth/me {name?,lang?}` → Me · `POST /api/auth/password {current,next}` (next ≥ 10 Zeichen) → `{token}`
 - `POST /api/auth/logout-all` → 204 (token_version++)
-- `POST /api/invitations/preview {token}` → `{practiceName, role}` (404 ungültig/abgelaufen/benutzt)
-- `POST /api/invitations/accept {token,name,email,password}` → 201 `{token,user}`; 409 E-Mail vergeben.
+- `POST /api/invitations/preview {token}` → `{practiceName, role, isDemo}` (404 ungültig/abgelaufen/benutzt)
+- `POST /api/invitations/accept {token,name,email,password}` → 201 `{token,user}`; 409 E-Mail vergeben; 403
+  `demo_invitation` für Einladungen einer Demo-Praxis (der Link darf zur Vorführung erzeugt werden, ein Konto entsteht
+  nie; geprüft vor der E-Mail – Security-Review M2; die Seite `/invitation` zeigt dann einen Hinweis statt des
+  Formulars). Beide zusammen: 5 Versuche je IP und 15 min, nur ein angenommenes Token setzt den Zähler zurück.
 
 **Praxis & Team** (lesen: alle Rollen; ändern: owner)
 - `GET /api/practice` → `{id,name,address,city,phone,dayStart:"08:00",dayEnd:"18:00",slotMinutes,defaultDurationMin,reminderTemplateFr,reminderTemplateAr,displayToken,isDemo}`

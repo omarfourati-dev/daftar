@@ -1,11 +1,14 @@
 """Invitations: one-time links ``/invitation#<token>`` (the token lives in the URL fragment, never in a server log).
 
 Only the SHA-256 of a token is stored. Public endpoints (the invited person has no account yet):
-- ``POST /api/invitations/preview {token}`` → ``{practiceName, role}``; 404 when invalid, expired or used;
-- ``POST /api/invitations/accept {token, name, email, password, lang?}`` → 201 ``{token, user}``; 409 e-mail taken.
+- ``POST /api/invitations/preview {token}`` → ``{practiceName, role, isDemo}``; 404 when invalid, expired or used;
+- ``POST /api/invitations/accept {token, name, email, password, lang?}`` → 201 ``{token, user}``; 409 e-mail taken;
+  403 ``demo_invitation`` for an invitation of a demo practice (security review M2: the demo shows how a link is
+  made, but nobody gets an account there – checked before the e-mail, so no "e-mail taken" oracle).
 
 Accepting creates the account in the invitation's practice with the invitation's role.
-Both endpoints allow 5 wrong tokens per IP and 15 minutes (a valid token clears the counter).
+Both endpoints together allow 5 attempts per IP and 15 minutes; only an accepted invitation clears the counter (a
+valid preview does not – security review M2: alternating "accept" and "preview" probed e-mails without limit).
 
 Reusable for the staff and admin modules: :func:`create_invitation` (returns the clear token exactly once).
 """
@@ -26,7 +29,7 @@ from .auth import Session, session_for
 from .context import AppContext
 from .deps import ClientIp, Conn, Ctx
 from .passwords import hash_password, password_problem
-from .problems import conflict, not_found, too_many_requests, unprocessable
+from .problems import conflict, forbidden, not_found, too_many_requests, unprocessable
 from .schemas import ApiModel, Email, Lang, Name, PracticeRole
 from .tables import app_user, invitation, practice
 
@@ -36,6 +39,8 @@ INVITATION_TTL = timedelta(days=7)
 #: Unused, expired invitations are deleted this long after they expired (see daftar/jobs.py).
 KEEP_EXPIRED = timedelta(days=30)
 INVALID = "Cette invitation n'est pas valide, a expiré ou a déjà été utilisée."
+DEMO = ("Cette invitation vient d'une démo : elle montre comment inviter votre équipe, mais aucun compte n'est créé. "
+        "Dans votre cabinet, la personne invitée crée ici son compte.")
 TOO_MANY = "Trop de tentatives. Veuillez réessayer dans 15 minutes."
 
 
@@ -91,6 +96,7 @@ class TokenIn(ApiModel):
 class PreviewOut(ApiModel):
     practice_name: str
     role: PracticeRole
+    is_demo: bool
 
 
 class AcceptIn(ApiModel):
@@ -108,7 +114,8 @@ def _reserve(ctx: AppContext, ip: str) -> None:
 
 def _open_invitation(conn: Connection, token: str, now: datetime, *, lock: bool = False):  # type: ignore[no-untyped-def]
     query = (
-        select(invitation.c.id, invitation.c.role, invitation.c.practice_id, practice.c.name.label("practice_name"))
+        select(invitation.c.id, invitation.c.role, invitation.c.practice_id, practice.c.name.label("practice_name"),
+               practice.c.is_demo)
         .select_from(invitation.join(practice, practice.c.id == invitation.c.practice_id))
         .where(
             invitation.c.token_hash == hash_token(token),
@@ -127,8 +134,7 @@ def preview(body: TokenIn, ctx: Ctx, conn: Conn, ip: ClientIp) -> PreviewOut:
     row = _open_invitation(conn, body.token, ctx.clock.now())
     if row is None:
         raise not_found(INVALID, code="invitation_invalid")
-    ctx.login_throttle.clear_key(f"invitation:{ip}")
-    return PreviewOut(practice_name=row.practice_name, role=row.role)
+    return PreviewOut(practice_name=row.practice_name, role=row.role, is_demo=row.is_demo)
 
 
 @router.post("/accept", status_code=201)
@@ -141,6 +147,8 @@ def accept(body: AcceptIn, ctx: Ctx, conn: Conn, ip: ClientIp) -> Session:
     row = _open_invitation(conn, body.token, now, lock=True)
     if row is None:
         raise not_found(INVALID, code="invitation_invalid")
+    if row.is_demo:
+        raise forbidden(DEMO, code="demo_invitation")
     email = body.email.lower()
     taken = conn.execute(select(app_user.c.id).where(app_user.c.email == email)).first()
     if taken is not None:

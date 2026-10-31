@@ -3,13 +3,15 @@
 	import { api, apiErrorMessage, deps } from '#lib/api';
 	import { auth } from '#lib/auth.svelte';
 	import { i18n, t, translate } from '#lib/i18n.svelte';
+	import { mainUrl } from '#lib/links';
 	import type { Session } from '#lib/types';
 	import LanguageSwitch from '../../lib/components/LanguageSwitch.svelte';
 
 	const MIN_PASSWORD = 10;
 	// The token travels in the URL fragment (#…): browsers never send it to the server or into its logs.
 	let token = '';
-	let invite = $state<{ practiceName: string; role: string } | null>(null);
+	/** `isDemo`: a link made in a demo – nobody gets an account there (the server answers 403 `demo_invitation`). */
+	let invite = $state<{ practiceName: string; role: string; isDemo?: boolean } | null>(null);
 	let loading = $state(true);
 	let failed = $state('');
 	let name = $state('');
@@ -27,7 +29,7 @@
 			return;
 		}
 		try {
-			invite = await api<{ practiceName: string; role: string }>('/api/invitations/preview', {
+			invite = await api<{ practiceName: string; role: string; isDemo?: boolean }>('/api/invitations/preview', {
 				method: 'POST',
 				json: { token }
 			});
@@ -80,6 +82,11 @@
 		<div class="card flex flex-col gap-3">
 			<p role="alert" class="text-sm text-red-700">{failed}</p>
 			<a class="btn-primary" href="/connexion">{t('invitation.toLogin')}</a>
+		</div>
+	{:else if invite?.isDemo}
+		<div class="card flex flex-col gap-3">
+			<p>{t('invitation.demo')}</p>
+			<a class="btn-primary" href={mainUrl('/')}>{t('invitation.discover')}</a>
 		</div>
 	{:else if invite}
 		<form class="card flex flex-col gap-4" onsubmit={submit}>
