@@ -172,6 +172,7 @@ Feldnamen camelCase. Zeitpunkte ISO-8601 mit Offset (`2026-10-30T09:30:00+01:00`
 - `POST /api/patients/{id}/payments {amountMillimes,method,paidAt?,appointmentId?,isDeposit?,note?}` → 201 · `GET /api/payments/{id}` → Payment + `practice:{name,address,city,phone}` (Quittung) · `DELETE /api/payments/{id}` (owner) → 204
 - `GET /api/cash?day=` → `{day,totalMillimes,byMethod:{cash:…,d17:…,…},payments:[Payment]}`
 - `GET /api/balances?limit=100` → `[{patientId,name,phone,dueMillimes,lastPaymentAt}]` (nur due > 0, absteigend)
+- `GET /api/balances/summary` → `{totalMillimes, patients}` über **alle** offenen Salden – „Total dû“ der Kasse kommt von hier (die Liste zeigt nur die größten; Code-Review M7), gleich `dueTotalMillimes` im Dashboard
 
 **Erinnerungen & Übersicht**
 - `GET /api/reminders?day=` (Standard: der **nächste Öffnungstag** – der erste Tag nach heute mit Öffnungszeiten, der kein Schließtag ist; samstags also Montag, vor einem Feiertag der Tag danach; Code-Review M6) → `[{appointment:Appointment,patientLang,reminderConsent,phoneDigits,message}]`; `message` = Vorlage der Patientensprache mit `{patient} {date} {time} {practice} {phone}` ersetzt (Datum `jj/mm/aaaa`, Zeit `HH:MM`); stornierte Termine fehlen. `phoneDigits` ohne `+` für `wa.me`.
