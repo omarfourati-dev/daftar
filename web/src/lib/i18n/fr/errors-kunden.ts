@@ -26,6 +26,7 @@ export const errorsKunden = {
 	plan_is_free: 'La formule de ce cabinet est gratuite : pas de facture.',
 	invoice_exists: 'Une facture existe déjà pour cette période.',
 	unreadable_file: 'Le fichier n’a pas pu être lu. Enregistrez-le à nouveau depuis Excel (.xlsx ou .csv).',
+	demo_locked: 'Dans la démo, le nom et les coordonnées du cabinet restent fixes.',
 	demo_import_disabled: 'L’import de fichiers n’est pas disponible dans la démo.',
 	file_too_complex: 'Le fichier est trop complexe à lire. Enregistrez seulement le tableau des patients en .xlsx ou .csv.',
 	too_many_columns: 'Le fichier a trop de colonnes. Gardez seulement les colonnes utiles.',

@@ -146,12 +146,13 @@
 					<span dir="ltr" class="self-start font-mono font-semibold text-ink">{practiceUrl(loaded.slug, '/')}</span>
 					<span class="text-slate-500">{t('reglages.cabinet.slugHint')}</span>
 				</div>
-				<PracticeFields bind:value={profile} {problems} groups={['identity']} />
+				{#if loaded.isDemo}<p class="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{t('reglages.cabinet.demoLocked')}</p>{/if}
+				<PracticeFields bind:value={profile} {problems} groups={['identity']} locked={loaded.isDemo} />
 			</section>
 
 			<section class={card} aria-labelledby="c-address">
 				<h3 id="c-address" class={heading}>{t('reglages.cabinet.address')}</h3>
-				<PracticeFields bind:value={profile} {problems} groups={['address']} />
+				<PracticeFields bind:value={profile} {problems} groups={['address']} locked={loaded.isDemo} />
 			</section>
 
 			<section class={card} aria-labelledby="c-presentation">

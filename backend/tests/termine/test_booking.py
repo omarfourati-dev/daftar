@@ -73,7 +73,7 @@ def test_public_profile(client: TestClient, lac: Any, make_practitioner: Factory
         "brandColor": "#1d4ed8", "address": "Rue du Lac", "postalCode": "", "city": "Tunis", "governorate": "tunis",
         "phone": "+21671000111", "whatsapp": "+21620000111", "mapsUrl": "https://maps.app.goo.gl/lac",
         "descriptionFr": "Cabinet familial", "descriptionAr": "", "weeklyHours": body["weeklyHours"],
-        "onlineBookingEnabled": True, "horizonDays": 30, "minNoticeHours": 2,
+        "onlineBookingEnabled": True, "horizonDays": 30, "minNoticeHours": 2, "isDemo": False,
         "services": [
             {"id": lac.consultation.id, "nameFr": "Consultation", "nameAr": "معاينة", "durationMin": 30, "priceMillimes": 40_000},
             {"id": lac.scaling.id, "nameFr": "Détartrage", "nameAr": "", "durationMin": 45, "priceMillimes": None},
@@ -220,6 +220,15 @@ def test_auto_confirm_and_free_practitioner(client: TestClient, lac: Any, db: An
     make_appointment(make_patient(lac), practitioner_id=lac.practitioners[0].id, starts_at=at(MON, "09:00"))
     body = book(client, "cabinet-lac", serviceId=lac.consultation.id).json()
     assert (body["status"], body["practitionerName"]) == ("confirmed", "Dr. B")
+
+
+def test_the_profile_of_a_demo_says_so(client: TestClient, make_practice: Factory, clock: Any) -> None:
+    """Security review N3: the booking page of a demo shows a clear demo banner (and noindex)."""
+    make_practice("Cabinet Dentaire Démo", slug="demo-abcd1234", online_booking_enabled=True, is_demo=True,
+                  demo_expires_at=clock.now() + timedelta(hours=24))
+    res = client.get("/api/public/practices/demo-abcd1234")
+    assert res.status_code == 200, res.text
+    assert res.json()["isDemo"] is True
 
 
 def test_a_phone_typed_with_arabic_digits_is_booked(client: TestClient, lac: Any, db: Any) -> None:

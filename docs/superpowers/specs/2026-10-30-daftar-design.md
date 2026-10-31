@@ -127,7 +127,9 @@ Feldnamen camelCase. Zeitpunkte ISO-8601 mit Offset (`2026-10-30T09:30:00+01:00`
 
 **Praxis & Team** (lesen: alle Rollen; ändern: owner)
 - `GET /api/practice` → `{id,name,address,city,phone,dayStart:"08:00",dayEnd:"18:00",slotMinutes,defaultDurationMin,reminderTemplateFr,reminderTemplateAr,displayToken,isDemo}`
-- `PATCH /api/practice {…}` · `POST /api/practice/display-token` → neues Token
+- `PATCH /api/practice {…}` · `POST /api/practice/display-token` → neues Token. In Demo-Praxen bleiben Name (FR/AR),
+  Telefon, WhatsApp und Karten-Link fest (Änderung → 403 `demo_locked`, in den Réglages schreibgeschützt), und die
+  öffentliche Buchungsseite einer Demo zeigt ein deutliches Demo-Banner plus `noindex` (Security-Review N3).
 - `GET /api/practice/export` (owner) → JSON-Download aller Praxisdaten (`Content-Disposition: attachment`)
 - `GET /api/staff` → `[{id,name,email,role,createdAt}]` · `PATCH /api/staff/{id} {role}` · `DELETE /api/staff/{id}` (nicht sich selbst, nicht owner)
 - `GET /api/staff/invitations` → `[{id,role,createdAt,expiresAt}]` · `POST /api/staff/invitations {role:'dentist'|'assistant'}` → 201 `{id,token,expiresAt}` · `DELETE /api/staff/invitations/{id}`
@@ -341,7 +343,7 @@ Daten (ohne Admin-Felder) plus Schließtage, Leistungen, Behandler und sieht sei
 - Öffentliche API (ohne Login, nie Daten anderer Patienten):
   `GET /api/public/practices/{slug}` → Praxisprofil (Name FR/AR, Adresse, Gouvernorat, Telefon, WhatsApp, Karte,
   Beschreibung, Öffnungszeiten, `onlineBookingEnabled`, online buchbare Leistungen mit Dauer und ggf. Preis, online
-  buchbare Behandler, `horizonDays`) · `GET /api/public/practices/{slug}/slots?date=&serviceId=&practitionerId=` →
+  buchbare Behandler, `horizonDays`, `isDemo`) · `GET /api/public/practices/{slug}/slots?date=&serviceId=&practitionerId=` →
   `{date, slots:["09:00",…]}` · `POST /api/public/practices/{slug}/bookings {serviceId, practitionerId?, startsAt,
   firstName, lastName, phone, lang, reminderConsent, note?, website}` → 201 `{status:'requested'|'confirmed', startsAt,
   serviceName, practitionerName, manageToken}`. Geprüft wird **zuerst der Termin** (für alle gleich, wie `/slots`):

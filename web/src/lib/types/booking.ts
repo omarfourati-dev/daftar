@@ -38,6 +38,8 @@ export interface PublicPracticeProfile {
 	practitioners: PublicPractitioner[];
 	horizonDays: number;
 	minNoticeHours?: number;
+	/** A demo practice: banner and noindex on its page (security review N3). */
+	isDemo?: boolean;
 }
 
 /** `GET /api/public/practices/{slug}/slots` */

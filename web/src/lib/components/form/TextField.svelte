@@ -24,6 +24,7 @@
 		min,
 		max,
 		step,
+		readonly = false,
 		id = `f-${Math.random().toString(36).slice(2, 9)}`,
 		class: klass = ''
 	}: {
@@ -44,6 +45,8 @@
 		min?: number | string;
 		max?: number | string;
 		step?: number | string;
+		/** Shown, selectable, not changeable (e.g. the name of a demo practice). */
+		readonly?: boolean;
 		id?: string;
 		class?: string;
 	} = $props();
@@ -67,11 +70,12 @@
 	{:else if multiline}
 		<textarea
 			{id}
-			class="input min-h-24"
+			class="input min-h-24 read-only:bg-slate-100 read-only:text-slate-600"
 			{rows}
 			{placeholder}
 			{dir}
 			{maxlength}
+			{readonly}
 			bind:value
 			aria-invalid={error ? 'true' : undefined}
 			aria-describedby={describedby}
@@ -79,7 +83,7 @@
 	{:else}
 		<input
 			{id}
-			class="input"
+			class="input read-only:bg-slate-100 read-only:text-slate-600"
 			{type}
 			{placeholder}
 			{dir}
@@ -89,6 +93,7 @@
 			{min}
 			{max}
 			{step}
+			{readonly}
 			bind:value
 			aria-invalid={error ? 'true' : undefined}
 			aria-describedby={describedby}

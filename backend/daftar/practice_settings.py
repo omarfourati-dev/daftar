@@ -3,7 +3,10 @@
 - ``GET /api/practice`` (every staff role) → :class:`PracticeOut` – everything except the admin fields
   (``adminNotes``); ``slug``, ``status``, ``planCode`` and ``paidUntil`` are shown read-only.
 - ``PATCH /api/practice`` (owner) – partial update of :class:`PracticePatch`; ``slug``, ``status``, ``paidUntil``,
-  ``planCode`` and ``adminNotes`` are ignored (only the admin changes them, ``/api/admin/practices/{id}``).
+  ``planCode`` and ``adminNotes`` are ignored (only the admin changes them, ``/api/admin/practices/{id}``). In a
+  demo practice ``name``, ``nameAr``, ``phone``, ``whatsapp`` and ``mapsUrl`` keep their values: a change is 403
+  ``demo_locked`` (security review N3 – every visitor owns a demo, its public booking page must not become a
+  phishing page); sending the current value is fine.
 - ``POST /api/practice/display-token`` (owner) → ``{displayToken}``: a new link for the waiting-room screen; the old
   one stops working at once.
 
@@ -26,7 +29,7 @@ from .deps import Conn, OwnerWriter, StaffUser
 from .hours import WeeklyHours, agenda_range
 from .onboarding import flag
 from .phone import OptionalPhone, Phone
-from .problems import not_found
+from .problems import forbidden, not_found
 from .schemas import ApiModel, Email, Name, TunisDateTime
 from .tables import practice
 from .tunisia import GOVERNORATES
@@ -221,9 +224,17 @@ def get_practice(user: StaffUser, conn: Conn) -> PracticeOut:
     return practice_out(load_practice(conn, user.pid))
 
 
+#: Columns a demo owner cannot change (who the practice is and how to reach it, on the public booking page).
+DEMO_LOCKED = ("name", "name_ar", "phone", "whatsapp", "maps_url")
+
+
 @router.patch("")
 def patch_practice(body: PracticePatch, user: OwnerWriter, conn: Conn) -> PracticeOut:
     values = practice_columns(body)
+    if user.is_demo and values:
+        current = load_practice(conn, user.pid)
+        if any(column in values and values[column] != getattr(current, column) for column in DEMO_LOCKED):
+            raise forbidden("Dans la démo, le nom et les coordonnées du cabinet restent fixes.", code="demo_locked")
     if values:
         conn.execute(update(practice).where(practice.c.id == user.pid).values(**values))
     return practice_out(load_practice(conn, user.pid))

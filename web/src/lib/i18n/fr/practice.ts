@@ -4,6 +4,7 @@ export const practice = {
 		specialty: 'Spécialité',
 		name: 'Nom du cabinet',
 		nameHint: 'Tel que les patients le voient, par exemple « Cabinet Dr Ben Salah ».',
+		demoLocked: 'Fixe dans la démo.',
 		nameAr: 'Nom en arabe',
 		contactName: 'Personne responsable',
 		contactHint: 'Le médecin titulaire ou la personne à contacter.',

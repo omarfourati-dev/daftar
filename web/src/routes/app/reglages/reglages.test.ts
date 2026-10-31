@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Cabinet from './+page.svelte';
 import Compte from './compte/+page.svelte';
 import ReglagesNav from '../../../lib/components/reglages/ReglagesNav.svelte';
-import { deps } from '#lib/api';
+import { ApiError, apiErrorMessage, deps } from '#lib/api';
 import { auth } from '#lib/auth.svelte';
 import { i18n } from '#lib/i18n.svelte';
 import { calls, json, mockApi, noContent, problem, sentJson } from '#lib/test-utils';
@@ -82,6 +82,27 @@ describe('/app/reglages – practice data (owner)', () => {
 		expect(await screen.findByLabelText('Nom du cabinet')).toBeInTheDocument();
 		expect(deps.goto).not.toHaveBeenCalled();
 		history.replaceState(null, '', '/');
+	});
+
+	it('keeps name and contact of a demo read-only (security review N3) and still saves the rest', async () => {
+		const demo = practice({ isDemo: true });
+		mockApi({ 'GET /api/practice': () => json(200, demo), 'PATCH /api/practice': () => json(200, { ...demo, slotMinutes: 20 }), 'GET /api/auth/me': () => json(200, owner) });
+		render(Cabinet);
+		const locked = ['Nom du cabinet', /^Nom en arabe/, 'Téléphone du cabinet', /^WhatsApp/, /^Lien Google Maps/];
+		for (const label of locked) {
+			const field = await screen.findByLabelText(label);
+			expect(field).toHaveAttribute('readonly');
+			expect(field).toHaveAccessibleDescription(/Fixe dans la démo/);
+		}
+		expect(screen.getByLabelText(/^Ville/)).not.toHaveAttribute('readonly');
+		expect(screen.getByText(/Dans la démo, le nom et les coordonnées du cabinet restent fixes/)).toBeInTheDocument();
+		await fireEvent.change(screen.getByLabelText('Pas de l’agenda'), { target: { value: '20' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+		await vi.waitFor(() => expect(sentJson('PATCH /api/practice')).toEqual({ slotMinutes: 20 }));
+	});
+
+	it('translates the refusal of the server for a demo', () => {
+		expect(apiErrorMessage(new ApiError(403, '', 'demo_locked'))).toMatch(/Dans la démo, le nom et les coordonnées/);
 	});
 
 	it('shows field errors and sends nothing', async () => {

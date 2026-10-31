@@ -48,6 +48,10 @@ export const booking = {
 	shareMessage: 'Mon rendez-vous chez {practice} le {day} à {time} : {url}',
 	another: 'Prendre un autre rendez-vous',
 	with: 'avec {name}',
+	demo: {
+		title: 'Démonstration',
+		text: 'Ce cabinet n’existe pas : c’est une démo de Daftar – ne réservez pas ici et n’y laissez pas vos coordonnées.'
+	},
 	errors: {
 		slot_unavailable: 'Ce créneau vient d’être pris. Choisissez un autre horaire.',
 		too_soon: 'Ce créneau est trop proche pour une réservation en ligne. Choisissez un horaire plus tard ou appelez le cabinet.',

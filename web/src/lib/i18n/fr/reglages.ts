@@ -27,6 +27,7 @@ export const reglages = {
 		save: 'Enregistrer',
 		slug: 'Adresse du cabinet',
 		slugHint: 'Pour changer l’adresse, contactez Daftar.',
+		demoLocked: 'Dans la démo, le nom et les coordonnées du cabinet restent fixes : la page de réservation publique ne doit tromper personne. Tout le reste se règle librement.',
 		minutes: '{n} minutes'
 	},
 	horaires: {

@@ -1,5 +1,9 @@
 <script lang="ts">
-	/** Contact, address and presentation fields of a practice (admin wizard, admin edit page, owner settings). */
+	/**
+	 * Contact, address and presentation fields of a practice (admin wizard, admin edit page, owner settings).
+	 * `locked`: a demo practice – name, Arabic name, phone, WhatsApp and map link are read-only (the server refuses a
+	 * change with 403 `demo_locked`, security review N3).
+	 */
 	import TextField from '../form/TextField.svelte';
 	import { SPECIALTIES } from '../../catalog';
 	import { i18n, t } from '../../i18n.svelte';
@@ -36,8 +40,11 @@
 	let {
 		value = $bindable(),
 		problems = {},
-		groups
-	}: { value: PracticeProfileFields; problems?: Problems; groups: readonly ProfileGroup[] } = $props();
+		groups,
+		locked = false
+	}: { value: PracticeProfileFields; problems?: Problems; groups: readonly ProfileGroup[]; locked?: boolean } = $props();
+
+	const lockedHint = (hint = '') => (locked ? t('practice.fields.demoLocked') : hint);
 
 	const err = (field: string) => (problems[field] ? t(problems[field].key, problems[field].params) : '');
 	const specialties = $derived(
@@ -54,8 +61,15 @@
 {#if groups.includes('identity')}
 	<div class="grid gap-4 sm:grid-cols-2">
 		<TextField class="sm:col-span-2" label={t('practice.fields.specialty')} bind:value={value.specialty} options={specialties} />
-		<TextField label={t('practice.fields.name')} bind:value={value.name} error={err('name')} hint={t('practice.fields.nameHint')} maxlength={120} />
-		<TextField label={t('practice.fields.nameAr')} bind:value={value.nameAr} optional dir="rtl" maxlength={120} />
+		<TextField
+			label={t('practice.fields.name')}
+			bind:value={value.name}
+			error={err('name')}
+			hint={lockedHint(t('practice.fields.nameHint'))}
+			readonly={locked}
+			maxlength={120}
+		/>
+		<TextField label={t('practice.fields.nameAr')} bind:value={value.nameAr} hint={lockedHint()} readonly={locked} optional dir="rtl" maxlength={120} />
 		<TextField
 			label={t('practice.fields.contactName')}
 			bind:value={value.contactName}
@@ -68,6 +82,8 @@
 			label={t('practice.fields.phone')}
 			bind:value={value.phone}
 			error={err('phone')}
+			hint={lockedHint()}
+			readonly={locked}
 			type="tel"
 			inputmode="tel"
 			dir="ltr"
@@ -78,7 +94,8 @@
 			label={t('practice.fields.whatsapp')}
 			bind:value={value.whatsapp}
 			error={err('whatsapp')}
-			hint={t('practice.fields.whatsappHint')}
+			hint={lockedHint(t('practice.fields.whatsappHint'))}
+			readonly={locked}
 			optional
 			type="tel"
 			inputmode="tel"
@@ -109,7 +126,8 @@
 			label={t('practice.fields.mapsUrl')}
 			bind:value={value.mapsUrl}
 			error={err('mapsUrl')}
-			hint={t('practice.fields.mapsHint')}
+			hint={lockedHint(t('practice.fields.mapsHint'))}
+			readonly={locked}
 			optional
 			type="url"
 			inputmode="url"

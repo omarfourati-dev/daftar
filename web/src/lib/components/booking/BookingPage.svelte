@@ -206,7 +206,11 @@
 		from === to ? t(`kit.weekdaysShort.${from as '1'}`) : `${t(`kit.weekdaysShort.${from as '1'}`)} – ${t(`kit.weekdaysShort.${to as '1'}`)}`;
 </script>
 
-<svelte:head><title>{profile ? `${title} · ${t('booking.title')}` : t('booking.title')}</title></svelte:head>
+<svelte:head>
+	<title>{profile ? `${title} · ${t('booking.title')}` : t('booking.title')}</title>
+	<!-- a demo (anybody can make one) is never a page to find: security review N3 (app.html says so for every page too) -->
+	{#if profile?.isDemo}<meta name="robots" content="noindex, nofollow" />{/if}
+</svelte:head>
 
 <div class="min-h-screen bg-surface pb-32">
 	<div class="mx-auto flex max-w-5xl justify-end px-4 pt-3"><LanguageSwitch /></div>
@@ -218,6 +222,14 @@
 			<p role="alert" class="card text-center text-slate-800">{loadError}</p>
 		</div>
 	{:else if profile}
+		{#if profile.isDemo}
+			<div role="note" aria-labelledby="demo-note-title" class="mx-auto mt-2 max-w-5xl px-4">
+				<div class="rounded-xl bg-amber-100 px-4 py-3 text-amber-950 ring-2 ring-amber-400">
+					<p id="demo-note-title" class="text-lg font-bold">{t('booking.demo.title')}</p>
+					<p>{t('booking.demo.text')}</p>
+				</div>
+			</div>
+		{/if}
 		<header class="ruled mx-auto mt-2 max-w-5xl px-4 pt-4 pb-5 sm:rounded-2xl">
 			<div class="flex items-center gap-4">
 				<span

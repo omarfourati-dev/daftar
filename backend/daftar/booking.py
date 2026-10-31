@@ -2,7 +2,8 @@
 
 Practice pages (``/r/<slug>`` and ``https://<slug>.<BASE_DOMAIN>``); suspended or canceled practices are 404:
 - ``GET /api/public/practices/{slug}`` → public profile: names, address, contact, map, description, opening hours,
-  ``onlineBookingEnabled``, ``horizonDays``, ``minNoticeHours``, online-bookable active services and practitioners
+  ``onlineBookingEnabled``, ``horizonDays``, ``minNoticeHours``, ``isDemo`` (the page shows a demo banner and
+  ``noindex`` – security review N3), online-bookable active services and practitioners
 - ``GET /api/public/practices/{slug}/slots?date=&serviceId=&practitionerId=`` → ``{date, slots: ["09:00", …]}`` –
   the staff rules (grid, hours, closures, booked times) plus the minimum notice, the horizon (Tunis days from today)
   and ``booking_max_per_day`` online bookings a day; 404 ``booking_disabled``; 422 ``invalid_service`` /
@@ -113,6 +114,7 @@ class PublicPractice(ApiModel):
     online_booking_enabled: bool
     horizon_days: int
     min_notice_hours: int
+    is_demo: bool
     services: list[PublicService]
     practitioners: list[PublicPractitioner]
 
@@ -299,7 +301,7 @@ def profile(slug: str, ctx: Ctx, conn: Conn, ip: ClientIp) -> PublicPractice:
         .order_by(practitioner.c.sort, practitioner.c.id)
     ).all()
     copied = ("slug", "name", "name_ar", "specialty", "brand_color", "address", "postal_code", "city", "governorate",
-              "phone", "whatsapp", "maps_url", "description_fr", "description_ar", "online_booking_enabled")
+              "phone", "whatsapp", "maps_url", "description_fr", "description_ar", "online_booking_enabled", "is_demo")
     return PublicPractice(
         **{k: getattr(row, k) for k in copied},
         weekly_hours={str(d): row.weekly_hours.get(str(d), []) for d in range(1, 8)},

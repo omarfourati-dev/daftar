@@ -230,6 +230,22 @@ describe('online booking page', () => {
 		expect(calls().some((c) => c.startsWith('POST'))).toBe(false);
 	});
 
+	it('marks the page of a demo clearly and keeps it out of search engines (security review N3)', async () => {
+		mockApi({ [PROFILE]: () => json(200, { ...profile, isDemo: true }) });
+		render(BookingPage, { props: { slug: 'cabinet-lac' } });
+		const banner = await screen.findByRole('note', { name: 'Démonstration' });
+		expect(banner).toHaveTextContent('Ce cabinet n’existe pas');
+		expect(banner).toHaveTextContent('ne réservez pas ici');
+		expect(document.head.querySelector('meta[name="robots"][content="noindex, nofollow"]')).not.toBeNull();
+	});
+
+	it('shows no demo banner for a real practice', async () => {
+		mockApi({ [PROFILE]: () => json(200, { ...profile, isDemo: false }) });
+		render(BookingPage, { props: { slug: 'cabinet-lac' } });
+		await screen.findByRole('heading', { level: 1 });
+		expect(screen.queryByRole('note', { name: 'Démonstration' })).not.toBeInTheDocument();
+	});
+
 	it('only shows contact details when online booking is off', async () => {
 		mockApi({ [PROFILE]: () => json(200, { ...profile, onlineBookingEnabled: false }) });
 		render(BookingPage, { props: { slug: 'cabinet-lac' } });

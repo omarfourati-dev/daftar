@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
 
 import pytest
@@ -189,6 +190,24 @@ def test_a_suspended_practice_cannot_change_settings(client: TestClient, make_pr
     assert_problem(client.patch("/api/practice", json={"name": "X"}, headers=owner), 402, "subscription_suspended")
     assert_problem(client.post("/api/practice/display-token", headers=owner), 402, "subscription_suspended")
     assert client.get("/api/practice", headers=owner).status_code == 200
+
+
+def test_a_demo_keeps_its_name_and_contact(client: TestClient, make_practice: Factory, as_user: Factory, clock: Any) -> None:
+    """Security review N3: every visitor owns a demo – its public booking page must not become a convincing
+    "Cabinet Dr. …" with the attacker's phone number. Name, phone, WhatsApp and map link stay as created."""
+    demo = make_practice("Cabinet Dentaire Démo", phone="+21600000001", whatsapp="+21600000002",
+                         maps_url="https://maps.app.goo.gl/demo", is_demo=True,
+                         demo_expires_at=clock.now() + timedelta(hours=24))
+    owner = as_user(demo, "owner")
+    for change in ({"name": "Cabinet Dr. Ben Salah"}, {"nameAr": "عيادة الدكتور"}, {"phone": "20 123 456"},
+                   {"whatsapp": "20 123 456"}, {"whatsapp": None}, {"mapsUrl": "https://evil.example/map"}):
+        body = assert_problem(client.patch("/api/practice", json=change, headers=owner), 403, "demo_locked")
+        assert "démo" in body["detail"]
+    # the same values again (the settings page sends what it shows) and everything else may change
+    res = client.patch("/api/practice", json={"name": "Cabinet Dentaire Démo", "phone": "+216 00 000 001",
+                                              "slotMinutes": 20, "descriptionFr": "Essai"}, headers=owner)
+    assert res.status_code == 200, res.text
+    assert (res.json()["name"], res.json()["phone"], res.json()["slotMinutes"]) == ("Cabinet Dentaire Démo", "+21600000001", 20)
 
 
 def test_new_display_token(client: TestClient, lac: Any, as_user: Factory) -> None:

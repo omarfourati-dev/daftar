@@ -5,6 +5,7 @@ export const practice: Messages['practice'] = {
 		specialty: 'الاختصاص',
 		name: 'اسم العيادة',
 		nameHint: 'كما يراه المرضى، مثلًا «Cabinet Dr Ben Salah».',
+		demoLocked: 'ثابت في النسخة التجريبية.',
 		nameAr: 'الاسم بالعربية',
 		contactName: 'الشخص المسؤول',
 		contactHint: 'الطبيب صاحب العيادة أو الشخص الذي نتواصل معه.',
