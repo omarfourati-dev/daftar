@@ -3,21 +3,31 @@ import type { Messages } from './fr';
 import { admin } from './ar/admin';
 import { agenda } from './ar/agenda';
 import { auth } from './ar/auth';
+import { billing } from './ar/billing';
+import { booking } from './ar/booking';
 import { caisse } from './ar/caisse';
 import { common } from './ar/common';
 import { demo } from './ar/demo';
 import { display } from './ar/display';
 import { errors } from './ar/errors';
+import { feedback } from './ar/feedback';
+import { importer } from './ar/importer';
+import { installer } from './ar/installer';
 import { invitation } from './ar/invitation';
+import { kit } from './ar/kit';
 import { nav } from './ar/nav';
 import { patients } from './ar/patients';
+import { poster } from './ar/poster';
+import { practice } from './ar/practice';
 import { rappels } from './ar/rappels';
 import { recu } from './ar/recu';
 import { reglages } from './ar/reglages';
+import { reset } from './ar/reset';
 import { roles } from './ar/roles';
 import { salle } from './ar/salle';
 import { shell } from './ar/shell';
 import { appointmentStatus, paymentMethod, queueStatus } from './ar/status';
+import { statistiques } from './ar/statistiques';
 import { ticket } from './ar/ticket';
 import { today } from './ar/today';
 import { governorate, specialty } from './ar/vocabulary';
@@ -46,5 +56,15 @@ export const ar: Messages = {
 	demo,
 	display,
 	ticket,
-	recu
+	recu,
+	statistiques,
+	kit,
+	practice,
+	poster,
+	booking,
+	reset,
+	feedback,
+	billing,
+	installer,
+	importer
 };

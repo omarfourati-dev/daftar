@@ -56,7 +56,7 @@ def test_subdomain_label(host: str | None, label: str | None) -> None:
 # --- static routing on a practice sub-domain -------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("path", ["/", "/rdv/abc123", "/app", "/app/agenda", "/connexion", "/invitation"])
+@pytest.mark.parametrize("path", ["/", "/rdv", "/app", "/app/agenda", "/connexion", "/invitation", "/reinitialiser"])
 def test_practice_host_serves_the_spa(client: TestClient, lac: Any, path: str) -> None:
     res = client.get(path, headers=on("cabinet-lac." + BASE), follow_redirects=False)
     assert res.status_code == 200, path
@@ -75,6 +75,7 @@ def test_practice_host_serves_app_assets(client: TestClient, lac: Any, path: str
         ("/ar/", f"https://{BASE}/ar/"),
         ("/site.css", f"https://{BASE}/site.css"),
         ("/salle/0a1b2c", f"https://{BASE}/salle/0a1b2c"),
+        ("/rdv/abc123", f"https://{BASE}/rdv/abc123"),  # the old patient links (token in the path) are gone
         ("/autre?x=1&y=2", f"https://{BASE}/autre?x=1&y=2"),
     ],
 )
@@ -97,16 +98,118 @@ def test_api_works_on_practice_hosts(client: TestClient, lac: Any) -> None:
     assert_problem(client.get("/api/auth/me", headers=on("cabinet-lac." + BASE)), 401, "unauthorized")
 
 
-@pytest.mark.parametrize("path", ["/r/cabinet-lac", "/rdv/abc123"])
-def test_main_domain_booking_routes(client: TestClient, lac: Any, path: str) -> None:
-    for host in (BASE, "testserver"):
-        res = client.get(path, headers=on(host))
-        assert res.status_code == 200 and SHELL_MARK in res.text, (host, path)
-
-
 def test_main_domain_keeps_the_landing(client: TestClient, lac: Any) -> None:
     assert "Fini le cahier" in client.get("/", headers=on(BASE)).text
     assert client.get("/r/", headers=on(BASE)).status_code == 404
+
+
+# --- the app on its own origin app.<BASE_DOMAIN> (fixlist 1: no token next to the ads of the main domain) ------------
+
+APP = "app." + BASE
+APP_PATHS = [
+    "/app", "/app/", "/app/admin", "/app/demo", "/app/patients/42", "/connexion", "/invitation", "/reinitialiser",
+    "/r/cabinet-lac", "/rdv", "/salle/0a1b2c", "/ticket/0a1b2c",
+]
+
+
+@pytest.mark.parametrize("path", APP_PATHS)
+def test_app_host_serves_the_spa(client: TestClient, lac: Any, path: str) -> None:
+    res = client.get(path, headers=on(APP), follow_redirects=False)
+    assert res.status_code == 200, path
+    assert SHELL_MARK in res.text
+    assert res.headers["cache-control"] == "no-cache"
+
+
+def test_app_host_root_opens_the_app(client: TestClient) -> None:
+    res = client.get("/", headers=on(APP), follow_redirects=False)
+    assert res.status_code == 302
+    assert res.headers["location"] == "/app"
+
+
+@pytest.mark.parametrize(
+    ("path", "contains"),
+    [
+        ("/_app/immutable/entry/start.Ab1-_x9Z.js", "console.log"),
+        ("/_app/version.json", '"version"'),
+        ("/sw.js", "BUILD"),
+        ("/manifest.webmanifest", '"start_url":"/app"'),
+        ("/favicon.svg", "<title>web</title>"),  # the app's icon, not the landing's
+        ("/200.html", SHELL_MARK),
+    ],
+)
+def test_app_host_serves_the_app_files(client: TestClient, path: str, contains: str) -> None:
+    res = client.get(path, headers=on(APP), follow_redirects=False)
+    assert res.status_code == 200, path
+    assert contains in res.text
+
+
+@pytest.mark.parametrize(
+    ("path", "target"),
+    [
+        ("/mentions-legales/", f"https://{BASE}/mentions-legales/"),
+        ("/ar/", f"https://{BASE}/ar/"),
+        ("/confidentialite/?x=1", f"https://{BASE}/confidentialite/?x=1"),
+        ("/robots.txt", f"https://{BASE}/robots.txt"),
+        ("/autre", f"https://{BASE}/autre"),  # the main domain shows its 404 page
+        ("/r/", f"https://{BASE}/r/"),
+        ("/app/missing.js", f"https://{BASE}/app/missing.js"),
+        ("/rdv/abc123", f"https://{BASE}/rdv/abc123"),
+    ],
+)
+def test_app_host_sends_the_rest_to_the_main_domain(client: TestClient, path: str, target: str) -> None:
+    res = client.get(path, headers=on(APP), follow_redirects=False)
+    assert res.status_code == 302, path
+    assert res.headers["location"] == target
+
+
+@pytest.mark.parametrize("path", ["/_app/immutable/missing.js", "/icons/missing.png"])
+def test_app_host_unknown_app_files_are_404(client: TestClient, path: str) -> None:
+    res = client.get(path, headers=on(APP), follow_redirects=False)
+    assert res.status_code == 404, path
+    assert SHELL_MARK not in res.text
+
+
+@pytest.mark.parametrize("host", [BASE, "testserver"])
+@pytest.mark.parametrize("path", APP_PATHS)
+def test_main_domain_sends_app_paths_to_the_app_host(client: TestClient, lac: Any, host: str, path: str) -> None:
+    res = client.get(path, headers=on(host), follow_redirects=False)
+    assert res.status_code == 301, path
+    assert res.headers["location"] == f"https://{APP}{path}"
+    assert SHELL_MARK not in res.text
+
+
+def test_the_redirect_keeps_query_and_encoding(client: TestClient) -> None:
+    res = client.get("/connexion?lang=ar&next=%2Fapp", headers=on(BASE), follow_redirects=False)
+    assert res.headers["location"] == f"https://{APP}/connexion?lang=ar&next=%2Fapp"
+    res = client.get("/r/caf%C3%A9", headers=on(BASE), follow_redirects=False)
+    assert res.headers["location"] == f"https://{APP}/r/caf%C3%A9"
+
+
+@pytest.mark.parametrize("path", ["/200.html", "/app/missing.js", "/applications", "/r/", "/rdv/abc123"])
+def test_main_domain_never_serves_the_app(client: TestClient, path: str) -> None:
+    res = client.get(path, headers=on(BASE), follow_redirects=False)
+    assert res.status_code == 404, path
+    assert SHELL_MARK not in res.text
+
+
+def test_main_domain_still_serves_the_service_worker_and_the_api(client: TestClient) -> None:
+    assert client.get("/sw.js", headers=on(BASE)).status_code == 200  # old registrations update to the no-op worker
+    assert client.get("/healthz", headers=on(BASE)).status_code == 200
+    assert_problem(client.get("/api/auth/me", headers=on(BASE)), 401, "unauthorized")
+
+
+def test_locally_the_app_host_keeps_scheme_and_port(settings: Any, clock: Any, db: Any) -> None:
+    from dataclasses import replace
+
+    from daftar.app import create_app
+
+    with TestClient(create_app(replace(settings, base_domain="localhost"), clock, engine=db, run_jobs=False)) as local:
+        res = local.get("/app/demo?lang=ar", headers=on("localhost:18086"), follow_redirects=False)
+        assert (res.status_code, res.headers["location"]) == (301, "http://app.localhost:18086/app/demo?lang=ar")
+        res = local.get("/mentions-legales/", headers=on("app.localhost:18086"), follow_redirects=False)
+        assert (res.status_code, res.headers["location"]) == (302, "http://localhost:18086/mentions-legales/")
+        assert SHELL_MARK in local.get("/connexion", headers=on("app.localhost:18086")).text
+        assert "Fini le cahier" in local.get("/", headers=on("localhost:18086")).text
 
 
 # --- TLS check for Caddy on-demand certificates -------------------------------------------------------------------------
@@ -124,6 +227,8 @@ def test_tls_check(client: TestClient, make_practice: Factory, clock: Any, lac: 
     assert check("cabinet-lac." + BASE) == 200
     assert check("cabinet-actif." + BASE) == 200
     assert check("CABINET-LAC." + BASE.upper()) == 200
+    assert check("app." + BASE) == 200  # the app's own host
+    assert check("APP." + BASE.upper()) == 200
     for denied in ("demo-ab12cd34", "cabinet-gele", "cabinet-ferme", "inconnu", "www"):
         assert check(f"{denied}.{BASE}") == 404, denied
     assert check(BASE) == 404
@@ -148,9 +253,21 @@ def test_login_on_a_practice_host_is_only_for_its_own_staff(
     for user in (stranger, admin):
         res = client.post("/api/auth/login", json={"email": user.email, "password": user.password}, headers=host)
         assert assert_problem(res, 401, "invalid_credentials") == wrong
-    # the main domain accepts everybody, including the admin
+    # the app host accepts everybody, including the admin
     for user in (own, stranger, admin):
-        assert login(client, user.email, user.password).status_code == 200
+        assert login(client, user.email, user.password, host=APP).status_code == 200
+
+
+@pytest.mark.parametrize("host", [BASE, "testserver", "www." + BASE])
+def test_nobody_signs_in_on_the_main_domain(
+    client: TestClient, lac: Any, make_user: Callable[..., TestUser], host: str
+) -> None:
+    """The main domain shows ads – no token may ever live on its origin (fixlist 1)."""
+    wrong = login(client, "nobody@daftar.test", "falsch-falsch", host=APP).json()
+    for user in (make_user(lac, "owner"), make_user(role="admin")):
+        res = login(client, user.email, user.password, host=host)
+        assert assert_problem(res, 401, "invalid_credentials") == wrong
+        assert "token" not in res.text
 
 
 def test_login_on_an_unknown_practice_host_fails_like_a_wrong_password(

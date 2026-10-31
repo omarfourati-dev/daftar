@@ -1,6 +1,20 @@
 /* Daftar – Formular „Accès pilote“ als progressive Verbesserung.
    Ohne JavaScript bleibt der Hinweis mit mailto: sichtbar. Setzt selbst keine Cookies und trackt nicht;
    einziger Request: POST /api/public/pilot-requests. */
+
+/* Security-Review M3: Früher lief die App samt Anmeldung auf dieser Domain; ihr Token läge im localStorage neben den
+   Skripten von AdSense. Die App nutzt diesen Ursprung nicht mehr (app.… und Praxis-Subdomains), also vergessen. Die
+   Migration 0005 macht alte Tokens zusätzlich serverseitig ungültig. */
+(function () {
+  "use strict";
+  try {
+    localStorage.removeItem("daftar.token");
+    localStorage.removeItem("daftar.user");
+  } catch (e) {
+    /* Speicher gesperrt: dann liegt dort auch nichts */
+  }
+})();
+
 (function () {
   "use strict";
 

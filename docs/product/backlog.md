@@ -102,11 +102,20 @@ dafür zahlen“.
 
 ## Release 1.1 – nächste Tage
 - **Rechnungen an Patienten mit Rabatt** (genehmigt von Dr. …, Spec 16.4).
+  - Dazu (Epic F, Security-Review 31.10. **N4**): **Audit-Log** für Löschen einer Leistung, Preissenkung und
+    rückdatierte Zahlungen (wer, wann, alter/neuer Wert), für den Besitzer sichtbar; Löschen/Senken und Rückdatieren
+    vor den letzten geprüften Kassentag nur durch den Besitzer. Heute darf jede Rolle das ohne Spur.
+- **TOTP-Zwei-Faktor für den Admin** (Epic I, Security-Review 31.10. **M4**): das Admin-Konto öffnet über
+  Besitzer-Reset-Links jede Praxis; zweiter Faktor (Authenticator-App) beim Admin-Login, Wiederherstellungscodes,
+  optional Admin-Login nur von festen IPs. (Sperre je Konto und strengere Passwortregel sind seit Fix-Runde 3 live.)
 - **Flyer** (Druck-PDF, FR/AR): Praxis Dr. Fadoua mit zwei QR-Codes (Website + Online-Termin); Daftar-Flyer für Ärzte.
 - **Sonderöffnungszeiten** für Zeiträume (Ramadan, Sommer) + Vorschlagsliste fester tunesischer Feiertage.
 - Änderungsprotokoll je Termin/Zahlung (wer, wann, was).
 - Wartebereich: Warteliste „früherer Termin gewünscht“, automatischer Vorschlag bei Stornierung.
-- Backup-Kopie außerhalb des Servers; Wiederherstellungsübung.
+- **Backup-Kopie außerhalb des Servers** (Epic K, Security-Review 31.10. **N7**): täglich eine **verschlüsselte**
+  Kopie (age/gpg, Schlüssel nicht auf dem VPS) auf einen Speicher außer Haus (z. B. Storage-Box mit eigenem
+  Schreib-Account ohne Löschrecht); Wiederherstellungsübung regelmäßig. Heute liegen die Sicherungen unverschlüsselt
+  nur auf demselben Server.
 - Tutorial (FR/AR, Seite + PDF) und Werbevideo (Hoch- und Querformat) – Omars Wunsch, mit echten Screenshots.
 
 ## Release 2 – nach dem Pilot
@@ -119,6 +128,9 @@ dafür zahlen“.
   Alternative: Produktivbetrieb bei einem Hoster in Tunesien.
 - WhatsApp-Business-API/SMS-Gateway für automatische Erinnerungen; Web-Push für neue Online-Anfragen.
 - Logo-Upload je Praxis; Flouci live (Händlerkonto); eine Windows-App (Tauri, signiert), eine Store-App (Capacitor).
+  - **Vor** dem Aktivieren des Flouci-Händlerkontos (Epic I, Security-Review 31.10. **N5**): `pay`/`verify` rufen
+    Flouci heute innerhalb der DB-Transaktion mit Zeilensperre auf (bis 15 s) – Provider außerhalb der Transaktion
+    aufrufen, danach mit Sperre den Status erneut prüfen; Rate-Limit je Praxis.
 - **Praxis-Website als Zusatzleistung** („site vitrine“): eigene Website je Praxis (FR/AR, SEO lokal, Öffnungszeiten
   und Leistungen live aus Daftar, Buchungsknopf), auf eigener Domain der Praxis. Prototyp: Cabinet Dr. Fadoua Bellaj
   Fourati (30.10.2026).

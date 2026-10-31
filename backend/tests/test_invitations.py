@@ -33,7 +33,7 @@ def test_preview_shows_practice_and_role(client: TestClient, make_practice: Call
     token = make_invitation(make_practice("Cabinet Dentaire Lac 2"), "assistant")
     res = client.post("/api/invitations/preview", json={"token": token})
     assert res.status_code == 200, res.text
-    assert res.json() == {"practiceName": "Cabinet Dentaire Lac 2", "role": "assistant"}
+    assert res.json() == {"practiceName": "Cabinet Dentaire Lac 2", "role": "assistant", "isDemo": False}
 
 
 def test_preview_of_unknown_expired_or_used_links_is_404(
@@ -95,6 +95,10 @@ def test_accept_validates_input(client: TestClient, app: Any, make_practice: Cal
         client.post("/api/invitations/accept", json={"token": token, **ACCEPT, "email": "pas-une-adresse"}), 422, "validation"
     )
     assert_problem(client.post("/api/invitations/accept", json={"token": token, **ACCEPT, "name": " "}), 422, "validation")
+    assert_problem(client.post("/api/invitations/accept", json={"token": token, **ACCEPT, "password": "karim-2026-tunis"}),
+                   422, "password_contains_email")  # the local part of Karim@Example.TN
+    assert_problem(client.post("/api/invitations/accept", json={"token": token, **ACCEPT, "password": "1234567890"}),
+                   422, "password_sequence")
     with app.state.ctx.engine.connect() as conn:
         assert conn.execute(select(app_user)).first() is None
 
@@ -109,14 +113,51 @@ def test_guessing_tokens_is_throttled_per_ip(client: TestClient, make_practice: 
     assert res.status_code == 200
 
 
-def test_a_valid_token_clears_the_counter(client: TestClient, make_practice: Callable[..., Any], make_invitation: Callable[..., str]) -> None:
+def test_only_an_accepted_invitation_clears_the_counter(client: TestClient, make_practice: Callable[..., Any],
+                                                       make_invitation: Callable[..., str]) -> None:
+    """Security review M2: a valid preview no longer resets the counter per IP."""
     token = make_invitation(make_practice())
-    for i in range(4):
+    for i in range(3):
         client.post("/api/invitations/preview", json={"token": f"typo-{i}"})
     assert client.post("/api/invitations/preview", json={"token": token}).status_code == 200
+    assert client.post("/api/invitations/accept", json={"token": token, **ACCEPT}).status_code == 201  # 5th: clears
     for i in range(4):
         client.post("/api/invitations/preview", json={"token": f"typo-again-{i}"})
-    assert client.post("/api/invitations/accept", json={"token": token, **ACCEPT}).status_code == 201
+    assert client.post("/api/invitations/preview", json={"token": make_invitation(make_practice())}).status_code == 200
+
+
+def test_accounts_cannot_be_probed_by_alternating_accept_and_preview(
+    client: TestClient, make_practice: Callable[..., Any], make_user: Callable[..., TestUser], make_invitation: Callable[..., str]
+) -> None:
+    """Security review M2: "e-mail taken" plus a valid preview used to reset the counter – unlimited probing."""
+    token = make_invitation(make_practice())
+    ip = {"X-Forwarded-For": "203.0.113.20"}
+    taken = [make_user(email=f"medecin{i}@example.tn").email for i in range(3)]
+    statuses = []
+    for email in taken:
+        statuses.append(client.post("/api/invitations/accept", json={"token": token, **ACCEPT, "email": email}, headers=ip).status_code)
+        statuses.append(client.post("/api/invitations/preview", json={"token": token}, headers=ip).status_code)
+    assert statuses == [409, 200, 409, 200, 409, 429]
+
+
+def test_demo_invitations_show_the_link_but_create_no_account(
+    client: TestClient, app: Any, clock: Any, make_practice: Callable[..., Any], make_user: Callable[..., TestUser],
+    make_invitation: Callable[..., str]
+) -> None:
+    """Security review M2: a demo owner (anybody) may make a link to see how it works; accepting it is refused in a
+    friendly way, before the e-mail is looked at (no "e-mail taken" oracle, no squatting of addresses)."""
+    demo = make_practice(is_demo=True, demo_expires_at=clock.now() + timedelta(hours=24))
+    token = make_invitation(demo, "assistant")
+    res = client.post("/api/invitations/preview", json={"token": token})
+    assert res.status_code == 200 and res.json()["isDemo"] is True
+    make_user(email="karim@example.tn")
+    for email in ("karim@example.tn", "nouveau@example.tn"):
+        body = assert_problem(client.post("/api/invitations/accept", json={"token": token, **ACCEPT, "email": email}),
+                              403, "demo_invitation")
+        assert "démo" in body["detail"]
+    with app.state.ctx.engine.connect() as conn:
+        assert conn.execute(select(app_user.c.id).where(app_user.c.email == "nouveau@example.tn")).first() is None
+        assert conn.execute(select(invitation.c.used_at)).scalar_one() is None
 
 
 def test_cleanup_job_deletes_only_stale_unused_invitations(

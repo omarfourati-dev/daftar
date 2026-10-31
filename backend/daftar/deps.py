@@ -13,9 +13,10 @@
 - ``ClientIp``   the real client IP (last ``X-Forwarded-For`` entry, set by Caddy)
 - ``CurrentUser`` any signed-in account (401 problem otherwise)
 - ``StaffUser``  owner, dentist or assistant – has a practice (``user.pid``); use it for reading
-- ``StaffWriter`` like StaffUser, but 402 ``subscription_suspended`` when the practice is suspended – use it for
-  every endpoint that creates, changes or deletes business data
+- ``StaffWriter`` like StaffUser, but 402 ``subscription_suspended`` / ``subscription_canceled`` when the practice
+  is suspended or canceled – use it for every endpoint that creates, changes or deletes business data
 - ``OwnerUser``  owner only · ``PractitionerUser`` owner or dentist · ``AdminUser`` admin only (403 otherwise)
+- ``OwnerWriter``  owner + subscription not suspended – owner-only changes (settings, team, catalog)
 - ``require_roles("owner", "dentist")`` for other combinations
 """
 
@@ -172,9 +173,12 @@ StaffUser = Annotated[Principal, Depends(require_roles("owner", "dentist", "assi
 
 
 def require_writable(user: StaffUser) -> Principal:
-    """Staff of a practice whose subscription is not suspended (section 11.4) – else 402."""
+    """Staff of a practice whose subscription is neither suspended (section 11.4) nor canceled (security review N6)
+    – else 402. Reading and the export stay open."""
     if user.practice_status == "suspended":
         raise ApiError(402, "Abonnement suspendu.", code="subscription_suspended")
+    if user.practice_status == "canceled":
+        raise ApiError(402, "Abonnement résilié.", code="subscription_canceled")
     return user
 
 
@@ -183,3 +187,14 @@ StaffWriter = Annotated[Principal, Depends(require_writable)]
 PractitionerUser = Annotated[Principal, Depends(require_roles("owner", "dentist"))]
 OwnerUser = Annotated[Principal, Depends(require_roles("owner"))]
 AdminUser = Annotated[Principal, Depends(require_roles("admin"))]
+
+
+def require_owner_writable(user: StaffWriter) -> Principal:
+    """The owner of a practice whose subscription is not suspended (402 first, then 403 for other roles)."""
+    if not user.is_owner:
+        raise forbidden()
+    return user
+
+
+#: Owner-only changes (practice settings, team, practitioners, services, closures): owner + not suspended.
+OwnerWriter = Annotated[Principal, Depends(require_owner_writable)]

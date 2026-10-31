@@ -45,6 +45,32 @@ def test_success_clears_the_email_ip_bucket(clock: FixedClock) -> None:
     assert all(t.reserve("a@x.tn", "1.1.1.1") for _ in range(5))
 
 
+def test_ten_failures_lock_the_account_from_every_ip(clock: FixedClock) -> None:
+    """Security review M4: a limit per account, whatever the IP (a botnet has many)."""
+    t = LoginThrottle(clock)
+    for _ in range(9):
+        t.failure("a@x.tn")
+    assert not t.account_locked("a@x.tn")
+    clock.advance(minutes=5)
+    t.failure("a@x.tn")
+    assert t.account_locked("a@x.tn")
+    assert not t.account_locked("b@x.tn")
+    assert t.account_retry_after("a@x.tn") == 10 * 60 + 1  # the first failure leaves the window in 10 min
+    clock.advance(minutes=9, seconds=59)
+    assert t.account_locked("a@x.tn")
+    clock.advance(seconds=1)
+    assert not t.account_locked("a@x.tn")  # the first failure is out of the window: 9 left
+
+
+def test_success_clears_the_failures_of_the_account(clock: FixedClock) -> None:
+    t = LoginThrottle(clock)
+    for _ in range(9):
+        t.failure("a@x.tn")
+    t.success("a@x.tn", "1.1.1.1")
+    t.failure("a@x.tn")
+    assert not t.account_locked("a@x.tn")
+
+
 def test_single_keys(clock: FixedClock) -> None:
     t = LoginThrottle(clock)
     assert all(t.reserve_key("password:1") for _ in range(5))

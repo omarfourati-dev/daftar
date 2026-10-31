@@ -270,6 +270,21 @@ payment = Table(
     _ts("created_at"),
 )
 
+#: Cash closing of a day (section 16.3, migration 0004): counted drawer vs. cash payments, verified by the owner.
+cash_closing = Table(
+    "cash_closing",
+    metadata,
+    Column("practice_id", BigInteger, ForeignKey("practice.id", ondelete="CASCADE"), primary_key=True),
+    Column("day", Date, primary_key=True),
+    Column("expected_cash_millimes", BigInteger, nullable=False),
+    Column("counted_cash_millimes", BigInteger, nullable=False),
+    Column("note", Text, nullable=False),
+    Column("closed_by", BigInteger, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),
+    _ts("closed_at"),
+    Column("verified_by", BigInteger, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),
+    _ts("verified_at", nullable=True),
+)
+
 invoice = Table(
     "invoice",
     metadata,
@@ -310,10 +325,13 @@ import_job = Table(
     _practice_id(),
     Column("created_by", BigInteger, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),
     Column("filename", Text, nullable=False),
-    Column("file_bytes", LargeBinary, nullable=False),
+    Column("file_bytes", LargeBinary, nullable=True),  # NULL once committed (migration 0003)
     _ts("created_at"),
     _ts("expires_at"),
     _ts("committed_at", nullable=True),
+    Column("sheet", Text, nullable=True),  # chosen sheet and header row (migration 0003)
+    Column("header_row", Integer, nullable=False),
+    Column("report", JSONB, nullable=True),  # problems found by the commit, for report.csv
 )
 
 import_template = Table(
@@ -354,7 +372,7 @@ feedback = Table(
 
 #: Child tables first – the order for TRUNCATE/DELETE in tests and tools (reference data not included).
 ALL_TABLES = (
-    feedback, password_reset, import_template, import_job,
+    feedback, password_reset, import_template, import_job, cash_closing,
     pilot_request, invoice, payment, treatment, queue_entry, appointment, patient, invitation,
     practice_closure, service, practitioner, app_user, practice,
 )

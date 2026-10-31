@@ -10,6 +10,12 @@ export const nav = {
 	caisse: 'Caisse',
 	rappels: 'Rappels',
 	reglages: 'Réglages',
+	statistiques: 'Statistiques',
+	toHandle: '{count} à traiter',
 	admin: 'Administration',
+	tools: 'Outils',
+	import: 'Importer',
+	abonnement: 'Abonnement',
+	installer: 'Installer l’application',
 	more: 'Plus'
 };

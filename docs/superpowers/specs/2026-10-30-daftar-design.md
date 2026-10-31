@@ -37,9 +37,20 @@ daftar/
 ```
 
 - Ein Prozess: FastAPI liefert `/api/*`, `/healthz`, `/metrics` (öffentlich 404 über Caddy), die Landing-Seiten und
-  die SPA. Reihenfolge der statischen Auslieferung: exakte Datei in `landing/` → Verzeichnis mit `index.html` in
-  `landing/` → Datei aus `web/build` → für Pfade ohne Dateiendung unter `/app`, `/connexion`, `/invitation`,
-  `/salle/`, `/ticket/` die SPA-Datei `200.html` → sonst 404 (problem+json für `/api`).
+  die SPA – je nach Host (`backend/daftar/hosts.py`, `static.py`):
+  - **App-Host `app.<BASE_DOMAIN>`** (Fix-Liste 1, 30.10. abends; Slug `app` reserviert, tls-check 200): die komplette
+    SPA – Admin, alle Praxis-Benutzer, `/app/demo`, `/connexion`, `/invitation`, `/reinitialiser`, `/r/<slug>`,
+    `/rdv`, `/salle/…`, `/ticket/…` → `200.html`; Dateien aus `web/build`; `/` → 302 `/app`; alles andere 302 auf
+    denselben Pfad der Hauptdomain. Das Anmelde-Token im localStorage liegt damit auf einem Ursprung ohne fremde Scripts.
+  - **Hauptdomain `<BASE_DOMAIN>`** (zeigt AdSense; auch jeder andere Host): nur Landing, Rechtstexte und statische
+    Dateien – exakte Datei in `landing/` → Verzeichnis mit `index.html` in `landing/` → Datei aus `web/build`, aber nie
+    `200.html` → sonst 404 (problem+json für `/api`). App-Pfade (ohne Dateiendung unter `/app`, `/connexion`,
+    `/invitation`, `/reinitialiser`, `/r/`, `/salle/`, `/ticket/` sowie die Seite `/rdv`) → **301** auf
+    `https://app.<BASE_DOMAIN><pfad>?<query>` (Fragmente wie `#token` behält der Browser). Anmelden geht hier nicht
+    (401 wie bei falschem Passwort); die API (z. B. `POST /api/public/pilot-requests` der Landing) läuft weiter. Der
+    Service Worker tut hier nichts und meldet sich ab.
+  - **Praxis-Subdomain `<slug>.<BASE_DOMAIN>`**: Abschnitte 11.3 und 13.
+  - Lokal `BASE_DOMAIN=localhost`: `http://localhost:<port>` ist die Hauptdomain, `http://app.localhost:<port>` die App.
 - CSP wie Redefluss (`default-src 'self'`, Hashes der Inline-Scripts von `200.html` zur Startzeit berechnen,
   `img-src 'self' data: blob:`, `connect-src 'self'`, `frame-ancestors 'none'`, `font-src 'self'`). Keine externen Hosts.
   Ausnahme (Omar, 30.10.): Google AdSense auf den beiden Startseiten `/` und `/ar/` – nur deren HTML bekommt eine
@@ -47,8 +58,10 @@ daftar/
   `connect-src 'self' https:`, `ADS_CSP` in `backend/daftar/http.py`); App, Buchungs-/Ticket-/Wartezimmerseiten,
   Praxis-Subdomains, Rechtstexte und API behalten die strenge CSP.
   Weitere Header: `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`,
-  `Permissions-Policy: camera=(), microphone=(), geolocation=()`. Hinter Caddy: echte Client-IP = **letzter** Eintrag
-  von `X-Forwarded-For`.
+  `Permissions-Policy: camera=(), microphone=(), geolocation=()`, über HTTPS (direkt oder `X-Forwarded-Proto: https`
+  von Caddy) `Strict-Transport-Security: max-age=31536000` – ohne `includeSubDomains`/`preload`, die andere
+  Subdomains von omarfourati.de mitbinden würden. Hinter Caddy: echte Client-IP = **letzter** Eintrag von
+  `X-Forwarded-For`.
 - Cache: `/_app/immutable/*` 1 Jahr immutable; `200.html`, `sw.js`, `manifest.webmanifest`, Landing-HTML `no-cache`.
 - Zeitzone aller Fachlogik: `Africa/Tunis` (UTC+1, keine Sommerzeit). „Heute“ = Datum in Tunis über eine injizierte Uhr.
 - Geld: ganzzahlig in **Millimes** (1 DT = 1000 Millimes), Feldnamen enden auf `Millimes`.
@@ -102,16 +115,26 @@ Anzahlung eines Termins bezahlt = Σ payment.amount mit `is_deposit` und diesem 
 Feldnamen camelCase. Zeitpunkte ISO-8601 mit Offset (`2026-10-30T09:30:00+01:00`), Tage `YYYY-MM-DD`.
 
 **Auth & Konto**
-- `POST /api/auth/login {email,password}` → `{token, user: Me}`; 401 falsch, 429 gedrosselt (wie Redefluss: 20/IP, 5/E-Mail+IP je 15 min).
+- `POST /api/auth/login {email,password}` → `{token, user: Me}`; 401 falsch, 429 gedrosselt (wie Redefluss: 20/IP, 5/E-Mail+IP je 15 min;
+  dazu je Konto unabhängig von der IP: nach 10 Fehlversuchen einer E-Mail in 15 min 429 für jede Anmeldung dieser E-Mail –
+  auch mit richtigem Passwort – bis der älteste Fehlversuch das Fenster verlässt; unbekannte E-Mails genauso, Security-Review M4).
 - `GET /api/auth/me` → `Me {id,email,name,role,lang,practice:{id,name,isDemo,demoExpiresAt}|null}`
-- `PATCH /api/auth/me {name?,lang?}` → Me · `POST /api/auth/password {current,next}` (next ≥ 10 Zeichen) → `{token}`
+- `PATCH /api/auth/me {name?,lang?}` → Me · `POST /api/auth/password {current,next}` → `{token}`. Passwortregel (auch bei
+  Einladung und Reset-Link): 10–200 Zeichen, nicht ein einziges wiederholtes Zeichen (`password_repeated`), keine reine
+  Ziffern-/Alphabet-/Tastaturfolge vor- oder rückwärts wie `1234567890`, `azertyuiop`, `qwertyuiop` (`password_sequence`),
+  nicht die eigene E-Mail oder ihr lokaler Teil ab 4 Zeichen (`password_contains_email`); jeweils 422.
 - `POST /api/auth/logout-all` → 204 (token_version++)
-- `POST /api/invitations/preview {token}` → `{practiceName, role}` (404 ungültig/abgelaufen/benutzt)
-- `POST /api/invitations/accept {token,name,email,password}` → 201 `{token,user}`; 409 E-Mail vergeben.
+- `POST /api/invitations/preview {token}` → `{practiceName, role, isDemo}` (404 ungültig/abgelaufen/benutzt)
+- `POST /api/invitations/accept {token,name,email,password}` → 201 `{token,user}`; 409 E-Mail vergeben; 403
+  `demo_invitation` für Einladungen einer Demo-Praxis (der Link darf zur Vorführung erzeugt werden, ein Konto entsteht
+  nie; geprüft vor der E-Mail – Security-Review M2; die Seite `/invitation` zeigt dann einen Hinweis statt des
+  Formulars). Beide zusammen: 5 Versuche je IP und 15 min, nur ein angenommenes Token setzt den Zähler zurück.
 
 **Praxis & Team** (lesen: alle Rollen; ändern: owner)
 - `GET /api/practice` → `{id,name,address,city,phone,dayStart:"08:00",dayEnd:"18:00",slotMinutes,defaultDurationMin,reminderTemplateFr,reminderTemplateAr,displayToken,isDemo}`
-- `PATCH /api/practice {…}` · `POST /api/practice/display-token` → neues Token
+- `PATCH /api/practice {…}` · `POST /api/practice/display-token` → neues Token. In Demo-Praxen bleiben Name (FR/AR),
+  Telefon, WhatsApp und Karten-Link fest (Änderung → 403 `demo_locked`, in den Réglages schreibgeschützt), und die
+  öffentliche Buchungsseite einer Demo zeigt ein deutliches Demo-Banner plus `noindex` (Security-Review N3).
 - `GET /api/practice/export` (owner) → JSON-Download aller Praxisdaten (`Content-Disposition: attachment`)
 - `GET /api/staff` → `[{id,name,email,role,createdAt}]` · `PATCH /api/staff/{id} {role}` · `DELETE /api/staff/{id}` (nicht sich selbst, nicht owner)
 - `GET /api/staff/invitations` → `[{id,role,createdAt,expiresAt}]` · `POST /api/staff/invitations {role:'dentist'|'assistant'}` → 201 `{id,token,expiresAt}` · `DELETE /api/staff/invitations/{id}`
@@ -149,13 +172,14 @@ Feldnamen camelCase. Zeitpunkte ISO-8601 mit Offset (`2026-10-30T09:30:00+01:00`
 - `POST /api/patients/{id}/payments {amountMillimes,method,paidAt?,appointmentId?,isDeposit?,note?}` → 201 · `GET /api/payments/{id}` → Payment + `practice:{name,address,city,phone}` (Quittung) · `DELETE /api/payments/{id}` (owner) → 204
 - `GET /api/cash?day=` → `{day,totalMillimes,byMethod:{cash:…,d17:…,…},payments:[Payment]}`
 - `GET /api/balances?limit=100` → `[{patientId,name,phone,dueMillimes,lastPaymentAt}]` (nur due > 0, absteigend)
+- `GET /api/balances/summary` → `{totalMillimes, patients}` über **alle** offenen Salden – „Total dû“ der Kasse kommt von hier (die Liste zeigt nur die größten; Code-Review M7), gleich `dueTotalMillimes` im Dashboard
 
 **Erinnerungen & Übersicht**
-- `GET /api/reminders?day=` (Standard morgen) → `[{appointment:Appointment,patientLang,reminderConsent,phoneDigits,message}]`; `message` = Vorlage der Patientensprache mit `{patient} {date} {time} {practice} {phone}` ersetzt (Datum `jj/mm/aaaa`, Zeit `HH:MM`); stornierte Termine fehlen. `phoneDigits` ohne `+` für `wa.me`.
-- `GET /api/dashboard` → `{today,appointments:{total,byStatus:{…}},upcoming:[Appointment] (heute, ab jetzt, max 5),queue:{waiting,called},cashTodayMillimes,remindersPending,dueTotalMillimes,patientsCount}`
+- `GET /api/reminders?day=` (Standard: der **nächste Öffnungstag** – der erste Tag nach heute mit Öffnungszeiten, der kein Schließtag ist; samstags also Montag, vor einem Feiertag der Tag danach; Code-Review M6) → `[{appointment:Appointment,patientLang,reminderConsent,phoneDigits,message}]`; `message` = Vorlage der Patientensprache mit `{patient} {date} {time} {practice} {phone}` ersetzt (Datum `jj/mm/aaaa`, Zeit `HH:MM`); stornierte Termine fehlen. `phoneDigits` ohne `+` für `wa.me`.
+- `GET /api/dashboard` → `{today,appointments:{total,byStatus:{…}},upcoming:[Appointment] (heute, ab jetzt, max 5),queue:{waiting,called},cashTodayMillimes,remindersPending (offene Erinnerungen des nächsten Öffnungstags),dueTotalMillimes,patientsCount}`
 
 **Demo, Pilot, Admin**
-- `POST /api/demo {lang?}` → 201 `{token,user}`: neue Praxis „Cabinet Dentaire Démo“ (`is_demo`, läuft nach 24 h ab), Besitzer `demo-<zufall>@demo.daftar.invalid`, gefüllt mit erfundenen Daten relativ zu heute (25 Patienten mit tunesischen Namen, Telefon **`+21600000001…`** – die Vorwahl 00 existiert nicht; Termine −14…+7 Tage mit realistischen Status inkl. Nichterscheinen; heute 3 Wartende, 1 in Behandlung; Leistungen und Teilzahlungen; Termine morgen für Erinnerungen). Drosselung: 5 je IP und Stunde, 300 je Tag gesamt → 429. Aufräumjob alle 30 min löscht abgelaufene Demo-Praxen (CASCADE) und abgelaufene unbenutzte Einladungen älter als 30 Tage.
+- `POST /api/demo {lang?}` → 201 `{token,user}`: neue Praxis „Cabinet Dentaire Démo“ (`is_demo`, läuft nach 24 h ab), Besitzer `demo-<zufall>@demo.daftar.invalid`, gefüllt mit erfundenen Daten relativ zu heute (25 Patienten mit tunesischen Namen, Telefon **`+21600000001…`** – die Vorwahl 00 existiert nicht; Termine −14…+7 Tage mit realistischen Status inkl. Nichterscheinen; heute 3 Wartende, 1 in Behandlung; Leistungen und Teilzahlungen; Termine morgen für Erinnerungen). Drosselung: 5 je IP und Stunde, 20 je Adressbereich (IPv4 /24, IPv6 /64) und Tag (Security-Review N8), 300 je Tag gesamt → 429. Aufräumjob alle 30 min löscht abgelaufene Demo-Praxen (CASCADE) und abgelaufene unbenutzte Einladungen älter als 30 Tage.
 - `POST /api/public/pilot-requests {name,practice,city,phone,email?,message?,lang,website}` → 202; `website` ist ein Honeypot (nicht leer → trotzdem 202, aber nicht speichern); Längen begrenzt (Name/Praxis/Stadt ≤ 120, Nachricht ≤ 2000); 5 je IP und Stunde.
 - `GET /api/admin/practices` → `[{id,name,city,isDemo,createdAt,users,patients,appointments,lastActivityAt}]` (Demo-Praxen ausblendbar per `?demo=false`, Standard ohne Demos)
 - `POST /api/admin/practices {name,city,phone?,address?}` → 201 `{practice,invitation:{token,expiresAt}}` (Einladung Rolle owner)
@@ -179,7 +203,7 @@ FR ist Standard, AR wählbar (RTL, `dir="rtl"`, westliche Ziffern). Sprache gesp
 | `/app/salle` | Warteschlange heute: Ticket ziehen (Patient oder nur Name/Telefon), Aufrufen, In Behandlung, Fertig, Gegangen; je Ticket WhatsApp-Link mit Ticket-Seite und QR-Code zum Abfotografieren; Link zum Wartezimmer-Bildschirm |
 | `/app/patients`, `/app/patients/[id]` | Liste mit Suche; Akte: Daten, Zuverlässigkeit (gekommen/nicht gekommen), Termine, Leistungen, Zahlungen, Saldo, Zahlung/Leistung erfassen, Quittung |
 | `/app/caisse` | Kasse des Tages nach Zahlart, Liste; offene Beträge |
-| `/app/rappels` | Termine morgen: je Zeile WhatsApp- und SMS-Knopf mit fertiger Nachricht, „Envoyé“ markieren; ohne Einwilligung ausgegraut; in Demo-Praxen öffnen die Knöpfe nichts, sondern zeigen einen Hinweis |
+| `/app/rappels` | Termine des nächsten Öffnungstags (Standard; Knopf „Demain“ bzw. „Prochain jour d’ouverture“, blättern möglich): je Zeile WhatsApp- und SMS-Knopf mit fertiger Nachricht, „Envoyé“ markieren; ohne Einwilligung ausgegraut; in Demo-Praxen öffnen die Knöpfe nichts, sondern zeigen einen Hinweis |
 | `/app/recu/[paymentId]` | druckbare Quittung |
 | `/app/reglages` | Praxis, Zeiten, Vorlagen FR/AR, Bildschirm-Link (neu erzeugen), Team & Einladungen (owner), Export (owner), eigenes Konto/Passwort/Sprache, Abmelden überall |
 | `/app/admin` | nur admin: Praxen, neue Praxis + Einladungslink kopieren, Pilot-Anfragen |
@@ -266,6 +290,17 @@ Komponentenschnitt, genaue Texte der App (kurz, FR/AR), Seed-Details der Demo, L
 - API: Überschneidung → **409** `{title, detail, conflicts:[{id,startsAt,endsAt,patientName}]}` statt Warnung
   (ersetzt „nur Warnung“ in Abschnitt 5). Die App zeigt dann freie Zeiten an. Notfälle laufen über die Warteschlange,
   nicht über den Kalender.
+- **Hat die Praxis aktive Behandler, hat jeder Termin einen** (Code-Review H1, 31.10. – ein Termin „Non attribué“
+  blockierte den Kalender der Ärztin nicht, Online-/Telefonbuchung legten denselben Zeitpunkt ein zweites Mal an).
+  `practitionerId = null` beim Anlegen, Verschieben, Wiedereröffnen (storniert/absent → geplant), in Serien und im
+  Import heißt: genau ein aktiver Behandler → dieser; mehrere → der erste (Reihenfolge der Praxis), der zur
+  gewünschten Zeit frei ist (dieselbe Regel wie Online- und Telefonbuchung; eine Serie bekommt möglichst einen
+  Behandler für alle Sitzungen); keiner frei → 409 mit Vorschlägen, in denen irgendeiner frei ist. Nur Praxen
+  **ohne** aktive Behandler kennen weiter Termine ohne Behandler (ihr einer Kalender). Web: bei genau einem Behandler
+  ist er vorgewählt und „Non attribué“ entfällt; bei mehreren ist „Premier disponible“ (sendet `null`) die Vorgabe.
+  Migration `0006` ordnet bestehende nicht stornierte Termine ohne Behandler in Praxen mit genau einem aktiven
+  Behandler diesem zu (Termine, die dort eine Überschneidung ergäben, bleiben ohne Behandler und zeigen sich in der
+  Agenda; ältere Termine ohne Behandler in Praxen mit mehreren Behandlern bleiben, bis sie verschoben werden).
 - `GET /api/availability?date=&durationMin=&practitionerId=` → `{date, slots:[{time:"09:15", practitionerIds:[…]}]}`:
   Raster `slot_minutes` innerhalb der Öffnungszeiten des Wochentags, ohne Schließtage, ohne belegte Zeiten, ohne
   Vergangenheit. Dieselbe Logik nutzt die Online-Buchung.
@@ -278,7 +313,7 @@ reserviert: www, app, api, admin, demo, mail, smtp, static, assets, daftar, stat
 `status 'pilot'|'trial'|'active'|'suspended'` (Standard pilot), `pilot_until DATE`, `admin_notes` (nur Admin),
 `weekly_hours JSONB` (ISO-Wochentag → Liste von Zeitfenstern, z. B. `{"1":[["08:00","12:30"],["14:00","18:00"]],…,"7":[]}`;
 **ersetzt `day_start`/`day_end`** – Agenda-Bereich = früheste bis späteste Öffnungszeit), Online-Buchung:
-`online_booking_enabled` (false), `online_auto_confirm` (false), `booking_horizon_days` (30),
+`online_booking_enabled` (false), `online_auto_confirm` (false), `booking_horizon_days` (30; Horizont in Tagen ab heute: heute und die nächsten N Tage – letzter buchbarer Tag = heute + N, in API und Tagesleiste der Buchungsseite gleich, Code-Review N9),
 `booking_min_notice_hours` (2), `booking_max_per_day` (20), `booking_block_no_shows` (2; 0 = aus).
 
 Neue Tabellen:
@@ -313,24 +348,37 @@ Daten (ohne Admin-Felder) plus Schließtage, Leistungen, Behandler und sieht sei
 ### 11.3 Online-Buchung für Patienten
 - Adresse: `https://<slug>.daftar.omarfourati.de` (Wildcard-DNS `*.daftar` → 212.132.95.145; Caddy On-Demand-TLS mit
   `ask` → `GET /api/public/tls-check?domain=<host>`: 200 nur für bestehende, nicht gesperrte Nicht-Demo-Praxis, sonst
-  404) und immer auch `https://daftar.omarfourati.de/r/<slug>` (Tests, lokal, Fallback).
+  404) und immer auch `https://app.daftar.omarfourati.de/r/<slug>` (Tests, lokal, Fallback; auf der Hauptdomain 301
+  dorthin).
 - Host-Routing im Backend (Einstellung `BASE_DOMAIN`, Standard `daftar.omarfourati.de`): Host `<slug>.<BASE_DOMAIN>` →
-  `/` und `/rdv/<token>` liefern die SPA (`200.html`), `/api/*`, `/_app/*`, Icons, Manifest normal, alles andere 302
+  `/` und `/rdv` (sowie `/app…`, `/connexion`, `/invitation`, `/reinitialiser`) liefern die SPA (`200.html`),
+  `/api/*`, `/_app/*`, Icons, Manifest normal, alles andere 302
   auf `https://<BASE_DOMAIN><pfad>`. Unbekannter Slug → 404-Seite. Die SPA-Route `/` (existiert nur für Subdomains;
   auf der Hauptdomain liefert der Server die Landing) liest den Slug aus `location.hostname`, sonst
-  `location.replace('/')`. `/r/[slug]` zeigt dieselbe Buchungsseite, `/rdv/[token]` die Verwaltung des Patienten.
+  `location.replace('/')`. `/r/[slug]` zeigt dieselbe Buchungsseite, `/rdv#<token>` die Verwaltung des Patienten
+  (auf der Praxis-Subdomain und auf `app.`; die Hauptdomain leitet `/rdv` per 301 auf `app.` um, das Fragment bleibt).
 - Öffentliche API (ohne Login, nie Daten anderer Patienten):
   `GET /api/public/practices/{slug}` → Praxisprofil (Name FR/AR, Adresse, Gouvernorat, Telefon, WhatsApp, Karte,
   Beschreibung, Öffnungszeiten, `onlineBookingEnabled`, online buchbare Leistungen mit Dauer und ggf. Preis, online
-  buchbare Behandler, `horizonDays`) · `GET /api/public/practices/{slug}/slots?date=&serviceId=&practitionerId=` →
+  buchbare Behandler, `horizonDays`, `isDemo`) · `GET /api/public/practices/{slug}/slots?date=&serviceId=&practitionerId=` →
   `{date, slots:["09:00",…]}` · `POST /api/public/practices/{slug}/bookings {serviceId, practitionerId?, startsAt,
   firstName, lastName, phone, lang, reminderConsent, note?, website}` → 201 `{status:'requested'|'confirmed', startsAt,
-  serviceName, practitionerName, manageToken}`; 409 Slot weg; 422 `blocked` wenn diese Telefonnummer in der Praxis
-  ≥ `booking_block_no_shows` Nichterscheinen hat („Merci d'appeler le cabinet“); 429 (3/h je IP, höchstens 2 künftige
-  Online-Buchungen je Telefonnummer und Praxis, `booking_max_per_day`). Patient wird über Telefon **und** Nachname
-  (ohne Groß/Klein) wiedererkannt, sonst neu angelegt.
-  `GET /api/public/bookings/{token}` → Termin, Status, Praxis-Kontakt · `POST /api/public/bookings/{token}/cancel` →
-  storniert (bis `booking_min_notice_hours` vorher).
+  serviceName, practitionerName, manageToken}`. Geprüft wird **zuerst der Termin** (für alle gleich, wie `/slots`):
+  422 `too_soon`/`outside_horizon`, 429 `day_full` (`booking_max_per_day`), 409 Slot weg. **Danach die Person** – jede
+  dieser Ablehnungen gibt dieselbe Antwort 422 `booking_refused` „Merci d'appeler le cabinet pour prendre rendez-vous“
+  (AR „يُرجى الاتصال بالعيادة لحجز موعد“), damit das Formular nicht verrät, ob eine Nummer Patient der Praxis ist
+  (Security-Review M1): die Telefonnummer hat in der Praxis ≥ `booking_block_no_shows` Nichterscheinen, sie hat schon
+  2 künftige Online-Buchungen, oder der wiedererkannte Patient hat zu dieser Zeit schon einen Termin. 429 (20
+  Versuche/h je IP – Patienten hinter Mobilfunk-NAT teilen sich eine –, 3 Versuche/h je Telefonnummer und Praxis); die
+  Buchungen einer Praxis laufen per `pg_advisory_xact_lock` nacheinander, damit parallele Anfragen die Grenzen nicht
+  gemeinsam überspringen. Patient wird über Telefon **und** Nachname (ohne Groß/Klein) wiedererkannt, sonst neu
+  angelegt.
+  Verwaltung mit dem Token im Body (Fix-Liste 3; die Seite `/rdv#<token>` hält ihn aus Caddy- und App-Logs):
+  `POST /api/public/bookings/lookup {token}` → Termin, Status, Praxis-Kontakt · `POST /api/public/bookings/cancel
+  {token}` → storniert (bis `booking_min_notice_hours` vorher). Der Link, den die Buchungsbestätigung zeigt (auch zum
+  Teilen per WhatsApp), lautet `https://<host der Buchung>/rdv#<token>`. Die Pfad-Varianten
+  (`GET /api/public/bookings/{token}`, `POST /api/public/bookings/{token}/cancel`) und die Seite `/rdv/<token>` sind
+  entfernt (Fix-Liste 2, 31.10.; es gab noch keine echte Buchung).
 - Praxis-Seite: Online-Anfragen erscheinen im Dashboard („Nouvelles demandes en ligne“) und gestrichelt in der Agenda;
   Bestätigen (→ `confirmed`) oder Ablehnen (→ `cancelled`) mit fertigem WhatsApp-Text an den Patienten.
 - Datenschutz: Die Rechtstexte erklären die Online-Buchung (Daten gehen an die Praxis als Verantwortliche, Daftar als
@@ -350,7 +398,9 @@ Omar trägt Zahlungen (Virement, espèces) als Admin von Hand ein.
 - Täglicher Job: für `active`-Praxen 10 Tage vor `paid_until` die nächste Rechnung anlegen; nach `paid_until` →
   `past_due`; 14 Tage danach → `suspended` (Anmeldung und Export gehen weiter, alle schreibenden Fach-Endpunkte
   antworten 402 problem+json „Abonnement suspendu“, Banner in der App). Bezahlt → `active`, `paid_until` = Ende der
-  Rechnungsperiode. Pilot-Praxen bekommen keine Rechnungen, bis Omar den Plan umstellt.
+  Rechnungsperiode. Pilot-Praxen bekommen keine Rechnungen, bis Omar den Plan umstellt. `canceled` (vom Admin
+  gesetzt) wirkt wie `suspended`: Lesen, Anmeldung und Export gehen weiter, Schreiben → 402 `subscription_canceled`
+  „Abonnement résilié“, Banner in der App (Security-Review N6).
 - Besitzer: `GET /api/billing` → `{plan, status, paidUntil, plans, invoices, onlinePaymentAvailable}` ·
   `POST /api/billing/invoices/{id}/pay` → `{paymentUrl}` (Flouci-Zahlungslink, `developer_tracking_id` = Rechnungsnummer,
   Erfolg/Fehler zurück nach `/app/abonnement`) · `POST /api/billing/invoices/{id}/verify` → fragt Flouci nach dem Status.
@@ -395,9 +445,11 @@ wertet viele fast gleiche Apps als Spam). Später möglich: **eine** signierte W
 Dateinamen `Daftar-<slug>.exe` selbst auf die Praxis einstellt, und **eine** Daftar-App in Play Store/App Store
 (Capacitor), Praxis per QR-Code/Code. Heute nur die PWA.
 - **Ersetzt die Weiterleitung aus 11.3:** Auf `<slug>.<BASE_DOMAIN>` liefert der Server zusätzlich `/app/*`,
-  `/connexion`, `/invitation` als SPA (statt 302). Anmeldung auf einer Praxis-Subdomain akzeptiert nur Benutzer dieser
-  Praxis (sonst dieselbe 401-Meldung wie bei falschem Passwort); Admin meldet sich nur auf der Hauptdomain an. Die
-  Login-Seite zeigt dort Name und Icon der Praxis.
+  `/connexion`, `/invitation`, `/reinitialiser` als SPA (statt 302). Anmeldung auf einer Praxis-Subdomain akzeptiert
+  nur Benutzer dieser Praxis (sonst dieselbe 401-Meldung wie bei falschem Passwort); Admin und alle Praxis-Benutzer
+  melden sich auf `app.<BASE_DOMAIN>` an, auf der Hauptdomain niemand (Fix-Liste 1). Die Login-Seite zeigt auf der
+  Subdomain Name und Icon der Praxis. Manifest des App-Hosts: das statische `web/static/manifest.webmanifest`
+  („Daftar“, `start_url` `/app`).
 - **Manifeste je Host:** `GET /manifest.webmanifest` auf einer Praxis-Subdomain → `name` „<Praxisname> – Daftar“,
   `short_name` (Praxisname, max. 12 Zeichen), `start_url` `/app`, `scope` `/`, Icons der Praxis; `GET
   /booking.webmanifest` → „<Praxisname> – Rendez-vous“, `start_url` `/` (Patienten installieren die Buchungsseite).
@@ -440,6 +492,11 @@ und legen die Zuordnung der Spalten **selbst in der Oberfläche** fest.
 - Tabelle `import_job(id UUID, practice_id, created_by, filename, file_bytes BYTEA, created_at, expires_at,
   committed_at)` – die Datei wird beim Commit bzw. spätestens nach 24 h gelöscht (Aufräumjob); `import_template(id,
   practice_id, name, kind, mapping JSONB, options JSONB, created_at)`. Mandantentrennung wie überall.
+- Schutz (Security-Review H1/H2): `.xlsx` je ZIP-Eintrag (u. a. `xl/sharedStrings.xml`, jedes Arbeitsblatt) höchstens
+  5 MB entpackt, insgesamt höchstens 20 MB (422 `file_too_complex`); höchstens 3 offene (nicht übernommene)
+  Import-Jobs je Praxis – ein neuer Upload löscht den ältesten; 10 Uploads je Benutzer und Stunde (429, auch
+  fehlgeschlagene zählen); in Demo-Praxen kein Import (403 `demo_import_disabled`, die Importseite zeigt stattdessen
+  einen Hinweis).
 - Die Checkliste „Erste Schritte“ bekommt „Importer vos patients (Excel)“; Landing und Rechtstexte erwähnen den Import.
 
 ## 15. API-Verträge für die Backlog-Stories (Release 1)

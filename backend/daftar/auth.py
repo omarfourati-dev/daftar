@@ -13,7 +13,7 @@ from sqlalchemy import Connection, select, update
 
 from .context import AppContext
 from .deps import ClientIp, Conn, Ctx, CurrentUser
-from .hosts import practice_by_slug, subdomain_label
+from .hosts import APP_LABEL, practice_by_slug, subdomain_label
 from .passwords import hash_password, needs_rehash, password_problem, verify_against_dummy, verify_password
 from .problems import bad_request, too_many_requests, unauthorized, unprocessable
 from .schemas import ApiModel, Lang, Name, Role, TunisDateTime
@@ -120,12 +120,16 @@ def bump_token_version(conn: Connection, user_id: int) -> None:
 
 @router.post("/login")
 def login(body: LoginIn, request: Request, ctx: Ctx, conn: Conn, ip: ClientIp) -> Session:
-    """On a practice sub-domain only that practice's staff may sign in (the admin only on the main domain);
-    everybody else gets exactly the answer of a wrong password."""
+    """Signing in works on the app host ``app.<BASE_DOMAIN>`` (admin and every practice's staff) and on a practice's
+    own sub-domain (only its staff) – never on the main domain, which shows ads (fixlist 1). Everybody else gets
+    exactly the answer of a wrong password."""
     email = body.email.strip().lower()
     if not ctx.login_throttle.reserve(email, ip):
         ctx.metrics.logins.labels("throttled").inc()
         raise too_many_requests(TOO_MANY)
+    if ctx.login_throttle.account_locked(email):  # 10 failures of this e-mail from anywhere (security review M4)
+        ctx.metrics.logins.labels("throttled").inc()
+        raise too_many_requests(TOO_MANY, retry_after=ctx.login_throttle.account_retry_after(email))
     row = conn.execute(
         select(app_user.c.id, app_user.c.password_hash, app_user.c.practice_id).where(app_user.c.email == email)
     ).first()
@@ -135,11 +139,12 @@ def login(body: LoginIn, request: Request, ctx: Ctx, conn: Conn, ip: ClientIp) -
     else:
         ok = verify_password(body.password, row.password_hash)
     label = subdomain_label(request.headers.get("host"), ctx.settings.base_domain)
-    if ok and label is not None:
-        host_practice = practice_by_slug(conn, label)
+    if ok and label != APP_LABEL:
+        host_practice = practice_by_slug(conn, label) if label is not None else None
         ok = host_practice is not None and row is not None and row.practice_id == host_practice.id
     if not ok:
         ctx.metrics.logins.labels("failed").inc()
+        ctx.login_throttle.failure(email)
         raise unauthorized("E-mail ou mot de passe incorrect.", code="invalid_credentials")
     ctx.login_throttle.success(email, ip)
     ctx.metrics.logins.labels("ok").inc()
@@ -170,7 +175,7 @@ def change_password(body: PasswordIn, user: CurrentUser, ctx: Ctx, conn: Conn) -
     if not verify_password(body.current, current_hash):
         raise bad_request("Le mot de passe actuel est incorrect.", code="wrong_password")
     ctx.login_throttle.clear_key(key)
-    if problem := password_problem(body.next):
+    if problem := password_problem(body.next, user.email):
         raise unprocessable(problem[1], code=problem[0])
     conn.execute(
         update(app_user)

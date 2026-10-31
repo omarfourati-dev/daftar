@@ -2,6 +2,9 @@
 
 In handlers take a transaction with the ``Conn`` dependency (daftar/deps.py): it commits when the handler returns
 and rolls back on any exception – before the response is sent.
+
+``hide_parameters=True``: an unexpected database error is logged with its statement but without the bound values
+(names, phone numbers, hashes – security review N1).
 """
 
 from __future__ import annotations
@@ -20,6 +23,7 @@ def make_engine(url: str, *, pool_size: int = 5, max_overflow: int = 5) -> Engin
         pool_pre_ping=True,
         pool_recycle=1800,
         connect_args={"options": "-c timezone=UTC", "connect_timeout": 5},
+        hide_parameters=True,
     )
 
 

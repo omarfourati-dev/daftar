@@ -8,6 +8,15 @@ import { test, expect, type Page, type Route } from "@playwright/test";
 const BASE = (process.env.E2E_BASE_URL ?? "http://localhost:18083").replace(/\/$/, "");
 const BASE_ORIGIN = new URL(BASE).origin;
 const SITE = "https://daftar.omarfourati.de";
+/** Die App hat einen eigenen Ursprung ohne Werbung (Fix-Liste 1): Links der Landing zeigen dorthin. */
+const APP_SITE = "https://app.daftar.omarfourati.de";
+/** App-Host des getesteten Servers (BASE_DOMAIN=localhost → app.localhost:<port>). Node auf Windows löst *.localhost
+ * nicht auf → Requests aus Node gehen mit Host-Header an BASE; im Browser funktioniert APP_ORIGIN direkt. */
+const APP_HOST = `app.${new URL(BASE).host}`;
+const APP_ORIGIN = `${new URL(BASE).protocol}//${APP_HOST}`;
+/** Pfade der App – auf der Hauptdomain nur noch eine 301 auf den App-Host. */
+/** (`/rdv` ist die Seite des persönlichen Links `/rdv#<token>`, Fix-Liste 2 – `/rdv/<token>` gibt es nicht mehr.) */
+const APP_PATHS = ["/app", "/app/demo", "/connexion", "/invitation", "/r/cabinet-test", "/rdv", "/salle/abc123", "/ticket/abc123"];
 const API = "**/api/public/pilot-requests";
 
 const ADSENSE_CLIENT = "ca-pub-4072840905222883";
@@ -82,7 +91,7 @@ function watch(page: Page, { ads = false } = {}) {
   page.on("request", (req) => {
     const url = new URL(req.url());
     if (url.protocol !== "http:" && url.protocol !== "https:") return;
-    if (url.origin === BASE_ORIGIN || (ads && isGoogleAdHost(url.hostname))) return;
+    if (url.origin === BASE_ORIGIN || url.origin === APP_ORIGIN || (ads && isGoogleAdHost(url.hostname))) return;
     foreign.push(req.url());
   });
   return { errors, foreign };
@@ -205,22 +214,47 @@ for (const spec of PAGES) {
 }
 
 test.describe("Verkaufsseite", () => {
-  test("FR: alle „Essayer la démo“-Knöpfe führen zu /app/demo, „Se connecter“ zu /connexion", async ({ page }) => {
+  test("FR: alle „Essayer la démo“-Knöpfe führen zu app.…/app/demo, „Se connecter“ zu app.…/connexion", async ({ page }) => {
     await page.goto(BASE + "/");
     const demo = page.getByRole("link", { name: "Essayer la démo" });
     expect(await demo.count()).toBeGreaterThanOrEqual(2);
-    for (const href of await demo.evaluateAll((els) => els.map((e) => e.getAttribute("href")))) expect(href).toBe("/app/demo");
-    await expect(page.locator(".site-header").getByRole("link", { name: "Se connecter" })).toHaveAttribute("href", "/connexion");
+    for (const href of await demo.evaluateAll((els) => els.map((e) => e.getAttribute("href")))) expect(href).toBe(`${APP_SITE}/app/demo`);
+    await expect(page.locator(".site-header").getByRole("link", { name: "Se connecter" })).toHaveAttribute("href", `${APP_SITE}/connexion`);
     await expect(page.locator(".hero").getByRole("link", { name: "Essayer la démo" })).toBeVisible();
   });
 
-  test("AR: Demo-Knöpfe führen zu /app/demo mit arabischer Sprache, Anmelden zu /connexion", async ({ page }) => {
+  test("AR: Demo-Knöpfe führen zu app.…/app/demo mit arabischer Sprache, Anmelden zu app.…/connexion", async ({ page }) => {
     await page.goto(BASE + "/ar/");
     const demo = page.getByRole("link", { name: "جرّبوا دفتر الآن" });
     expect(await demo.count()).toBeGreaterThanOrEqual(2);
-    for (const href of await demo.evaluateAll((els) => els.map((e) => e.getAttribute("href")))) expect(href).toBe("/app/demo?lang=ar");
-    await expect(page.locator(".site-header").getByRole("link", { name: "تسجيل الدخول" })).toHaveAttribute("href", "/connexion?lang=ar");
+    for (const href of await demo.evaluateAll((els) => els.map((e) => e.getAttribute("href")))) expect(href).toBe(`${APP_SITE}/app/demo?lang=ar`);
+    await expect(page.locator(".site-header").getByRole("link", { name: "تسجيل الدخول" })).toHaveAttribute("href", `${APP_SITE}/connexion?lang=ar`);
   });
+
+  test("keine Seite verlinkt App-Pfade der Hauptdomain, App-Links zeigen auf app.daftar.omarfourati.de", async ({ page, request }) => {
+    const appPath = /^\/(app|connexion|invitation|reinitialiser|r\/|rdv(?:[/#?]|$)|salle\/|ticket\/)/;
+    for (const spec of PAGES) {
+      await page.goto(BASE + spec.path);
+      const hrefs = await page.locator("a[href]").evaluateAll((els) => els.map((e) => e.getAttribute("href") ?? ""));
+      for (const href of hrefs) {
+        expect(href, `${spec.path}: ${href}`).not.toMatch(appPath);
+        expect(href, `${spec.path}: ${href}`).not.toContain(`${SITE}/app`);
+        expect(href, `${spec.path}: ${href}`).not.toContain(`${SITE}/connexion`);
+      }
+      expect(hrefs.filter((h) => h.startsWith(APP_SITE + "/")).length, spec.path).toBeGreaterThanOrEqual(1);
+    }
+    const llms = await (await request.get(BASE + "/llms.txt")).text();
+    expect(llms).toContain(`(${APP_SITE}/app/demo)`);
+    expect(llms).not.toContain(`${SITE}/app/`);
+  });
+
+  for (const path of APP_PATHS) {
+    test(`${path} auf der Hauptdomain: 301 auf den App-Host (mit Query)`, async ({ request }) => {
+      const res = await request.get(BASE + path + "?lang=ar", { maxRedirects: 0 });
+      expect(res.status()).toBe(301);
+      expect(res.headers()["location"]).toBe(`${APP_ORIGIN}${path}?lang=ar`);
+    });
+  }
 
   for (const path of ["/", "/ar/"]) {
     test(`${path}: JSON-LD ist gültiges SoftwareApplication-Schema mit kostenloser Pilotphase`, async ({ page }) => {
@@ -303,15 +337,28 @@ test.describe("Werbung nur auf den beiden Startseiten", () => {
       for (const name of CONSENT_COOKIES) expect(names).not.toContain(name);
       expect(names).toContain("anderes"); // nur die Einwilligung wird vergessen
     });
+
+    test(`${path}: vergisst eine alte App-Anmeldung dieses Ursprungs (daftar.token/daftar.user), sonst nichts`, async ({ page }) => {
+      // Security-Review M3: Früher lief die App samt Anmeldung auf der Hauptdomain – das Token läge hier neben AdSense.
+      await page.goto(BASE + "/robots.txt"); // derselbe Ursprung, ohne Skripte
+      await page.evaluate(() => {
+        localStorage.setItem("daftar.token", "altes-token");
+        localStorage.setItem("daftar.user", "{}");
+        localStorage.setItem("anderes", "bleibt");
+      });
+      await page.goto(BASE + path, { waitUntil: "load" });
+      expect(await page.evaluate(() => [localStorage.getItem("daftar.token"), localStorage.getItem("daftar.user"), localStorage.getItem("anderes")]))
+        .toEqual([null, null, "bleibt"]);
+    });
   }
 
   const WITHOUT_ADS = [
-    ...PAGES.map((p) => p.path).filter((p) => !AD_PAGES.has(p)),
-    "/app", "/app/demo", "/connexion", "/invitation", "/r/cabinet-test", "/rdv/abc123", "/salle/abc123", "/ticket/abc123",
+    ...PAGES.map((p) => ({ path: p.path, host: new URL(BASE).host })).filter((p) => !AD_PAGES.has(p.path)),
+    ...APP_PATHS.map((path) => ({ path, host: APP_HOST })), // die App auf ihrem eigenen Host
   ];
-  for (const path of WITHOUT_ADS) {
-    test(`${path}: kein Google-Code, kein Datenschutz-Knopf, strenge CSP ohne fremde Hosts`, async ({ request }) => {
-      const res = await request.get(BASE + path);
+  for (const { path, host } of WITHOUT_ADS) {
+    test(`${host}${path}: kein Google-Code, kein Datenschutz-Knopf, strenge CSP ohne fremde Hosts`, async ({ request }) => {
+      const res = await request.get(BASE + path, { headers: { host } });
       expect(res.status()).toBe(200);
       const html = await res.text();
       expect(html).not.toMatch(/googlesyndication|adsbygoogle|ca-pub-|privacy-settings/);
@@ -322,17 +369,27 @@ test.describe("Werbung nur auf den beiden Startseiten", () => {
     });
   }
 
-  test("/connexion lädt im Browser nichts von Google", async ({ page }) => {
+  test("/connexion (App-Host) lädt im Browser nichts von Google", async ({ page }) => {
     const seen = watch(page);
-    await page.goto(BASE + "/connexion", { waitUntil: "networkidle" });
+    await page.goto(APP_ORIGIN + "/connexion", { waitUntil: "networkidle" });
     await expect(page.locator("form")).toHaveCount(1);
     expect(seen.foreign).toEqual([]);
   });
 
   const PRIVACY_PAGES = [
-    { path: "/confidentialite/", button: "Paramètres de confidentialité", old: /Daftar n'utilise aucun cookie|aucune ressource n'est chargée chez des tiers\./ },
-    { path: "/ar/confidentialite/", button: "إعدادات الخصوصية", old: /لا يستعمل دفتر أي ملف تعريف ارتباط: لا في موقع التعريف|ولا يُحمَّل أي شيء من أطراف أخرى\./ },
-    { path: "/datenschutz/", button: "Paramètres de confidentialité", old: /Daftar setzt keine Cookies – weder auf der Website|es wird nichts von Dritten geladen\./ },
+    {
+      path: "/confidentialite/", button: "Paramètres de confidentialité", old: /Daftar n'utilise aucun cookie|aucune ressource n'est chargée chez des tiers\./,
+      // Fix-Liste 4: Googles Einwilligungsfenster nur für EWR, Vereinigtes Königreich und Schweiz
+      region: [/Espace économique européen/, /Royaume-Uni/, /Suisse/, /En dehors de ces pays/],
+    },
+    {
+      path: "/ar/confidentialite/", button: "إعدادات الخصوصية", old: /لا يستعمل دفتر أي ملف تعريف ارتباط: لا في موقع التعريف|ولا يُحمَّل أي شيء من أطراف أخرى\./,
+      region: [/المنطقة الاقتصادية الأوروبية/, /المملكة المتحدة/, /سويسرا/, /خارج هذه البلدان/],
+    },
+    {
+      path: "/datenschutz/", button: "Paramètres de confidentialité", old: /Daftar setzt keine Cookies – weder auf der Website|es wird nichts von Dritten geladen\./,
+      region: [/Europäischen Wirtschaftsraum/, /Vereinigten Königreich/, /Schweiz/, /Außerhalb dieser Länder/],
+    },
   ];
   for (const spec of PRIVACY_PAGES) {
     test(`${spec.path} erklärt die Werbung auf den Startseiten (Google, Einwilligung, Widerruf, USA)`, async ({ page }) => {
@@ -354,6 +411,8 @@ test.describe("Werbung nur auf den beiden Startseiten", () => {
       }
       await expect(page.locator("main")).not.toContainText(spec.old);
       await expect(page.locator(".summary")).toContainText(/AdSense/);
+      for (const fact of spec.region) expect(text, String(fact)).toMatch(fact);
+      for (const fact of spec.region.slice(0, 3)) await expect(page.locator(".summary"), String(fact)).toContainText(fact);
     });
   }
 
@@ -484,6 +543,10 @@ test.describe("Rechtstexte: Online-Buchung und Abonnement", () => {
         }, id);
       expect(await sectionText("abonnement")).toContain("Flouci");
       expect(await sectionText("reservation-en-ligne")).toMatch(/cookie|cookies|ملفات تعريف الارتباط/i);
+      // Fix-Liste 2: 20 Versuche je IP (Mobilfunk-NAT), 3 je Telefonnummer und Praxis
+      expect(await sectionText("reservation-en-ligne")).toMatch(/\(20 [^)]*\)/);
+      expect(await sectionText("reservation-en-ligne")).toMatch(/\b3\b[^.]*(téléphone|Telefonnummer|الهاتف)/);
+      expect(await sectionText("reservation-en-ligne")).not.toMatch(/\(3 (par heure|pro Stunde|في الساعة)\)/);
       await expect(page.locator("main")).not.toContainText(/cabinet dentaire|Zahnarztpraxis|عيادة الأسنان/i);
     });
   }
@@ -498,6 +561,8 @@ test.describe("Rechtstexte: Online-Buchung und Abonnement", () => {
     });
     expect(annex2).toContain("réservation en ligne");
     expect(annex2).toContain("deux rendez-vous");
+    expect(annex2).toContain("20 tentatives de réservation par heure et par adresse IP");
+    expect(annex2).toContain("3 tentatives par heure et par numéro de téléphone");
     await expect(page.locator("main")).not.toContainText(/dentiste titulaire|cabinet dentaire/i);
   });
 });

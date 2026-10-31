@@ -153,7 +153,7 @@ def test_everything_else_keeps_the_strict_csp(client: TestClient, path: str) -> 
     assert_strict_csp(client.get(path, follow_redirects=False), path)
 
 
-@pytest.mark.parametrize("path", ["/", "/rdv/abc123", "/app", "/connexion", "/invitation", "/ar/", "/index.html"])
+@pytest.mark.parametrize("path", ["/", "/rdv", "/app", "/connexion", "/invitation", "/ar/", "/index.html"])
 def test_practice_sub_domains_keep_the_strict_csp(client: TestClient, make_practice: Any, path: str) -> None:
     make_practice("Cabinet du Lac", slug="cabinet-lac")
     res = client.get(path, headers={"host": "cabinet-lac.daftar.omarfourati.de"}, follow_redirects=False)
@@ -172,7 +172,10 @@ def test_metrics_exposes_base_and_business_metrics(client: TestClient, make_prac
     assert 'daftar_practices{kind="demo"} 1.0' in text
     assert "daftar_users 1.0" in text  # the admin does not count
     assert "daftar_patients 0.0" in text
-    assert "daftar_appointments_created_total 0.0" in text
+    # labelled by source and exported with 0 from the start, so increase() sees the very first appointment
+    for source in ("staff", "online", "series", "import"):
+        assert f'daftar_appointments_created_total{{source="{source}"}} 0.0' in text, source
+    assert "daftar_appointments_created_total 0.0" not in text
     assert "daftar_demo_started_total 0.0" in text
     assert "daftar_pilot_requests_total 0.0" in text
     assert 'daftar_http_requests_total{method="GET",route="/api/auth/me",status="401"} 1.0' in text
@@ -256,3 +259,32 @@ def test_validation_errors_name_the_field_but_never_echo_values(boom_client: Tes
     assert "streng-geheim" not in res.text and "viele" not in res.text
     res = boom_client.post("/api/echo", content=b"{not json", headers={"Content-Type": "application/json"})
     assert_problem(res, 422, "validation")
+
+
+# --- HSTS (fixlist 5): only over HTTPS, without includeSubDomains/preload (other sub-domains of omarfourati.de) -------
+
+HSTS = "max-age=31536000"
+
+
+@pytest.mark.parametrize("path", ["/", "/ar/", "/connexion", "/app", "/healthz", "/api/nope", "/nope"])
+def test_hsts_behind_caddy(client: TestClient, path: str) -> None:
+    res = client.get(path, headers={"X-Forwarded-Proto": "https"}, follow_redirects=False)
+    assert res.headers["strict-transport-security"] == HSTS, path
+
+
+@pytest.mark.parametrize("proto", [None, "http"])
+def test_no_hsts_over_plain_http(client: TestClient, proto: str | None) -> None:
+    headers = {"X-Forwarded-Proto": proto} if proto else {}
+    for path in ("/", "/connexion", "/healthz", "/api/nope"):
+        assert "strict-transport-security" not in client.get(path, headers=headers, follow_redirects=False).headers, path
+
+
+def test_hsts_on_a_direct_https_connection(app: Any) -> None:
+    with TestClient(app, base_url="https://testserver") as secure:
+        assert secure.get("/healthz").headers["strict-transport-security"] == HSTS
+
+
+def test_hsts_on_unexpected_errors(boom_client: TestClient) -> None:
+    res = boom_client.get("/api/boom", headers={"X-Forwarded-Proto": "https"})
+    assert res.status_code == 500
+    assert res.headers["strict-transport-security"] == HSTS

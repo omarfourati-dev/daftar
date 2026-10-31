@@ -46,9 +46,9 @@ set ADMIN_EMAIL=admin@daftar.test & set ADMIN_PASSWORD=local-admin-password-123 
 | `jobs.py` | `Job(name, every, run)` und die Liste `JOBS` |
 | `auth.py` | `/api/auth/*`, `load_me`, `session_for`, `issue_token`, `bump_token_version` |
 | `invitations.py` | `/api/invitations/preview|accept`, `create_invitation(...)`, `delete_stale_invitations(...)` |
-| `hosts.py` | Praxis-Subdomains: `subdomain_label`, `practice_by_slug`, `practice_for_host`, `GET /api/public/tls-check` |
+| `hosts.py` | Hosts: Hauptdomain, App-Host `app.<BASE_DOMAIN>` (`is_app_host`, `site_origin`), Praxis-Subdomains (`subdomain_label`, `practice_by_slug`, `practice_for_host`), `GET /api/public/tls-check` |
 | `branding.py` | Manifeste und Icons je Praxis (`initials`, `short_name`, `render_icon`) |
-| `static.py`, `http.py` | Auslieferung (Landing → Build → 200.html), CSP, Sicherheits-Header, Request-Log, HTTP-Metriken |
+| `static.py`, `http.py` | Auslieferung je Host (Hauptdomain: Landing + 301 der App-Pfade; `app.`: SPA; Praxis), CSP, HSTS, Sicherheits-Header, Request-Log, HTTP-Metriken |
 
 ## Ein Fachmodul anlegen
 
@@ -110,7 +110,8 @@ Zeit nur über `ctx.clock`; Geld nur in Millimes; Fehler nur über `problems.py`
 Fixtures aus `tests/conftest.py`: `client`, `app`, `db`, `clock` (`FixedClock`, Fr 30.10.2026 09:00 Tunis),
 `settings`, `make_practice`, `make_practitioner`, `make_service`, `make_user`, `auth_headers`, `make_patient`,
 `make_appointment`, `make_queue_entry`, `make_treatment`, `make_payment`, `make_invitation`;
-Helfer in `tests/helpers.py`: `assert_problem(res, status, code)`, `login(client, email, password, ip)`.
+Helfer in `tests/helpers.py`: `assert_problem(res, status, code)`, `login(client, email, password, ip, host=APP_HOST)`
+(angemeldet wird auf `app.daftar.omarfourati.de`; auf der Hauptdomain geht das nicht).
 
 ```python
 def test_foreign_practice_is_404(client, make_practice, make_user, make_patient, auth_headers):

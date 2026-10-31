@@ -15,6 +15,7 @@ from daftar.tables import (
     REFERENCE_TABLES,
     app_user,
     appointment,
+    cash_closing,
     invoice,
     metadata,
     patient,
@@ -276,6 +277,8 @@ def test_deleting_a_practice_deletes_everything_of_it(
             conn.execute(insert(import_template).values(practice_id=p.id, name="Mon Excel", kind="patients",
                                                         mapping={"lastName": 0, "phone": 2}))
             conn.execute(insert(feedback).values(practice_id=p.id, user_id=user.id, message="Super", page="/app"))
+            conn.execute(insert(cash_closing).values(practice_id=p.id, day=date(2026, 10, 29), expected_cash_millimes=0,
+                                                     counted_cash_millimes=0, closed_by=user.id, closed_at=clock.now()))
     with db.begin() as conn:
         conn.execute(delete(practice).where(practice.c.id == doomed.id))
         for table in ALL_TABLES:

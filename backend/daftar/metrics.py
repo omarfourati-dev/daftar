@@ -3,7 +3,7 @@
 Every app has its own :class:`Metrics` (own registry – tests never share counters). Business code reaches it through
 ``ctx.metrics``:
 
-    ctx.metrics.appointments_created.inc()                        # predefined counters, see below
+    ctx.metrics.appointments_created.labels("online").inc()       # predefined counters, see below
     ctx.metrics.counter("daftar_reminders_sent_total", "Reminders marked as sent").inc()
     ctx.metrics.gauge("daftar_queue_waiting", "People waiting", ["practice"]).labels("1").set(3)
 
@@ -36,6 +36,8 @@ from sqlalchemy import Engine, func, select
 from .tables import app_user, patient, practice
 
 log = logging.getLogger("daftar")
+#: Label values of ``daftar_appointments_created_total{source}``.
+APPOINTMENT_SOURCES = ("staff", "online", "series", "import")
 disable_created_metrics()  # no *_created series next to every counter
 
 
@@ -64,9 +66,17 @@ class Metrics:
         for result in ("ok", "failed", "throttled"):
             self.logins.labels(result)
         # Business counters of the design (section 5 “Betrieb”) – the feature modules increment them.
-        self.appointments_created = self.counter("daftar_appointments_created_total", "Appointments created")
+        #: source: staff (agenda) | online (booking page) | series (recurring, by staff) | import (Excel/CSV)
+        self.appointments_created = self.counter(
+            "daftar_appointments_created_total", "Appointments created by source", ["source"]
+        )
+        for source in APPOINTMENT_SOURCES:  # exported with 0 from the start, so increase() sees the first one
+            self.appointments_created.labels(source)
         self.demo_started = self.counter("daftar_demo_started_total", "Demo practices started")
         self.pilot_requests = self.counter("daftar_pilot_requests_total", "Pilot requests received")
+        # Created here (not on first use), so the series exists with 0 from the start – the alert
+        # ``increase(daftar_feedback_total[15m]) > 0`` would otherwise miss the very first feedback.
+        self.feedback = self.counter("daftar_feedback_total", "Feedback messages sent from the app")
 
     # --- get-or-create -------------------------------------------------------------------------------------------
 

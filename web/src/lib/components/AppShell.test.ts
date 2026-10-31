@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AppShell from './AppShell.svelte';
-import { deps } from '../api';
+import { ApiError, apiErrorMessage, deps } from '../api';
 import { auth } from '../auth.svelte';
 import { i18n } from '../i18n.svelte';
 import { pwa } from '../pwa.svelte';
@@ -62,7 +62,7 @@ describe('AppShell', () => {
 		expect(bar.getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual(['/app', '/app/agenda', '/app/salle', '/app/patients']);
 		await fireEvent.click(bar.getByRole('button', { name: 'Plus' }));
 		const more = within(screen.getByRole('dialog', { name: 'Plus' }));
-		expect(more.getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual(['/app/caisse', '/app/rappels', '/app/reglages']);
+		expect(more.getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual(['/app/caisse', '/app/rappels', '/app/reglages', '/app/import', '/app/installer']);
 	});
 
 	it('gives the admin the administration and sends him there from /app', async () => {
@@ -91,6 +91,17 @@ describe('AppShell', () => {
 		expect(screen.getByText('Hors ligne')).toBeInTheDocument();
 	});
 
+	it('says that a canceled subscription only reads and exports (402 subscription_canceled)', async () => {
+		const canceled = { ...assistant, practice: { ...practice, status: 'canceled' } };
+		auth.set('tok', canceled);
+		mockApi({ 'GET /api/auth/me': () => json(200, canceled) });
+		shell('/app');
+		expect(screen.getByText('Abonnement résilié – vous pouvez consulter et exporter vos données, mais plus les modifier.')).toBeInTheDocument();
+		expect(apiErrorMessage(new ApiError(402, '', 'subscription_canceled'))).toBe(
+			'Abonnement résilié : vous pouvez consulter et exporter vos données, mais plus les modifier.'
+		);
+	});
+
 	it('switches the language and saves it on the account', async () => {
 		auth.set('tok', assistant);
 		mockApi({
@@ -98,7 +109,7 @@ describe('AppShell', () => {
 			'PATCH /api/auth/me': () => json(200, { ...assistant, lang: 'ar' })
 		});
 		shell('/app');
-		await fireEvent.click(screen.getByRole('button', { name: 'العربية' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'ع العربية' }));
 		expect(document.documentElement.dir).toBe('rtl');
 		expect(await screen.findByRole('navigation', { name: 'القائمة الرئيسية' })).toBeInTheDocument();
 		await vi.waitFor(() => expect(calls()).toContain('PATCH /api/auth/me'));

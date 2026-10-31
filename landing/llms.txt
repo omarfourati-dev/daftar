@@ -16,7 +16,7 @@ Données : hébergement en Allemagne (IONOS SE), connexions chiffrées ; l'appli
 
 - [Présentation (français)](https://daftar.omarfourati.de/)
 - [Présentation (arabe)](https://daftar.omarfourati.de/ar/)
-- [Démo](https://daftar.omarfourati.de/app/demo) : crée un cabinet fictif de la spécialité choisie, supprimé après 24 heures
+- [Démo](https://app.daftar.omarfourati.de/app/demo) : crée un cabinet fictif de la spécialité choisie, supprimé après 24 heures
 - [Politique de confidentialité](https://daftar.omarfourati.de/confidentialite/)
 - [Modèle de contrat de sous-traitance](https://daftar.omarfourati.de/contrat-sous-traitance/)
 - [Mentions légales et Impressum](https://daftar.omarfourati.de/mentions-legales/)

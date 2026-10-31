@@ -19,6 +19,34 @@ services:
     mem_limit: 384m
     networks: [web]
 
+  # Daily backup of the database daftar (ops/backup.sh): pg_dump -Fc at 02:30 Europe/Berlin into the named volume
+  # daftar_backups – outside /home/daftar, which the deploy syncs with rsync --delete –, 14 days kept. The password
+  # only lives in PGPASSWORD; the script never prints it. Restore: README, "Datensicherung und Wiederherstellung".
+  daftar-backup:
+    image: postgres:17-alpine
+    container_name: daftar-backup
+    restart: unless-stopped
+    command: ["sh", "/ops/backup.sh", "--daily"]
+    environment:
+      PGHOST: host.docker.internal
+      PGPORT: "5433"
+      PGUSER: daftar
+      PGDATABASE: daftar
+      PGPASSWORD: ${DB_PASSWORD:?DB_PASSWORD required}
+      TZ: CET-1CEST,M3.5.0,M10.5.0/3  # Europe/Berlin as a POSIX rule – needs no zoneinfo files in the image
+      BACKUP_TIME: "02:30"
+      RETENTION_DAYS: "14"
+    volumes:
+      - daftar_backups:/backups
+      - ./ops/backup.sh:/ops/backup.sh:ro
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    mem_limit: 128m
+    networks: [web]  # the same network as the app, so the database sees the same client addresses
+
 networks:
   web:
     external: true
+
+volumes:
+  daftar_backups:
+    name: daftar_backups  # fixed name (no project prefix) for the commands in the README

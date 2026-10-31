@@ -21,6 +21,11 @@ from daftar.schemas import ApiModel
         ("+33 6 12 34 56 78", "+33612345678"),
         ("0033612345678", "+33612345678"),
         ("+49 151 23456789", "+4915123456789"),
+        # Arabic keyboards (security review N1): Arabic-Indic and extended (Persian/Urdu) digits become ASCII
+        ("٢٠ ١٢٣ ٤٥٦", "+21620123456"),
+        ("+٢١٦ ٢٠١٢٣٤٥٦", "+21620123456"),
+        ("۹۸۷۶۵۴۳۲", "+21698765432"),
+        ("٢٠ 123 ۴۵۶", "+21620123456"),  # mixed
     ],
 )
 def test_normalizes_to_e164(raw: str, want: str) -> None:
@@ -42,11 +47,25 @@ def test_normalizes_to_e164(raw: str, want: str) -> None:
         "+1234567890123456",  # too long for E.164
         "20 12a 456",
         "++21620123456",
+        "२० १२३ ४५६",  # other digits than ASCII and Arabic (Devanagari): refused, never stored
+        "２０１２３４５６",  # full-width
+        "+216 ２０１２３４５６",
+        "²⁰¹²³⁴⁵⁶",  # superscripts are "digits" for str.isdigit()
     ],
 )
 def test_rejects_invalid_numbers(raw: str) -> None:
     with pytest.raises(InvalidPhone):
         normalize_phone(raw)
+
+
+def test_the_result_is_always_what_the_database_accepts() -> None:
+    """The CHECK of patient.phone (a plus, then 8 to 15 ASCII digits): before N1, "٢٠١٢٣٤٥٦" passed as "+216٢٠١٢٣٤٥٦"
+    and the database refused it with a 500."""
+    import re
+
+    check = re.compile(r"\+[1-9][0-9]{7,14}", re.ASCII)
+    for raw in ("٢٠١٢٣٤٥٦", "۲۰۱۲۳۴۵۶", "+٣٣ ٦ ١٢ ٣٤ ٥٦ ٧٨"):
+        assert check.fullmatch(normalize_phone(raw)), raw
 
 
 def test_phone_digits_for_whatsapp_links() -> None:

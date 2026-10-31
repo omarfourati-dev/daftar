@@ -3,7 +3,7 @@ export const appointmentStatus = {
 	scheduled: 'Prévu',
 	confirmed: 'Confirmé',
 	arrived: 'Arrivé',
-	in_treatment: 'En soins',
+	in_treatment: 'En consultation',
 	done: 'Terminé',
 	no_show: 'Absent',
 	cancelled: 'Annulé'
@@ -12,7 +12,7 @@ export const appointmentStatus = {
 export const queueStatus = {
 	waiting: 'En attente',
 	called: 'Appelé',
-	in_treatment: 'En soins',
+	in_treatment: 'En consultation',
 	done: 'Terminé',
 	left: 'Parti'
 };

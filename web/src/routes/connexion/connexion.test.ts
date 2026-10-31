@@ -31,6 +31,14 @@ describe('/connexion', () => {
 	});
 	afterEach(() => {
 		hostDeps.hostname = () => location.hostname;
+		hostDeps.origin = () => location.origin;
+	});
+
+	it('links „Site Daftar“ from the app host to the main domain (its "/" is the app)', () => {
+		hostDeps.hostname = () => 'app.daftar.omarfourati.de';
+		hostDeps.origin = () => 'https://app.daftar.omarfourati.de';
+		render(Page);
+		expect(screen.getByRole('link', { name: 'Site Daftar' })).toHaveAttribute('href', 'https://daftar.omarfourati.de/');
 	});
 
 	it('signs in, stores the session, applies the account language and opens the app', async () => {

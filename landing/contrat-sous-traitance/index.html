@@ -36,8 +36,8 @@
     </a>
     <div class="header-actions">
       <a class="lang-switch" href="/ar/" hreflang="ar" lang="ar">العربية</a>
-      <a class="login-link" href="/connexion">Se connecter</a>
-      <a class="btn btn-primary btn-small header-cta" href="/app/demo">Essayer la démo</a>
+      <a class="login-link" href="https://app.daftar.omarfourati.de/connexion">Se connecter</a>
+      <a class="btn btn-primary btn-small header-cta" href="https://app.daftar.omarfourati.de/app/demo">Essayer la démo</a>
     </div>
   </div>
 </header>
@@ -178,7 +178,7 @@
       <li><strong>Invitations&nbsp;:</strong> les liens d'invitation sont à usage unique et valables 7&nbsp;jours&nbsp;; seule une empreinte SHA-256 du jeton est enregistrée.</li>
       <li><strong>Autorisations&nbsp;:</strong> rôles propriétaire, praticien et assistant. La gestion de l'équipe, les réglages, l'export et la suppression de patients et de paiements sont réservés au propriétaire.</li>
       <li><strong>Cloisonnement&nbsp;:</strong> chaque requête est limitée au cabinet de l'utilisateur connecté&nbsp;; les données d'un autre cabinet ne sont jamais renvoyées. Les cabinets de démonstration sont séparés et supprimés après 24&nbsp;heures.</li>
-      <li><strong>Réservation en ligne&nbsp;:</strong> la page publique de réservation ne montre que les informations publiques du Cabinet et les horaires libres, jamais de données d'autres patients. Protection contre les abus sans captcha ni cookies&nbsp;: champ piège invisible, 3 réservations par heure et par adresse IP au maximum, 2 rendez-vous en ligne à venir au maximum par numéro de téléphone et par cabinet, plafond quotidien fixé par le Cabinet. Le lien de gestion remis au patient contient un jeton aléatoire dont seule l'empreinte SHA-256 est enregistrée.</li>
+      <li><strong>Réservation en ligne&nbsp;:</strong> la page publique de réservation ne montre que les informations publiques du Cabinet et les horaires libres, jamais de données d'autres patients. Protection contre les abus sans captcha ni cookies&nbsp;: champ piège invisible, 20 tentatives de réservation par heure et par adresse IP au maximum, 3 tentatives par heure et par numéro de téléphone et par cabinet au maximum, 2 rendez-vous en ligne à venir au maximum par numéro de téléphone et par cabinet, plafond quotidien fixé par le Cabinet&nbsp;; les réservations d'un même cabinet sont traitées l'une après l'autre, pour que ces limites tiennent aussi lors de demandes simultanées. Le lien de gestion remis au patient contient un jeton aléatoire dont seule l'empreinte SHA-256 est enregistrée.</li>
       <li><strong>Minimisation&nbsp;:</strong> l'écran de la salle d'attente et la page ticket du patient n'affichent que des numéros de ticket, sans nom&nbsp;; ces pages sont accessibles par des jetons aléatoires. Dans les journaux du serveur, l'adresse IP est raccourcie (IPv4 à /24, IPv6 à /48) et conservée 90&nbsp;jours au maximum.</li>
     </ul>
 

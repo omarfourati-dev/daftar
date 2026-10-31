@@ -1,4 +1,5 @@
 import type { Messages } from '../fr';
+import { errorsKunden } from './errors-kunden';
 
 export const errors: Messages['errors'] = {
 	network: 'لا يوجد اتصال بالخادم. يرجى التحقق من اتصال الإنترنت.',
@@ -14,11 +15,16 @@ export const errors: Messages['errors'] = {
 	wrong_password: 'كلمة المرور الحالية غير صحيحة.',
 	password_too_short: 'يجب أن تحتوي كلمة المرور على 10 أحرف على الأقل.',
 	password_too_long: 'كلمة المرور طويلة جدًا.',
+	password_repeated: 'لا يمكن أن تكون كلمة المرور حرفًا واحدًا مكرّرًا.',
+	password_sequence: 'لا يمكن أن تكون كلمة المرور تسلسلًا بسيطًا مثل 1234567890 أو azertyuiop.',
+	password_contains_email: 'يجب ألّا تحتوي كلمة المرور على بريدك الإلكتروني.',
 	passwords_differ: 'كلمتا المرور غير متطابقتين.',
 	invitation_invalid: 'هذه الدعوة غير صالحة أو منتهية أو سبق استعمالها.',
 	invitation_incomplete: 'هذا الرابط غير مكتمل. افتحوا الرابط كاملًا كما وصلكم في الدعوة.',
 	email_taken: 'يوجد حساب مسجّل بهذا البريد الإلكتروني.',
 	invalid_phone: 'رقم الهاتف غير صالح.',
 	demo_expired: 'انتهت النسخة التجريبية. يمكنكم بدء نسخة جديدة.',
-	server_error: 'حدث خطأ.'
+	demo_invitation: 'هذه الدعوة من نسخة تجريبية: لا يُنشأ أي حساب. في عيادتك، ينشئ الشخص المدعو حسابه الخاص من هنا.',
+	server_error: 'حدث خطأ.',
+	...errorsKunden
 };

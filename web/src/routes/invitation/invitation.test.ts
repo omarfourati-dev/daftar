@@ -4,6 +4,7 @@ import Page from './+page.svelte';
 import { deps } from '#lib/api';
 import { auth } from '#lib/auth.svelte';
 import { i18n } from '#lib/i18n.svelte';
+import { mainUrl } from '#lib/links';
 import { calls, json, mockApi, problem, sentJson } from '#lib/test-utils';
 
 const session = {
@@ -53,6 +54,25 @@ describe('/invitation', () => {
 		expect(auth.user?.practice?.name).toBe('Cabinet du Lac');
 		expect(deps.goto).toHaveBeenCalledWith('/app');
 		expect(location.hash).toBe(''); // the used link leaves the address bar
+	});
+
+	it('explains a demo invitation instead of the form (no account is created in a demo)', async () => {
+		mockApi({ 'POST /api/invitations/preview': () => json(200, { practiceName: 'Cabinet Dentaire Démo', role: 'assistant', isDemo: true }) });
+		render(Page);
+		expect(await screen.findByText(/Cette invitation vient d’une démo/)).toBeInTheDocument();
+		expect(screen.queryByLabelText('E-mail')).not.toBeInTheDocument();
+		expect(screen.getByRole('link', { name: 'Découvrir Daftar' })).toHaveAttribute('href', mainUrl('/'));
+		expect(calls()).toEqual(['POST /api/invitations/preview']);
+	});
+
+	it('translates the server refusal for a demo invitation', async () => {
+		mockApi({
+			'POST /api/invitations/preview': () => json(200, { practiceName: 'Cabinet du Lac', role: 'assistant', isDemo: false }),
+			'POST /api/invitations/accept': () => problem(403, 'demo_invitation')
+		});
+		render(Page);
+		await fillForm('mot-de-passe-salma', 'mot-de-passe-salma');
+		expect(await screen.findByRole('alert')).toHaveTextContent(/vient d’une démo/);
 	});
 
 	it('checks the repetition before sending anything', async () => {

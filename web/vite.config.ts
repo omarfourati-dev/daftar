@@ -26,6 +26,8 @@ export default defineConfig(({ mode }) => ({
 	resolve: mode === 'test' ? { conditions: ['browser'] } : undefined,
 	test: {
 		expect: { requireAssertions: true },
+		// cold dynamic imports (i18n.test resets modules) can take > 5 s while the whole suite runs in parallel
+		testTimeout: 20_000,
 		environment: 'jsdom',
 		include: ['src/**/*.{test,spec}.{js,ts}', 'scripts/**/*.test.ts'],
 		setupFiles: ['./src/vitest-setup.ts']
