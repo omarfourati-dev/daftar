@@ -12,7 +12,8 @@ practice that is not suspended.
   else the first free one (code review H1, :func:`daftar.scheduling.choose_practitioner`) – also when moving or
   reopening an appointment that has none.
 - ``PATCH /{id}`` → ``{appointment, conflicts: []}``; time, length, practitioner and patient only change while the
-  appointment is requested, scheduled or confirmed (409 ``appointment_locked``) · ``DELETE /{id}`` → 204
+  appointment is requested, scheduled or confirmed (409 ``appointment_locked``); a new start time clears
+  ``reminderSentAt`` (the reminder named the old time – code review M1) · ``DELETE /{id}`` → 204
 - ``POST /{id}/status {status}`` → Appointment (transitions: :data:`TRANSITIONS`, 409 ``invalid_transition``;
   arrival and treatment only on the day – 409 ``not_today`` –, no-show only after the start – 409 ``not_started``).
   Side effects on the waiting room: ``arrived`` adds a ticket for today (or links the patient's open ticket),
@@ -351,6 +352,8 @@ def patch_appointment(appointment_id: int, body: AppointmentPatch, user: StaffWr
     ends_at = starts_at + timedelta(minutes=duration)
     if values.keys() & {"starts_at", "duration_min"}:
         values["ends_at"] = ends_at
+    if starts_at != current.starts_at:
+        values["reminder_sent_at"] = None
     now = ctx.clock.now()
     if moving:
         cal = load_calendar(conn, user.pid)

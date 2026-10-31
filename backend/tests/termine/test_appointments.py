@@ -372,6 +372,23 @@ def test_mark_the_reminder_as_sent(client: TestClient, lac: Any, ids: dict[str, 
     assert res.json()["reminderSentAt"] == "2026-10-30T09:07:00+01:00"
 
 
+def test_a_moved_appointment_needs_a_new_reminder(
+    client: TestClient, lac: Any, ids: dict[str, Any], make_patient: Factory, make_appointment: Factory, as_user: Factory, clock: Any
+) -> None:
+    """Code review M1: the reminder sent for the old time must not count for the new one."""
+    salma = make_patient(lac, first_name="Salma", last_name="Ayari", reminder_consent=True)
+    appt = make_appointment(salma, practitioner_id=ids["a"], starts_at=at(SAT, "10:00"))
+    h = as_user(lac, "assistant")
+    url = f"/api/appointments/{appt.id}"
+    client.post(f"{url}/reminder", headers=h)
+    noted = client.patch(url, json={"notes": "Rappelée", "startsAt": iso(SAT, "10:00")}, headers=h).json()["appointment"]
+    assert noted["reminderSentAt"] == "2026-10-30T09:00:00+01:00"  # same time: the reminder still holds
+    moved = client.patch(url, json={"startsAt": iso(TUE, "10:00")}, headers=h).json()["appointment"]
+    assert moved["reminderSentAt"] is None
+    clock.set(at(MON, "18:00"))
+    assert client.get("/api/dashboard", headers=h).json()["remindersPending"] == 1
+
+
 def test_overdue_appointments_of_today(client: TestClient, lac: Any, ids: dict[str, Any], make_appointment: Factory, as_user: Factory, clock: Any) -> None:
     clock.set(at(FRI, "11:00"))
     over = make_appointment(ids["amira"], starts_at=at(FRI, "10:00"), duration_min=30)  # ended 10:30
