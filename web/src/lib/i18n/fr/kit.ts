@@ -69,7 +69,7 @@ export const kit = {
 		addWindow: 'Ajouter une plage {day}',
 		addWindowShort: 'Ajouter une plage',
 		removeWindow: 'Supprimer la plage {from}–{to} {day}',
-		copy: 'Copier les horaires {day} sur les autres jours ouverts',
+		copy: 'Copier sur les autres jours ouverts les horaires {day}',
 		copyShort: 'Copier sur les autres jours',
 		problem: {
 			missing: '{day} : indiquez le début et la fin de chaque plage.',

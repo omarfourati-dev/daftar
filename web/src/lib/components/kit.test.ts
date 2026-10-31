@@ -6,6 +6,7 @@ import CopyLink from './CopyLink.svelte';
 import HoursEditorHarness from './HoursEditorHarness.test.svelte';
 import QrCode from './QrCode.svelte';
 import { i18n } from '../i18n.svelte';
+import { labelInNameProblems } from '../test-utils';
 
 describe('CopyLink', () => {
 	const writeText = vi.fn(async () => undefined);
@@ -116,7 +117,7 @@ describe('HoursEditor', () => {
 	it('copies a day to the other open days', async () => {
 		render(HoursEditorHarness);
 		await fireEvent.input(screen.getByLabelText('Lundi – fin de la plage 1'), { target: { value: '13:00' } });
-		await fireEvent.click(screen.getByRole('button', { name: 'Copier les horaires du lundi sur les autres jours ouverts' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Copier sur les autres jours ouverts les horaires du lundi' }));
 		const value = JSON.parse(screen.getByTestId('value').textContent ?? '{}');
 		expect(value['3']).toEqual([
 			['08:00', '13:00'],
@@ -131,6 +132,16 @@ describe('HoursEditor', () => {
 		await tick();
 		expect(screen.getByText('Mardi : la fin doit être après le début.')).toBeInTheDocument();
 		expect(screen.getByLabelText('Mardi – fin de la plage 1')).toHaveAttribute('aria-invalid', 'true');
+	});
+
+	it('starts every button name with its visible text, in French and Arabic (WCAG 2.5.3)', () => {
+		for (const locale of ['fr', 'ar'] as const) {
+			i18n.setLocale(locale);
+			const { unmount } = render(HoursEditorHarness);
+			expect(screen.getAllByRole('button').length).toBeGreaterThan(10);
+			expect(labelInNameProblems()).toEqual([]);
+			unmount();
+		}
 	});
 
 	it('speaks Arabic and keeps times left to right', async () => {

@@ -69,7 +69,7 @@ export const kit: Messages['kit'] = {
 		addWindow: 'إضافة فترة {day}',
 		addWindowShort: 'إضافة فترة',
 		removeWindow: 'حذف الفترة {from}–{to} {day}',
-		copy: 'نسخ مواعيد {day} إلى بقية أيام العمل',
+		copy: 'نسخ إلى بقية الأيام – مواعيد {day}',
 		copyShort: 'نسخ إلى بقية الأيام',
 		problem: {
 			missing: '{day}: حدّد بداية ونهاية كل فترة.',

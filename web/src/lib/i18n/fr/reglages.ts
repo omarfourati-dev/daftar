@@ -100,6 +100,7 @@ export const reglages = {
 		resetLink: 'Lien de réinitialisation pour {name}',
 		resetMessage: 'Bonjour {name}, voici le lien pour choisir un nouveau mot de passe Daftar : {url} – valable 24 heures.',
 		remove: 'Retirer {name}',
+		removeShort: 'Retirer',
 		removeTitle: 'Retirer {name} de l’équipe ?',
 		removeMessage: 'Son compte est supprimé. Les rendez-vous et paiements qu’il a saisis restent.',
 		removeConfirm: 'Retirer de l’équipe',

@@ -98,7 +98,7 @@ describe('AppShell', () => {
 			'PATCH /api/auth/me': () => json(200, { ...assistant, lang: 'ar' })
 		});
 		shell('/app');
-		await fireEvent.click(screen.getByRole('button', { name: 'العربية' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'ع العربية' }));
 		expect(document.documentElement.dir).toBe('rtl');
 		expect(await screen.findByRole('navigation', { name: 'القائمة الرئيسية' })).toBeInTheDocument();
 		await vi.waitFor(() => expect(calls()).toContain('PATCH /api/auth/me'));

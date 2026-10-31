@@ -101,8 +101,11 @@ describe('AppShell – tools and phone shortcuts (fixlist 2)', () => {
 		const logout = header.getByRole('button', { name: 'Se déconnecter' });
 		expect(logout.querySelector('svg')).not.toBeNull();
 		expect(within(logout).getByText('Se déconnecter')).toHaveClass('max-lg:sr-only');
-		const french = header.getByRole('button', { name: 'Français' });
-		expect(within(french).getByText('FR')).toHaveAttribute('aria-hidden', 'true');
-		expect(within(header.getByRole('button', { name: 'العربية' })).getByText('ع')).toHaveClass('lg:hidden');
+		// the short label is part of the name (WCAG 2.5.3: "click FR" works with voice control) and leads it
+		const french = header.getByRole('button', { name: 'FR Français' });
+		expect(within(french).getByText('FR')).toHaveClass('lg:hidden');
+		expect(within(french).getByText('FR')).not.toHaveAttribute('aria-hidden');
+		expect(within(french).getByText('Français')).toHaveClass('max-lg:sr-only');
+		expect(within(header.getByRole('button', { name: 'ع العربية' })).getByText('ع')).toHaveClass('lg:hidden');
 	});
 });

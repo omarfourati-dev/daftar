@@ -3,7 +3,9 @@
 
 	/**
 	 * `onchange`: called after the switch, e.g. to save the language on the account. `compact`: below `lg` the buttons
-	 * show "FR" / "ع" (the full names stay for screen readers) – the app header on phones and tablets.
+	 * show "FR" / "ع" (the full names stay for screen readers) – the app header on phones and tablets. The short label
+	 * is not hidden from screen readers: the name starts with what is visible ("FR Français", WCAG 2.5.3); from `lg`
+	 * on it is `display: none` and the name is the full one.
 	 */
 	let { onchange, compact = false }: { onchange?: (locale: Locale) => void; compact?: boolean } = $props();
 	const labels: Record<Locale, () => string> = { fr: () => t('common.french'), ar: () => t('common.arabic') };
@@ -26,7 +28,7 @@
 			class:text-white={i18n.locale === locale}
 			aria-pressed={i18n.locale === locale}
 			onclick={() => choose(locale)}
-			>{#if compact}<span aria-hidden="true" class="lg:hidden">{SHORT[locale]}</span><span class="max-lg:sr-only">{labels[locale]()}</span
+			>{#if compact}<span class="lg:hidden">{SHORT[locale]}</span> <span class="max-lg:sr-only">{labels[locale]()}</span
 				>{:else}{labels[locale]()}{/if}</button
 		>
 	{/each}

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from './+page.svelte';
 import { auth } from '#lib/auth.svelte';
 import { i18n } from '#lib/i18n.svelte';
-import { calls, json, mockApi, noContent, sentJson } from '#lib/test-utils';
+import { calls, json, labelInNameProblems, mockApi, noContent, sentJson } from '#lib/test-utils';
 import { owner } from '#lib/testing/fixtures';
 
 const staff = [
@@ -72,5 +72,17 @@ describe('/app/reglages/equipe', () => {
 		await fireEvent.click(within(screen.getByRole('dialog', { name: 'Retirer Salma de l’équipe ?' })).getByRole('button', { name: 'Retirer de l’équipe' }));
 		await vi.waitFor(() => expect(screen.queryByText('Salma')).not.toBeInTheDocument());
 		expect(calls()).toEqual(expect.arrayContaining(['DELETE /api/staff/invitations/9', 'DELETE /api/staff/5']));
+	});
+
+	it('starts every button name with its visible text, in French and Arabic (WCAG 2.5.3)', async () => {
+		for (const locale of ['fr', 'ar'] as const) {
+			i18n.setLocale(locale);
+			team();
+			const { unmount } = render(Page);
+			await screen.findByText('Salma');
+			expect(labelInNameProblems()).toEqual([]);
+			unmount();
+		}
+		i18n.setLocale('fr');
 	});
 });

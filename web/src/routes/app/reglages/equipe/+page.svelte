@@ -148,7 +148,7 @@
 										onclick={() => {
 											actionError = '';
 											removing = member;
-										}}>{t('common.delete')}</button
+										}}>{t('reglages.equipe.removeShort')}</button
 									>
 								{/if}
 							</div>

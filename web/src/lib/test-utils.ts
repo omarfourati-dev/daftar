@@ -63,3 +63,23 @@ export function sentJson(key: string): unknown {
 	if (!call) throw new Error(`no request ${key}; made: ${calls().join(', ')}`);
 	return JSON.parse((call[1] as RequestInit).body as string);
 }
+
+const normalized = (text: string | null | undefined) => (text ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+/**
+ * WCAG 2.5.3 "label in name" (axe `label-content-name-mismatch`, stricter): every button or link with an `aria-label`
+ * must start its accessible name with its visible text, so "click <what I see>" works with voice control. Parts
+ * hidden from sight or from screen readers (`aria-hidden`, `sr-only`) are not visible text. Returns the mismatches as
+ * `"visible" → "name"`; expect `[]`.
+ */
+export function labelInNameProblems(root: ParentNode = document.body): string[] {
+	const problems: string[] = [];
+	for (const element of root.querySelectorAll<HTMLElement>('button[aria-label], a[aria-label]')) {
+		const copy = element.cloneNode(true) as HTMLElement;
+		copy.querySelectorAll('[aria-hidden="true"], .sr-only').forEach((node) => node.remove());
+		const visible = normalized(copy.textContent);
+		const name = normalized(element.getAttribute('aria-label'));
+		if (visible && !name.startsWith(visible)) problems.push(`"${visible}" → "${name}"`);
+	}
+	return problems;
+}
