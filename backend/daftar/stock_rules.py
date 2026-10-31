@@ -11,7 +11,8 @@
 - **What to order** (:func:`needs_order`, :func:`reorder_quantity`): active products with a minimum whose stock has
   reached it; the proposal brings the stock back to twice the minimum (a negative stock counts as 0).
 - **Start lists** (:func:`starter_items`, section 4.4): typical products per specialty, FR and AR names – only ever
-  created when the practice asks for them.
+  created when the practice asks for them. What is used per patient (carpules, needles, syringes, tubes) is counted
+  by the piece, so "used for this act" stays exact; what is opened now and then (gloves, masks) by the box.
 """
 
 from __future__ import annotations
@@ -118,8 +119,8 @@ PAPER = _s("Ordonnanciers", "دفاتر الوصفات", "bureau", "piece", 2)
 _DENTIST = (
     GLOVES,
     MASKS,
-    _s("Carpules d’articaïne", "خراطيش أرتيكايين", "anesthesie", "boite", 2),
-    _s("Aiguilles dentaires", "إبر الأسنان", "anesthesie", "boite", 2),
+    _s("Carpules d’articaïne", "خراطيش أرتيكايين", "anesthesie", "carpule", 50),
+    _s("Aiguilles dentaires", "إبر الأسنان", "anesthesie", "piece", 50),
     _s("Composite", "حشوة كومبوزيت", "restauration", "piece", 3),
     _s("Acide de mordançage", "حمض التخريش", "restauration", "piece", 1),
     _s("Rouleaux de coton", "لفائف القطن", "hygiene", "paquet", 2),
@@ -131,11 +132,11 @@ _DENTIST = (
 )
 _GENERALIST = (
     GLOVES,
-    _s("Seringues 5 ml", "حقن 5 مل", "injection", "boite", 2),
-    _s("Aiguilles", "إبر", "injection", "boite", 2),
-    _s("Tubes EDTA", "أنابيب EDTA", "prelevements", "boite", 1),
-    _s("Tubes secs", "أنابيب جافة", "prelevements", "boite", 1),
-    _s("Tubes citrate", "أنابيب سيترات", "prelevements", "boite", 1),
+    _s("Seringues 5 ml", "حقن 5 مل", "injection", "piece", 50),
+    _s("Aiguilles", "إبر", "injection", "piece", 50),
+    _s("Tubes EDTA", "أنابيب EDTA", "prelevements", "piece", 20),
+    _s("Tubes secs", "أنابيب جافة", "prelevements", "piece", 20),
+    _s("Tubes citrate", "أنابيب سيترات", "prelevements", "piece", 20),
     COMPRESSES,
     _s("Bandelettes urinaires", "شرائط تحليل البول", "prelevements", "boite", 1),
     _s("Bandelettes glycémie", "شرائط قياس السكر", "prelevements", "boite", 1),
@@ -148,7 +149,7 @@ _PEDIATRIC = (
     GLOVES,
     _s("Abaisse-langues", "خافضات اللسان", "hygiene", "boite", 1),
     _s("Embouts d’otoscope", "رؤوس منظار الأذن", "hygiene", "boite", 1),
-    _s("Seringues 1 ml", "حقن 1 مل", "injection", "boite", 2),
+    _s("Seringues 1 ml", "حقن 1 مل", "injection", "piece", 30),
     _s("Pansements enfants", "ضمادات للأطفال", "pansements", "boite", 1),
     COMPRESSES,
     GEL,

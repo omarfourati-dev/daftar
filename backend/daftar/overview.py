@@ -9,8 +9,10 @@ Dashboard (section 5, online requests from 11.3)::
 
 ``appointments.total`` leaves cancelled appointments out (``byStatus`` still lists them).
 
-Badges (section 15, polled every 60 s – kept cheap): ``{onlineRequests, overdue}``; overdue = the appointments of
-the day closing (:func:`daftar.appointments.overdue_conditions` – the same rule as ``/api/appointments/overdue``).
+Badges (section 15, polled every 60 s – kept cheap): ``{onlineRequests, overdue, stockToOrder}``; overdue = the
+appointments of the day closing (:func:`daftar.appointments.overdue_conditions` – the same rule as
+``/api/appointments/overdue``); stockToOrder = products "à commander" (spec stock-hygiène 8, also ``stockToOrder`` of
+the dashboard).
 
 Statistics (section 15, H1): appointments of the month by status (``total`` counts every status), no-show rate
 = no_show / (done + no_show) rounded to 4 decimals (0 without data), revenue = payments of the month,
@@ -31,6 +33,7 @@ from .deps import Conn, Ctx, OwnerUser, StaffUser
 from .finance import UnverifiedDay, due_total, unverified_cash_days
 from .reminders import next_opening_day, pending_count
 from .schemas import ApiModel
+from .stock import to_order_count
 from .tables import APPOINTMENT_STATUSES, appointment, patient, payment, queue_entry, service
 
 router = APIRouter(prefix="/api", tags=["overview"])
@@ -65,11 +68,14 @@ class DashboardOut(ApiModel):
     due_total_millimes: int
     patients_count: int
     unverified_cash_days: list[UnverifiedDay]
+    #: Products whose stock reached their minimum (card "À commander", spec stock-hygiène 8).
+    stock_to_order: int
 
 
 class BadgesOut(ApiModel):
     online_requests: int
     overdue: int
+    stock_to_order: int
 
 
 class MonthAppointments(ApiModel):
@@ -151,6 +157,7 @@ def dashboard(user: StaffUser, ctx: Ctx, conn: Conn) -> DashboardOut:
         due_total_millimes=due_total(conn, pid),
         patients_count=_count(conn, patient, patient.c.practice_id == pid),
         unverified_cash_days=unverified_cash_days(conn, pid) if user.is_owner else [],
+        stock_to_order=to_order_count(conn, pid),
     )
 
 
@@ -158,7 +165,8 @@ def dashboard(user: StaffUser, ctx: Ctx, conn: Conn) -> DashboardOut:
 def badges(user: StaffUser, ctx: Ctx, conn: Conn) -> BadgesOut:
     now = ctx.clock.now()
     overdue = _count(conn, appointment, *overdue_conditions(user.pid, today_tunis(ctx.clock), now))
-    return BadgesOut(online_requests=_count(conn, appointment, *_open_requests(user.pid, now)), overdue=overdue)
+    return BadgesOut(online_requests=_count(conn, appointment, *_open_requests(user.pid, now)), overdue=overdue,
+                     stock_to_order=to_order_count(conn, user.pid))
 
 
 # --- statistics ------------------------------------------------------------------------------------------------

@@ -21,6 +21,7 @@ from .deps import Conn, Ctx, OwnerUser
 from .tables import (
     app_user,
     appointment,
+    audit_log,
     cash_closing,
     feedback,
     import_template,
@@ -33,6 +34,11 @@ from .tables import (
     practitioner,
     queue_entry,
     service,
+    stock_movement,
+    stock_product,
+    stock_receipt,
+    stock_receipt_line,
+    supplier,
     treatment,
 )
 
@@ -59,6 +65,12 @@ SECTIONS: tuple[tuple[str, Table], ...] = (
     ("invoices", invoice),
     ("importTemplates", import_template),
     ("feedback", feedback),
+    ("suppliers", supplier),
+    ("stockProducts", stock_product),
+    ("stockReceipts", stock_receipt),
+    ("stockReceiptLines", stock_receipt_line),
+    ("stockMovements", stock_movement),
+    ("auditLog", audit_log),
 )
 
 
