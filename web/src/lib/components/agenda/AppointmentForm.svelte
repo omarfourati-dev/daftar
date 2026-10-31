@@ -4,6 +4,8 @@
 	 * phone or create them right here, the service sets duration and reason, then time, practitioner, deposit, note.
 	 * The medical alert is shown in red, ≥ 2 no-shows suggest a deposit. A taken slot (409) lists the conflict and
 	 * the next free start times – one click books one of them.
+	 * Practitioner (code review H1): with one active practitioner it is always that one (no "Non attribué"); with
+	 * several "Premier disponible" sends null and the server takes the first one free at that time.
 	 */
 	import { errorText } from '../../agenda/errors';
 	import { tick, untrack } from 'svelte';
@@ -57,7 +59,11 @@
 	let time = $state(current ? hhmm(minutesOfDay(current.startsAt)) : (init.time ?? ''));
 	let duration = $state(current?.durationMin ?? init.base.practice.defaultDurationMin ?? 30);
 	let serviceKey = $state(current?.serviceId ? String(current.serviceId) : '');
-	let practitionerKey = $state(current ? (current.practitionerId ? String(current.practitionerId) : '') : init.practitionerId ? String(init.practitionerId) : '');
+	const doctors = init.base.practitioners;
+	/** With exactly one active practitioner every appointment is theirs. */
+	const onlyDoctor = doctors.length === 1 ? String(doctors[0].id) : '';
+	const givenDoctor = current ? current.practitionerId : init.practitionerId;
+	let practitionerKey = $state(givenDoctor ? String(givenDoctor) : onlyDoctor);
 	let reason = $state(current?.reason ?? '');
 	let deposit = $state(millimesToInput(current?.depositRequiredMillimes ?? 0));
 	let notes = $state(current?.notes ?? '');
@@ -317,9 +323,11 @@
 				<label class="label"
 					>{t('agenda.form.practitioner')}
 					<select class="input" bind:value={practitionerKey}>
-						<option value="">{t('agenda.form.anyPractitioner')}</option>
-						{#each init.base.practitioners as p (p.id)}<option value={String(p.id)}>{practitionerLabel(p)}</option>{/each}
-						{#if current?.practitionerId && !init.base.practitioners.some((p) => p.id === current?.practitionerId)}
+						{#if doctors.length !== 1}
+							<option value="">{doctors.length ? t('agenda.form.firstFree') : t('agenda.form.anyPractitioner')}</option>
+						{/if}
+						{#each doctors as p (p.id)}<option value={String(p.id)}>{practitionerLabel(p)}</option>{/each}
+						{#if current?.practitionerId && !doctors.some((p) => p.id === current?.practitionerId)}
 							<option value={String(current.practitionerId)}>{current.practitionerName}</option>
 						{/if}
 					</select>

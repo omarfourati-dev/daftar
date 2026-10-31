@@ -6,6 +6,10 @@
   patient; ``cancelled`` and ``no_show`` free the slot. The API checks first (:func:`find_conflicts`) and answers
   409 ``appointment_conflict`` with ``conflicts`` and up to 5 ``suggestions``; the database's EXCLUDE constraints are
   the last line – a race between two requests ends in the same 409 (:func:`write_or_409`).
+- **Every appointment of a practice with active practitioners has one** (code review H1 – "no practitioner" and the
+  doctor's own calendar did not block each other): ``practitionerId = null`` means the only active practitioner, or
+  with several the first one (practice order) free for the whole time – the rule of the online and phone booking
+  (:func:`choose_practitioner`). Only a practice without active practitioners keeps appointments without one.
 - All days are Tunis calendar days; "now" comes from the injected clock.
 """
 
@@ -24,7 +28,16 @@ from .clock import TUNIS, at_tunis, iso_tunis, tunis_day_bounds
 from .db import constraint_name
 from .hours import windows_for
 from .problems import ApiError, unprocessable
-from .tables import FREEING_STATUSES, PATIENT_OVERLAP, PRACTITIONER_OVERLAP, appointment, patient, practice, practice_closure
+from .tables import (
+    FREEING_STATUSES,
+    PATIENT_OVERLAP,
+    PRACTITIONER_OVERLAP,
+    appointment,
+    patient,
+    practice,
+    practice_closure,
+    practitioner,
+)
 
 #: An appointment may start this long before "now" (the running quarter of an hour is still bookable at the desk).
 PAST_GRACE = timedelta(minutes=15)
@@ -147,13 +160,16 @@ def find_conflicts(
     conn: Connection,
     practice_id: int,
     *,
-    practitioner_id: int | None,
+    practitioner_id: int | None = None,
     patient_id: int,
     starts_at: datetime,
     ends_at: datetime,
     exclude_id: int | None = None,
+    practitioner_ids: Sequence[int | None] | None = None,
 ) -> list[Conflict]:
-    """Blocking appointments that overlap and share the practitioner calendar or the patient."""
+    """Blocking appointments that overlap and share the practitioner calendar (or one of ``practitioner_ids``) or
+    the patient."""
+    lanes = [r or 0 for r in (practitioner_ids if practitioner_ids is not None else [practitioner_id])]
     query = (
         select(
             appointment.c.id, appointment.c.starts_at, appointment.c.ends_at,
@@ -166,7 +182,7 @@ def find_conflicts(
             appointment.c.starts_at < ends_at,
             appointment.c.ends_at > starts_at,
             or_(
-                func.coalesce(appointment.c.practitioner_id, 0) == (practitioner_id or 0),
+                func.coalesce(appointment.c.practitioner_id, 0).in_(lanes),
                 appointment.c.patient_id == patient_id,
             ),
         )
@@ -214,21 +230,24 @@ def suggestions(
     conn: Connection,
     cal: Calendar,
     *,
-    practitioner_id: int | None,
+    practitioner_id: int | None = None,
     patient_id: int,
     starts_at: datetime,
     duration_min: int,
     now: datetime,
     exclude_id: int | None = None,
+    practitioner_ids: Sequence[int | None] | None = None,
 ) -> list[datetime]:
-    """Up to 5 free starts of the same length and practitioner from ``starts_at`` on, within 7 days."""
+    """Up to 5 free starts of the same length and practitioner (or any of ``practitioner_ids``) from ``starts_at``
+    on, within 7 days."""
+    resources = list(practitioner_ids) if practitioner_ids is not None else [practitioner_id]
     begin = max(starts_at, now)
     until = starts_at + timedelta(days=SUGGESTION_DAYS)
     day, last = local_day(begin), local_day(until)
     closed = closed_days(conn, cal.practice_id, day, last)
     found: list[datetime] = []
     while day <= last and len(found) < SUGGESTION_COUNT:
-        for t, _ in free_starts(conn, cal, day, duration_min, [practitioner_id], not_before=begin,
+        for t, _ in free_starts(conn, cal, day, duration_min, resources, not_before=begin,
                                 patient_id=patient_id, exclude_id=exclude_id, closed=closed):
             if t >= until or len(found) == SUGGESTION_COUNT:
                 break
@@ -246,6 +265,55 @@ def check_bookable(conn: Connection, cal: Calendar, starts_at: datetime, ends_at
         raise unprocessable("Le cabinet est fermé ce jour-là.", code="closed")
     if not fits_opening_hours(cal.weekly_hours, starts_at, ends_at):
         raise unprocessable("Ce créneau est en dehors des horaires d'ouverture.", code="outside_hours")
+
+
+def active_practitioners(conn: Connection, practice_id: int) -> list[int]:
+    """The practice's active practitioners in practice order (``sort``, then id)."""
+    return list(
+        conn.execute(
+            select(practitioner.c.id)
+            .where(practitioner.c.practice_id == practice_id, practitioner.c.active)
+            .order_by(practitioner.c.sort, practitioner.c.id)
+        ).scalars()
+    )
+
+
+def first_free(busy: Sequence[Busy], doctors: Sequence[int], start: datetime, end: datetime) -> int | None:
+    """The first of ``doctors`` without a blocking appointment in ``busy`` that overlaps ``[start, end)``."""
+    taken = {b.practitioner_id for b in busy if b.starts_at < end and b.ends_at > start}
+    return next((d for d in doctors if d not in taken), None)
+
+
+def choose_practitioner(
+    conn: Connection,
+    cal: Calendar,
+    *,
+    practitioner_id: int | None,
+    patient_id: int,
+    starts_at: datetime,
+    ends_at: datetime,
+    now: datetime,
+    exclude_id: int | None = None,
+) -> int | None:
+    """The practitioner an appointment gets (code review H1, section 11.1).
+
+    A given one stays. ``None`` in a practice with active practitioners: the only one, else the first (practice
+    order) free for the whole time – nobody free → 409 ``appointment_conflict`` with the appointments in the way and
+    suggestions when any of them is free. ``None`` only for a practice without active practitioners."""
+    if practitioner_id is not None:
+        return practitioner_id
+    doctors = active_practitioners(conn, cal.practice_id)
+    if len(doctors) <= 1:
+        return doctors[0] if doctors else None
+    busy = busy_between(conn, cal.practice_id, starts_at, ends_at, exclude_id=exclude_id)
+    chosen = first_free(busy, doctors, starts_at, ends_at)
+    if chosen is not None:
+        return chosen
+    where = {"patient_id": patient_id, "starts_at": starts_at, "ends_at": ends_at, "exclude_id": exclude_id,
+             "practitioner_ids": doctors}
+    proposals = suggestions(conn, cal, duration_min=int((ends_at - starts_at).total_seconds() // 60), now=now,
+                            **{k: v for k, v in where.items() if k != "ends_at"})
+    raise conflict_error(find_conflicts(conn, cal.practice_id, **where), proposals)
 
 
 def conflict_error(conflicts: Sequence[Conflict], proposals: Sequence[datetime]) -> ApiError:

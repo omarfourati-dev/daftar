@@ -88,6 +88,23 @@ def test_create_a_series(client: TestClient, kine: Any, amira: Any, as_user: Fac
     assert 'daftar_appointments_created_total{source="series"} 4.0' in client.get("/metrics").text
 
 
+def test_without_practitioner_the_series_gets_one_who_is_free_every_time(
+    client: TestClient, kine: Any, amira: Any, make_patient: Factory, make_appointment: Factory, as_user: Factory
+) -> None:
+    """Code review H1: no session "Non attribué" next to a practitioner's calendar; one therapist for the course."""
+    a, b = kine.practitioners
+    make_appointment(make_patient(kine), practitioner_id=a.id, starts_at=at(date(2026, 11, 9), "09:00"))  # A busy once
+    h = as_user(kine, "assistant")
+    res = client.post("/api/appointments/series", json=series_body(kine, amira, practitionerId=None), headers=h)
+    assert res.status_code == 201, res.text
+    assert [x["practitionerId"] for x in res.json()["created"]] == [b.id] * 4
+    make_appointment(make_patient(kine), practitioner_id=a.id, starts_at=at(date(2026, 11, 30), "09:00"))
+    make_appointment(make_patient(kine), practitioner_id=b.id, starts_at=at(date(2026, 12, 7), "09:00"))
+    later = series_body(kine, make_patient(kine), practitionerId=None, startsAt=iso(date(2026, 11, 30), "09:00"),
+                        rule={"weekdays": [1], "count": 2})  # nobody is free both times: per session the first free one
+    assert [x["practitionerId"] for x in client.post("/api/appointments/series", json=later, headers=h).json()["created"]] == [b.id, a.id]
+
+
 def test_a_conflict_refuses_the_whole_series(
     client: TestClient, kine: Any, amira: Any, make_patient: Factory, make_appointment: Factory, as_user: Factory, db: Any
 ) -> None:

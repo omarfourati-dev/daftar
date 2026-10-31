@@ -390,8 +390,7 @@ def test_appointments_import(client: TestClient, db: Engine, owner: Any, make_pa
                              make_service: Factory, auth_headers: Factory) -> None:
     p = _pid(owner)
     amira = make_patient(p, first_name="Amira", last_name="Trabelsi", phone="+21620123456")
-    other = make_patient(p, first_name="X", last_name="Y")
-    make_appointment(other, starts_at=datetime(2026, 11, 4, 8, 15, tzinfo=UTC), duration_min=30)  # 09:15 Tunis, no practitioner
+    make_appointment(amira, starts_at=datetime(2026, 11, 4, 8, 15, tzinfo=UTC), duration_min=30)  # 09:15 Tunis, her own
     control = make_service(p, "Contrôle", 15)
     consult = make_service(p, "Consultation", 25)
     h = auth_headers(owner)
@@ -421,7 +420,29 @@ def test_appointments_import(client: TestClient, db: Engine, owner: Any, make_pa
         leila.id, "scheduled", consult.id, 25, ines.id)
     assert (leila.phone, leila.lang) == ("+21698765432", "fr")
     assert (amira_later.patient_id, amira_later.duration_min) == (amira.id, 30)
+    assert amira_later.practitioner_id == salah.id  # no practitioner in the file: the first free one (code review H1)
     assert all(r.source == "staff" and r.created_by == owner.id for r in rows)
+
+
+def test_imported_appointments_without_practitioner_get_the_only_one(
+    client: TestClient, db: Engine, make_practice: Factory, make_user: Factory, make_patient: Factory,
+    make_appointment: Factory, auth_headers: Factory,
+) -> None:
+    """Code review H1: no appointment next to the doctor's calendar – an overlap with the doctor is listed, not imported."""
+    p = make_practice(practitioners=["Dr. X"])
+    (x,) = p.practitioners
+    make_appointment(make_patient(p), practitioner_id=x.id, starts_at=datetime(2026, 11, 4, 8, 0, tzinfo=UTC))  # 09:00
+    h = auth_headers(make_user(p, "owner"))
+    data = xlsx(("RDV", [["Date", "Heure", "Nom", "Prénom", "Tél"],
+                         ["04/11/2026", "09:00", "Trabelsi", "Amira", "20123456"],
+                         ["04/11/2026", "10:00", "Gharbi", "Leila", "98765432"]]))
+    job = upload(client, h, data, "rdv.xlsx").json()["id"]
+    mapping = {"date": 0, "time": 1, "lastName": 2, "firstName": 3, "phone": 4}
+    res = client.post(f"/api/imports/{job}/commit", json={"kind": "appointments", "mapping": mapping}, headers=h)
+    assert res.json() == {"created": 1, "updated": 0, "skipped": 1, "errorCount": 0, "patientsCreated": 1}
+    with db.connect() as conn:
+        rows = conn.execute(select(appointment.c.practitioner_id).order_by(appointment.c.starts_at)).scalars().all()
+    assert rows == [x.id, x.id]
 
 
 def owner_practitioners(db: Engine, owner: Any) -> list[Any]:

@@ -109,6 +109,7 @@ export const agenda = {
 		duration: 'Durée (min)',
 		practitioner: 'Praticien',
 		anyPractitioner: 'Non attribué',
+		firstFree: 'Premier disponible',
 		deposit: 'Acompte demandé (DT)',
 		depositHint: 'Laisser vide si aucun acompte.',
 		notes: 'Note interne',

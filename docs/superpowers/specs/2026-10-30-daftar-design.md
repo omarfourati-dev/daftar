@@ -289,6 +289,17 @@ Komponentenschnitt, genaue Texte der App (kurz, FR/AR), Seed-Details der Demo, L
 - API: Überschneidung → **409** `{title, detail, conflicts:[{id,startsAt,endsAt,patientName}]}` statt Warnung
   (ersetzt „nur Warnung“ in Abschnitt 5). Die App zeigt dann freie Zeiten an. Notfälle laufen über die Warteschlange,
   nicht über den Kalender.
+- **Hat die Praxis aktive Behandler, hat jeder Termin einen** (Code-Review H1, 31.10. – ein Termin „Non attribué“
+  blockierte den Kalender der Ärztin nicht, Online-/Telefonbuchung legten denselben Zeitpunkt ein zweites Mal an).
+  `practitionerId = null` beim Anlegen, Verschieben, Wiedereröffnen (storniert/absent → geplant), in Serien und im
+  Import heißt: genau ein aktiver Behandler → dieser; mehrere → der erste (Reihenfolge der Praxis), der zur
+  gewünschten Zeit frei ist (dieselbe Regel wie Online- und Telefonbuchung; eine Serie bekommt möglichst einen
+  Behandler für alle Sitzungen); keiner frei → 409 mit Vorschlägen, in denen irgendeiner frei ist. Nur Praxen
+  **ohne** aktive Behandler kennen weiter Termine ohne Behandler (ihr einer Kalender). Web: bei genau einem Behandler
+  ist er vorgewählt und „Non attribué“ entfällt; bei mehreren ist „Premier disponible“ (sendet `null`) die Vorgabe.
+  Migration `0006` ordnet bestehende nicht stornierte Termine ohne Behandler in Praxen mit genau einem aktiven
+  Behandler diesem zu (Termine, die dort eine Überschneidung ergäben, bleiben ohne Behandler und zeigen sich in der
+  Agenda; ältere Termine ohne Behandler in Praxen mit mehreren Behandlern bleiben, bis sie verschoben werden).
 - `GET /api/availability?date=&durationMin=&practitionerId=` → `{date, slots:[{time:"09:15", practitionerIds:[…]}]}`:
   Raster `slot_minutes` innerhalb der Öffnungszeiten des Wochentags, ohne Schließtage, ohne belegte Zeiten, ohne
   Vergangenheit. Dieselbe Logik nutzt die Online-Buchung.

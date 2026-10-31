@@ -192,6 +192,67 @@ describe('AppointmentForm – new appointment in a few clicks', () => {
 	});
 });
 
+describe('AppointmentForm – every appointment gets a practitioner (code review H1)', () => {
+	beforeEach(() => {
+		auth.set('tok', assistant);
+		i18n.setLocale('fr');
+		clock.now = () => new Date(NOW);
+	});
+
+	it('preselects the only practitioner and offers no "Non attribué"', async () => {
+		mockApi({
+			'GET /api/patients?q=Sami&limit=8': () => json(200, { items: [sami], total: 1 }),
+			'POST /api/appointments': () => json(201, appt({ id: 44 }))
+		});
+		open({ base: { ...base, practitioners: [practitioners[0]] }, practitionerId: null });
+		const select = screen.getByLabelText('Praticien');
+		expect(select).toHaveValue('11');
+		expect(within(select).queryByRole('option', { name: 'Non attribué' })).not.toBeInTheDocument();
+		expect(within(select).queryByRole('option', { name: 'Premier disponible' })).not.toBeInTheDocument();
+		await search('Sami');
+		await fireEvent.click(await screen.findByRole('button', { name: /Sami Trabelsi/ }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Enregistrer le rendez-vous' }));
+		await vi.waitFor(() => expect(sentJson('POST /api/appointments')).toMatchObject({ practitionerId: 11 }));
+	});
+
+	it('the only practitioner also takes over an old appointment without one', () => {
+		mockApi({});
+		open({ base: { ...base, practitioners: [practitioners[0]] }, appointment: appt({ id: 51, practitionerId: null }), day: undefined, time: undefined });
+		expect(screen.getByLabelText('Praticien')).toHaveValue('11');
+	});
+
+	it('with several practitioners "Premier disponible" is the default and lets the server choose', async () => {
+		mockApi({
+			'GET /api/patients?q=Sami&limit=8': () => json(200, { items: [sami], total: 1 }),
+			'POST /api/appointments': () => json(201, appt({ id: 45 }))
+		});
+		open({ practitionerId: null });
+		const select = screen.getByLabelText('Praticien');
+		expect(select).toHaveValue('');
+		expect(within(select).getByRole('option', { name: 'Premier disponible' })).toBeInTheDocument();
+		expect(within(select).queryByRole('option', { name: 'Non attribué' })).not.toBeInTheDocument();
+		await search('Sami');
+		await fireEvent.click(await screen.findByRole('button', { name: /Sami Trabelsi/ }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Enregistrer le rendez-vous' }));
+		await vi.waitFor(() => expect(sentJson('POST /api/appointments')).toMatchObject({ practitionerId: null }));
+	});
+
+	it('a practice without practitioners keeps its one calendar', () => {
+		mockApi({});
+		open({ base: { ...base, practitioners: [] }, practitionerId: null });
+		const select = screen.getByLabelText('Praticien');
+		expect(select).toHaveValue('');
+		expect(within(select).getByRole('option', { name: 'Non attribué' })).toBeInTheDocument();
+	});
+
+	it('says it in Arabic', () => {
+		i18n.setLocale('ar');
+		mockApi({});
+		open({ practitionerId: null });
+		expect(screen.getByRole('option', { name: 'أوّل طبيب متاح' })).toBeInTheDocument();
+	});
+});
+
 describe('AppointmentForm – series of sessions (kiné, psy)', () => {
 	beforeEach(() => {
 		auth.set('tok', assistant);

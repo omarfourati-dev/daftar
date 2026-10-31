@@ -34,7 +34,11 @@ MUTATIONS: list[tuple[str, str, str, str]] = [
     ("daftar/scheduling.py", "            if t >= until or len(found) == SUGGESTION_COUNT:", "            if len(found) == SUGGESTION_COUNT:", T + "test_appointments.py"),
     ("daftar/scheduling.py", "    starts = [t for t in grid(cal, day, duration_min) if t >= not_before]", "    starts = grid(cal, day, duration_min)", T + "test_availability.py"),
     ("daftar/scheduling.py", "        if patient_id is not None and any(b.patient_id == patient_id for b in overlapping):", "        if False:", T + "test_appointments.py"),
-    ("daftar/scheduling.py", "func.coalesce(appointment.c.practitioner_id, 0) == (practitioner_id or 0)", "appointment.c.practitioner_id == practitioner_id", T + "test_appointments.py"),
+    ("daftar/scheduling.py", "func.coalesce(appointment.c.practitioner_id, 0).in_(lanes)", "appointment.c.practitioner_id.in_(lanes)", T + "test_appointments.py"),
+    ("daftar/scheduling.py", "    if len(doctors) <= 1:
+        return doctors[0] if doctors else None
+", "", T + "test_appointments.py"),
+    ("daftar/scheduling.py", "    taken = {b.practitioner_id for b in busy if b.starts_at < end and b.ends_at > start}", "    taken = set()", T + "test_appointments.py"),
     ("daftar/scheduling.py", "        if constraint_name(exc) not in OVERLAP_CONSTRAINTS:\n            raise\n        # the other", "        raise\n        # the other", T + "test_appointments.py"),
     ("daftar/scheduling.py", "    if not fits_opening_hours(cal.weekly_hours, starts_at, ends_at):", "    if False:", T + "test_appointments.py"),
     ("daftar/appointments.py", '    "done": frozenset({"in_treatment"}),', '    "done": frozenset({"in_treatment", "cancelled"}),', T + "test_appointment_status.py"),

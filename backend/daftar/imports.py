@@ -22,7 +22,8 @@ notes; the opening balance only once) or ``create``. An opening balance becomes 
 Appointments: date + time (or one date-time column), duration from the column, the end time, the service or the
 practice default; the patient is found by phone + name (or by name alone when unique) and created when missing (then a
 phone number is needed); past appointments are ``done``; appointments that overlap one of the practitioner (or
-"no practitioner") or of the patient are not imported but listed.
+"no practitioner") or of the patient are not imported but listed. A row without practitioner in a practice with
+active practitioners gets the only one, else the first one (practice order) free at that time (code review H1).
 """
 
 from __future__ import annotations
@@ -69,6 +70,7 @@ from .import_values import (
 )
 from .onboarding import flag
 from .problems import ApiError, conflict, forbidden, not_found, unprocessable
+from .scheduling import active_practitioners
 from .schemas import ApiModel, Lang, Name, TunisDateTime
 from .tables import (
     FREEING_STATUSES,
@@ -639,7 +641,7 @@ def plan_appointments(conn: Connection, practice_id: int, table: Table, used: di
             "first_name": first, "last_name": last, "phone": phone,
         }, patient_id, new_key))
 
-    _drop_overlaps(conn, practice_id, plan, candidates)
+    _drop_overlaps(conn, practice_id, plan, candidates, active_practitioners(conn, practice_id))
     referenced = {c.new_key for c in candidates if c.new_key is not None and c.values.get("accepted")}
     plan.new_patients = {k: v for k, v in plan.new_patients.items() if k in referenced}
     return plan
@@ -650,8 +652,9 @@ def _days(start: datetime, end: datetime) -> list[date]:
     return [first + timedelta(days=n) for n in range((last - first).days + 1)]
 
 
-def _drop_overlaps(conn: Connection, practice_id: int, plan: Plan, candidates: list[Candidate]) -> None:
-    """Keeps the file order: a row that overlaps an existing appointment or an earlier row is listed, not imported."""
+def _drop_overlaps(conn: Connection, practice_id: int, plan: Plan, candidates: list[Candidate], doctors: list[int]) -> None:
+    """Keeps the file order: a row that overlaps an existing appointment or an earlier row is listed, not imported.
+    A row without practitioner takes the first of the active ``doctors`` free at its time (code review H1)."""
     busy: dict[tuple[Any, ...], list[tuple[datetime, datetime]]] = defaultdict(list)
 
     def book(keys: list[tuple[Any, ...]], start: datetime, end: datetime) -> None:
@@ -673,8 +676,10 @@ def _drop_overlaps(conn: Connection, practice_id: int, plan: Plan, candidates: l
             book([("lane", a.practitioner_id or 0), ("patient", a.patient_id)], a.starts_at, a.ends_at)
     for c in candidates:
         who = ("patient", c.patient_id) if c.patient_id is not None else ("new", c.new_key)
-        keys = [("lane", c.values["practitioner_id"] or 0), who]
         start, end = c.values["starts_at"], c.values["ends_at"]
+        if c.values["practitioner_id"] is None and doctors:
+            c.values["practitioner_id"] = next((d for d in doctors if free([("lane", d)], start, end)), doctors[0])
+        keys = [("lane", c.values["practitioner_id"] or 0), who]
         if not free(keys, start, end):
             plan.conflicts.append(Overlap(row=c.number, starts_at=start, message="Chevauchement avec un autre rendez-vous."))
             plan.skipped_lines.append({"row": c.number, "field": LABELS["overlap"], "value": as_text(start.astimezone(TUNIS).replace(tzinfo=None)),

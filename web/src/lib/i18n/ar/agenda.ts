@@ -110,6 +110,7 @@ export const agenda: Messages['agenda'] = {
 		duration: 'المدة (دقيقة)',
 		practitioner: 'الطبيب',
 		anyPractitioner: 'غير محدّد',
+		firstFree: 'أوّل طبيب متاح',
 		deposit: 'العربون المطلوب (د.ت)',
 		depositHint: 'اتركه فارغًا إن لم يكن هناك عربون.',
 		notes: 'ملاحظة داخلية',

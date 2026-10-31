@@ -182,6 +182,30 @@ describe('/app/agenda – day and week', () => {
 		expect(dialog.getByLabelText('Date')).toHaveValue('2026-10-30');
 		expect(dialog.getByLabelText('Heure')).toHaveValue('10:15');
 		expect(dialog.getByLabelText('Praticien')).toHaveValue('');
+		expect(dialog.getByRole('option', { name: 'Premier disponible', selected: true })).toBeInTheDocument(); // H1: no "Non attribué"
+	});
+
+	it('with one practitioner every way to a new appointment preselects them (code review H1)', async () => {
+		agendaApi({
+			'GET /api/practitioners': () => json(200, [practitioners[0]]),
+			'GET /api/appointments?from=2026-10-30&to=2026-10-30': () => json(200, []),
+			'GET /api/appointments?from=2026-10-26&to=2026-11-01': () => json(200, [])
+		});
+		render(Page);
+		await screen.findByText('Aucun rendez-vous ce jour.');
+		const practitioner = () => within(screen.getByRole('dialog', { name: 'Nouveau rendez-vous' })).getByLabelText('Praticien');
+		await fireEvent.click(screen.getByRole('button', { name: 'Nouveau rendez-vous' }));
+		expect(practitioner()).toHaveValue('11');
+		expect(within(practitioner()).queryByRole('option', { name: 'Non attribué' })).not.toBeInTheDocument();
+		await fireEvent.click(screen.getByRole('button', { name: 'Annuler' }));
+		newAppointment.request(); // shortcut N
+		expect(await screen.findByRole('dialog', { name: 'Nouveau rendez-vous' })).toBeInTheDocument();
+		expect(practitioner()).toHaveValue('11');
+		await fireEvent.click(screen.getByRole('button', { name: 'Annuler' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Semaine' }));
+		const saturday = within(await screen.findByRole('region', { name: /samedi 31/ }));
+		await fireEvent.click(saturday.getAllByRole('button', { name: /^Nouveau rendez-vous à 09:00/ })[0]);
+		expect(practitioner()).toHaveValue('11');
 	});
 
 	it('opens a new appointment for the patient given in the address (from the patient file)', async () => {

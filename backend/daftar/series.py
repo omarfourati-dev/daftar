@@ -8,6 +8,8 @@
   [{startsAt, reason: 'conflict'|'closed'}]}``. Closed occurrences are always skipped; a conflict without
   ``skipConflicts`` → 409 ``appointment_conflict`` (nothing is created); nothing left → 422 ``series_empty``.
   Every session is checked again by the database (a race skips or refuses that session like a conflict).
+  Without ``practitionerId`` in a practice with active practitioners (code review H1): the only one, else the first
+  one (practice order) free at every session that is not closed, else per session the first free one.
 - ``POST /api/appointments/series/{seriesId}/cancel {from?: 'YYYY-MM-DD'}`` → ``{cancelled: n}`` – cancels the
   requested/scheduled/confirmed sessions from that day on (default today).
 """
@@ -123,8 +125,29 @@ def occurrence_starts(starts_at: datetime, weekdays: list[int], count: int) -> l
     return starts
 
 
-def _plan(conn: Connection, user: Principal, body: SeriesIn, now: datetime) -> tuple[Calendar, int, list[Occurrence], list[Conflict]]:
-    """Validates the request and checks every occurrence: (calendar, duration, occurrences, conflicts)."""
+def _doctors(conn: Connection, user: Principal, body: SeriesIn, cal: Calendar, starts: list[datetime], length: timedelta,
+             closed: list[bool]) -> list[int | None]:
+    """The practitioner of each session (code review H1): the given one; without one in a practice with active
+    practitioners the only one, else the first one free at every open session, else per session the first free one
+    (the first in practice order when nobody is free – the session then shows its conflict)."""
+    if body.practitioner_id is not None:
+        return [body.practitioner_id] * len(starts)
+    doctors = scheduling.active_practitioners(conn, user.pid)
+    if len(doctors) <= 1:
+        return [doctors[0] if doctors else None] * len(starts)
+    free: list[list[int]] = []
+    for start, is_closed in zip(starts, closed, strict=True):
+        busy = [] if is_closed else scheduling.busy_between(conn, cal.practice_id, start, start + length)
+        free.append([d for d in doctors if scheduling.first_free(busy, [d], start, start + length) is not None])
+    steady = next((d for d in doctors if all(d in f for f in free)), None)
+    return [steady if steady is not None else (f[0] if f else doctors[0]) for f in free]
+
+
+def _plan(
+    conn: Connection, user: Principal, body: SeriesIn, now: datetime
+) -> tuple[Calendar, int, list[Occurrence], list[Conflict], list[int | None]]:
+    """Validates the request and checks every occurrence: (calendar, duration, occurrences, conflicts, the
+    practitioner of each occurrence)."""
     check_patient(conn, user.pid, body.patient_id)
     check_practitioner(conn, user.pid, body.practitioner_id)
     svc = check_service(conn, user.pid, body.service_id)
@@ -134,12 +157,13 @@ def _plan(conn: Connection, user: Principal, body: SeriesIn, now: datetime) -> t
         raise unprocessable("Ce rendez-vous serait dans le passé.", code="in_past")
     starts = occurrence_starts(body.starts_at, body.rule.weekdays, body.rule.count)
     length = timedelta(minutes=duration)
-    closed = closed_days(conn, user.pid, local_day(starts[0]), local_day(starts[-1]))
+    closed_on = closed_days(conn, user.pid, local_day(starts[0]), local_day(starts[-1]))
+    closed = [local_day(s) in closed_on or not fits_opening_hours(cal.weekly_hours, s, s + length) for s in starts]
+    doctors = _doctors(conn, user, body, cal, starts, length, closed)
     occurrences, conflicts = [], []
-    for start in starts:
-        found = scheduling.find_conflicts(conn, user.pid, practitioner_id=body.practitioner_id, patient_id=body.patient_id,
+    for start, is_closed, doctor in zip(starts, closed, doctors, strict=True):
+        found = scheduling.find_conflicts(conn, user.pid, practitioner_id=doctor, patient_id=body.patient_id,
                                           starts_at=start, ends_at=start + length)
-        is_closed = local_day(start) in closed or not fits_opening_hours(cal.weekly_hours, start, start + length)
         first = found[0] if found and not is_closed else None
         if first is not None:
             conflicts.extend(found)
@@ -148,30 +172,30 @@ def _plan(conn: Connection, user: Principal, body: SeriesIn, now: datetime) -> t
             conflict=ConflictOut(id=first.id, starts_at=first.starts_at, ends_at=first.ends_at,
                                  patient_name=first.patient_name) if first else None,
         ))
-    return cal, duration, occurrences, conflicts
+    return cal, duration, occurrences, conflicts, doctors
 
 
 @router.post("/preview")
 def preview(body: SeriesIn, user: StaffUser, ctx: Ctx, conn: Conn) -> PreviewOut:
-    _, _, occurrences, _ = _plan(conn, user, body, ctx.clock.now())
+    _, _, occurrences, _, _ = _plan(conn, user, body, ctx.clock.now())
     return PreviewOut(occurrences=occurrences)
 
 
 @router.post("", status_code=201)
 def create_series(body: SeriesIn, user: StaffWriter, ctx: Ctx, conn: Conn) -> SeriesOut:
     now = ctx.clock.now()
-    _, duration, occurrences, conflicts = _plan(conn, user, body, now)
+    _, duration, occurrences, conflicts, doctors = _plan(conn, user, body, now)
     if conflicts and not body.skip_conflicts:
         raise conflict_error(conflicts, [])
     series_id = uuid.uuid4()
     created: list[int] = []
     skipped: list[Skipped] = []
-    for occ in occurrences:
+    for occ, doctor in zip(occurrences, doctors, strict=True):
         if occ.closed or occ.conflict is not None:
             skipped.append(Skipped(starts_at=occ.starts_at, reason="closed" if occ.closed else "conflict"))
             continue
         values: dict[str, Any] = {
-            "practice_id": user.pid, "patient_id": body.patient_id, "practitioner_id": body.practitioner_id,
+            "practice_id": user.pid, "patient_id": body.patient_id, "practitioner_id": doctor,
             "service_id": body.service_id, "starts_at": occ.starts_at, "duration_min": duration, "ends_at": occ.ends_at,
             "reason": body.reason, "status": "scheduled", "source": "staff", "notes": body.notes, "series_id": series_id,
             "created_by": user.user_id, "created_at": now,
@@ -184,7 +208,7 @@ def create_series(body: SeriesIn, user: StaffWriter, ctx: Ctx, conn: Conn) -> Se
                 raise
             if not body.skip_conflicts:
                 raise conflict_error(
-                    scheduling.find_conflicts(conn, user.pid, practitioner_id=body.practitioner_id,
+                    scheduling.find_conflicts(conn, user.pid, practitioner_id=doctor,
                                               patient_id=body.patient_id, starts_at=occ.starts_at, ends_at=occ.ends_at),
                     [],
                 ) from exc

@@ -8,7 +8,9 @@ practice that is not suspended.
   status?: scheduled|confirmed}`` → 201 ``{appointment, conflicts: []}``; overlap → 409 ``appointment_conflict``
   ``{conflicts, suggestions}``; 422 ``in_past`` / ``closed`` / ``outside_hours`` / ``invalid_time`` /
   ``practitioner_inactive`` / ``service_inactive``. Without ``durationMin`` the service's duration, else the
-  practice default.
+  practice default. Without ``practitionerId`` (or ``null``) in a practice with active practitioners: the only one,
+  else the first free one (code review H1, :func:`daftar.scheduling.choose_practitioner`) – also when moving or
+  reopening an appointment that has none.
 - ``PATCH /{id}`` → ``{appointment, conflicts: []}``; time, length, practitioner and patient only change while the
   appointment is requested, scheduled or confirmed (409 ``appointment_locked``) · ``DELETE /{id}`` → 204
 - ``POST /{id}/status {status}`` → Appointment (transitions: :data:`TRANSITIONS`, 409 ``invalid_transition``;
@@ -37,7 +39,7 @@ from .practice_settings import DurationMin
 from .problems import conflict, not_found, unprocessable
 from .queue import ACTIVE as QUEUE_ACTIVE
 from .queue import add_to_queue, status_values
-from .scheduling import StartsAt, check_bookable, load_calendar, local_day, write_or_409
+from .scheduling import StartsAt, check_bookable, choose_practitioner, load_calendar, local_day, write_or_409
 from .schemas import ApiModel, Lang, Text, TunisDateTime
 from .tables import APPOINTMENT_STATUSES, FREEING_STATUSES, appointment, patient, payment, practitioner, queue_entry, service
 
@@ -313,17 +315,19 @@ def create_appointment(body: AppointmentIn, user: StaffWriter, ctx: Ctx, conn: C
     ends_at = body.starts_at + timedelta(minutes=duration)
     now = ctx.clock.now()
     check_bookable(conn, cal, body.starts_at, ends_at, now)
+    doctor = choose_practitioner(conn, cal, practitioner_id=body.practitioner_id, patient_id=body.patient_id,
+                                 starts_at=body.starts_at, ends_at=ends_at, now=now)
     statement = (
         insert(appointment)
         .values(
-            practice_id=user.pid, patient_id=body.patient_id, practitioner_id=body.practitioner_id,
+            practice_id=user.pid, patient_id=body.patient_id, practitioner_id=doctor,
             service_id=body.service_id, starts_at=body.starts_at, duration_min=duration, ends_at=ends_at,
             reason=body.reason, status=body.status, source="staff", notes=body.notes,
             deposit_required_millimes=body.deposit_required_millimes, created_by=user.user_id, created_at=now,
         )
         .returning(appointment.c.id)
     )
-    new_id = write_or_409(conn, cal, statement, practitioner_id=body.practitioner_id, patient_id=body.patient_id,
+    new_id = write_or_409(conn, cal, statement, practitioner_id=doctor, patient_id=body.patient_id,
                           starts_at=body.starts_at, ends_at=ends_at, now=now).scalar_one()
     ctx.metrics.appointments_created.labels("staff").inc()
     return AppointmentResult(appointment=load_appointment(conn, user.pid, new_id))
@@ -348,16 +352,21 @@ def patch_appointment(appointment_id: int, body: AppointmentPatch, user: StaffWr
     if values.keys() & {"starts_at", "duration_min"}:
         values["ends_at"] = ends_at
     now = ctx.clock.now()
-    statement = update(appointment).where(appointment.c.id == appointment_id).values(**values)
     if moving:
         cal = load_calendar(conn, user.pid)
         if values.keys() & {"starts_at", "duration_min"}:
             check_bookable(conn, cal, starts_at, ends_at, now)
-        write_or_409(conn, cal, statement, practitioner_id=values.get("practitioner_id", current.practitioner_id),
-                     patient_id=values.get("patient_id", current.patient_id), starts_at=starts_at, ends_at=ends_at,
-                     now=now, exclude_id=appointment_id)
+        patient_id = values.get("patient_id", current.patient_id)
+        doctor = choose_practitioner(conn, cal, practitioner_id=values.get("practitioner_id", current.practitioner_id),
+                                     patient_id=patient_id, starts_at=starts_at, ends_at=ends_at, now=now,
+                                     exclude_id=appointment_id)
+        if doctor != current.practitioner_id or "practitioner_id" in values:
+            values["practitioner_id"] = doctor
+        statement = update(appointment).where(appointment.c.id == appointment_id).values(**values)
+        write_or_409(conn, cal, statement, practitioner_id=doctor, patient_id=patient_id, starts_at=starts_at,
+                     ends_at=ends_at, now=now, exclude_id=appointment_id)
     elif values:
-        conn.execute(statement)
+        conn.execute(update(appointment).where(appointment.c.id == appointment_id).values(**values))
     return AppointmentResult(appointment=load_appointment(conn, user.pid, appointment_id))
 
 
@@ -390,8 +399,12 @@ def change_status(appointment_id: int, body: StatusIn, user: StaffWriter, ctx: C
     if target == "no_show" and current.starts_at > now:
         raise conflict("Le rendez-vous n'a pas encore commencé.", code="not_started")
     statement = update(appointment).where(appointment.c.id == appointment_id).values(status=target)
-    if current.status in FREEING_STATUSES and target not in FREEING_STATUSES:
-        write_or_409(conn, load_calendar(conn, user.pid), statement, practitioner_id=current.practitioner_id,
+    if current.status in FREEING_STATUSES and target not in FREEING_STATUSES:  # taking the slot again
+        cal = load_calendar(conn, user.pid)
+        doctor = choose_practitioner(conn, cal, practitioner_id=current.practitioner_id, patient_id=current.patient_id,
+                                     starts_at=current.starts_at, ends_at=current.ends_at, now=now,
+                                     exclude_id=appointment_id)
+        write_or_409(conn, cal, statement.values(practitioner_id=doctor), practitioner_id=doctor,
                      patient_id=current.patient_id, starts_at=current.starts_at, ends_at=current.ends_at, now=now,
                      exclude_id=appointment_id)
     else:

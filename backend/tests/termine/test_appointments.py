@@ -78,7 +78,7 @@ def test_a_service_sets_the_duration(client: TestClient, lac: Any, ids: dict[str
     own = book(client, h, patientId=ids["karim"].id, startsAt=iso(MON, "11:00"), serviceId=scaling.id, durationMin=20).json()
     assert own["appointment"]["durationMin"] == 20
     plain = book(client, h, patientId=ids["karim"].id, startsAt=iso(MON, "14:00")).json()["appointment"]
-    assert (plain["durationMin"], plain["practitionerId"], plain["practitionerName"]) == (30, None, None)
+    assert (plain["durationMin"], plain["practitionerId"], plain["practitionerName"]) == (30, ids["a"], "Dr. A")  # H1: first free
 
 
 def test_status_confirmed_on_creation(client: TestClient, lac: Any, ids: dict[str, Any], as_user: Factory) -> None:
@@ -175,12 +175,63 @@ def test_suggestions_stay_within_seven_days(
 
 
 def test_appointments_without_practitioner_share_one_calendar(
-    client: TestClient, lac: Any, ids: dict[str, Any], make_appointment: Factory, as_user: Factory
+    client: TestClient, make_practice: Factory, make_patient: Factory, make_appointment: Factory, as_user: Factory
 ) -> None:
-    make_appointment(ids["karim"], starts_at=at(MON, "09:00"), duration_min=30)
-    res = book(client, as_user(lac, "assistant"), patientId=ids["amira"].id, startsAt=iso(MON, "09:00"))
-    assert_problem(res, 409, "appointment_conflict")
-    assert book(client, as_user(lac, "assistant"), patientId=ids["amira"].id, startsAt=iso(MON, "09:00"), practitionerId=ids["a"]).status_code == 201
+    """Only a practice without active practitioners keeps appointments without one – all in one calendar."""
+    p = make_practice()
+    h = as_user(p, "assistant")
+    make_appointment(make_patient(p), starts_at=at(MON, "09:00"), duration_min=30)
+    assert_problem(book(client, h, patientId=make_patient(p).id, startsAt=iso(MON, "09:00")), 409, "appointment_conflict")
+    res = book(client, h, patientId=make_patient(p).id, startsAt=iso(MON, "09:30"))
+    assert res.status_code == 201, res.text
+    assert res.json()["appointment"]["practitionerId"] is None
+
+
+def test_without_practitioner_the_only_practitioner_is_taken(
+    client: TestClient, make_practice: Factory, make_service: Factory, make_patient: Factory, as_user: Factory
+) -> None:
+    """Code review H1: an appointment "Non attribué" next to the only doctor's calendar was a double booking."""
+    p = make_practice(slug="cabinet-x", practitioners=["Dr. X"], online_booking_enabled=True)
+    (x,) = p.practitioners
+    svc = make_service(p, "Consultation", 30, online_bookable=True)
+    h = as_user(p, "assistant")
+    res = book(client, h, patientId=make_patient(p).id, startsAt=iso(MON, "09:00"))
+    assert res.status_code == 201, res.text
+    assert res.json()["appointment"]["practitionerId"] == x.id
+    assert_problem(book(client, h, patientId=make_patient(p).id, startsAt=iso(MON, "09:00"), practitionerId=x.id), 409, "appointment_conflict")
+    assert_problem(book(client, h, patientId=make_patient(p).id, startsAt=iso(MON, "09:15")), 409, "appointment_conflict")
+    slots = client.get("/api/public/practices/cabinet-x/slots", params={"date": MON.isoformat(), "serviceId": svc.id}).json()["slots"]
+    assert "09:00" not in slots and "09:30" in slots
+    online = client.post("/api/public/practices/cabinet-x/bookings", json={
+        "serviceId": svc.id, "startsAt": iso(MON, "09:00"), "firstName": "Amira", "lastName": "Ben Ali", "phone": "20 111 222",
+        "lang": "fr", "reminderConsent": False, "website": ""})
+    assert_problem(online, 409, "slot_unavailable")
+    after_monday = client.get("/api/availability/next", params={"limit": 50}, headers=h).json()
+    assert iso(MON, "09:00") not in [s["startsAt"] for s in after_monday]
+
+
+def test_without_practitioner_the_first_free_one_is_taken(
+    client: TestClient, lac: Any, ids: dict[str, Any], make_patient: Factory, as_user: Factory
+) -> None:
+    h = as_user(lac, "assistant")
+    first = book(client, h, patientId=ids["amira"].id, startsAt=iso(MON, "09:00")).json()["appointment"]
+    assert first["practitionerId"] == ids["a"]  # practice order
+    second = book(client, h, patientId=ids["karim"].id, startsAt=iso(MON, "09:00")).json()["appointment"]
+    assert second["practitionerId"] == ids["b"]
+    body = assert_problem(book(client, h, patientId=make_patient(lac).id, startsAt=iso(MON, "09:15")), 409, "appointment_conflict")
+    assert sorted(c["id"] for c in body["conflicts"]) == sorted([first["id"], second["id"]])
+    assert body["suggestions"][0] == iso(MON, "09:30")  # free again for either of them
+
+
+def test_moving_an_appointment_without_practitioner_gives_it_one(
+    client: TestClient, make_practice: Factory, make_patient: Factory, make_appointment: Factory, as_user: Factory
+) -> None:
+    p = make_practice(practitioners=["Dr. X"])
+    (x,) = p.practitioners
+    legacy = make_appointment(make_patient(p), starts_at=at(MON, "09:00"))  # from before the rule
+    res = client.patch(f"/api/appointments/{legacy.id}", json={"startsAt": iso(MON, "10:00")}, headers=as_user(p, "assistant"))
+    assert res.status_code == 200, res.text
+    assert res.json()["appointment"]["practitionerId"] == x.id
 
 
 def test_a_race_for_the_same_slot_ends_in_409_not_500(
@@ -284,7 +335,8 @@ def test_move_an_appointment(client: TestClient, lac: Any, ids: dict[str, Any], 
     assert res.status_code == 200, res.text
     assert res.json()["appointment"]["startsAt"] == iso(MON, "09:15") and res.json()["conflicts"] == []
     moved = client.patch(url, json={"practitionerId": None, "durationMin": 45, "notes": "x"}, headers=h).json()["appointment"]
-    assert (moved["practitionerId"], moved["durationMin"], moved["endsAt"], moved["notes"]) == (None, 45, iso(MON, "10:00"), "x")
+    # null = "the first free one" (code review H1): A, since this appointment does not block itself
+    assert (moved["practitionerId"], moved["durationMin"], moved["endsAt"], moved["notes"]) == (ids["a"], 45, iso(MON, "10:00"), "x")
     blocker = make_appointment(ids["karim"], practitioner_id=ids["b"], starts_at=at(MON, "11:00"))
     body = assert_problem(client.patch(url, json={"startsAt": iso(MON, "11:00"), "practitionerId": ids["b"]}, headers=h), 409, "appointment_conflict")
     assert [c["id"] for c in body["conflicts"]] == [blocker.id] and body["suggestions"]
