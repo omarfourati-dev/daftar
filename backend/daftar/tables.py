@@ -370,8 +370,102 @@ feedback = Table(
     _ts("created_at"),
 )
 
+#: Who delivers material (spec stock-hygiène 4.1, migration 0008).
+supplier = Table(
+    "supplier",
+    metadata,
+    _id(),
+    _practice_id(),
+    Column("name", Text, nullable=False),
+    Column("phone", Text, nullable=True),
+    Column("whatsapp", Text, nullable=True),
+    Column("note", Text, nullable=False),
+    Column("active", Boolean, nullable=False),
+    _ts("created_at"),
+)
+
+#: What the practice keeps in stock; the stock itself is the sum of its movements (never stored).
+stock_product = Table(
+    "stock_product",
+    metadata,
+    _id(),
+    _practice_id(),
+    Column("name", Text, nullable=False),
+    Column("category", Text, nullable=False),
+    Column("unit", Text, nullable=False),
+    Column("supplier_id", BigInteger, ForeignKey("supplier.id", ondelete="SET NULL"), nullable=True),
+    Column("min_quantity", Integer, nullable=False),  # alarm threshold ("à commander")
+    Column("note", Text, nullable=False),
+    Column("ean", Text, nullable=True),  # for a later barcode scan
+    Column("active", Boolean, nullable=False),
+    _ts("created_at"),
+)
+
+#: A delivery (header); its lines are in stock_receipt_line, each with one ``receipt`` movement.
+stock_receipt = Table(
+    "stock_receipt",
+    metadata,
+    _id(),
+    _practice_id(),
+    Column("received_on", Date, nullable=False),
+    Column("supplier_id", BigInteger, ForeignKey("supplier.id", ondelete="SET NULL"), nullable=True),
+    Column("reference", Text, nullable=False),  # delivery note / invoice number
+    Column("note", Text, nullable=False),
+    Column("created_by", BigInteger, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),
+    _ts("created_at"),
+)
+
+stock_receipt_line = Table(
+    "stock_receipt_line",
+    metadata,
+    _id(),
+    _practice_id(),
+    Column("receipt_id", BigInteger, nullable=False),  # composite FK (receipt_id, practice_id), CASCADE
+    Column("product_id", BigInteger, nullable=False),  # composite FK (product_id, practice_id)
+    Column("quantity", Integer, nullable=False),
+    Column("unit_price_millimes", BigInteger, nullable=True),
+    Column("lot", Text, nullable=False),
+    Column("expires_on", Date, nullable=True),
+)
+
+#: Every change of stock: receipt (+), use (−, optionally for an act / appointment), adjust (± with reason), waste (−).
+stock_movement = Table(
+    "stock_movement",
+    metadata,
+    _id(),
+    _practice_id(),
+    Column("product_id", BigInteger, nullable=False),
+    Column("kind", Text, nullable=False),
+    Column("quantity", Integer, nullable=False),  # signed
+    Column("receipt_line_id", BigInteger, nullable=True, unique=True),
+    Column("service_id", BigInteger, ForeignKey("service.id", ondelete="SET NULL"), nullable=True),
+    Column("appointment_id", BigInteger, ForeignKey("appointment.id", ondelete="SET NULL"), nullable=True),
+    Column("unit_cost_millimes", BigInteger, nullable=True),  # average purchase price when it was used
+    Column("reason", Text, nullable=False),
+    Column("created_by", BigInteger, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),
+    _ts("created_at"),
+)
+
+#: Deletions and corrections with who/when/old → new (spec stock-hygiène 8, security review N4).
+audit_log = Table(
+    "audit_log",
+    metadata,
+    _id(),
+    _practice_id(),
+    Column("user_id", BigInteger, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),
+    Column("user_name", Text, nullable=False),  # kept when the account is deleted
+    _ts("at"),
+    Column("entity", Text, nullable=False),
+    Column("entity_id", BigInteger, nullable=False),
+    Column("action", Text, nullable=False),  # create | update | delete
+    Column("before", JSONB, nullable=True),
+    Column("after", JSONB, nullable=True),
+    Column("reason", Text, nullable=False),
+)
+
 #: Child tables first – the order for TRUNCATE/DELETE in tests and tools (reference data not included).
 ALL_TABLES = (
+    audit_log, stock_movement, stock_receipt_line, stock_receipt, stock_product, supplier,
     feedback, password_reset, import_template, import_job, cash_closing,
     pilot_request, invoice, payment, treatment, queue_entry, appointment, patient, invitation,
     practice_closure, service, practitioner, app_user, practice,
