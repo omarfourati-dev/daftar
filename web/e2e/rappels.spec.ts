@@ -7,9 +7,9 @@ test('G1 – tomorrow’s reminders with WhatsApp/SMS links, no buttons without 
 	const p = await newPractice(request);
 	const yes = await newPatient(p, { firstName: 'Youssef', lastName: 'Accord', reminderConsent: true });
 	const no = await newPatient(p, { firstName: 'Anis', lastName: 'Refus', reminderConsent: false });
-	// the next opening day (code review M6): tomorrow, or Monday when tomorrow is Sunday (default hours Mon–Sat)
-	let day = addDays(tunisNow().day, 1);
-	if (new Date(`${day}T12:00:00Z`).getUTCDay() === 0) day = addDays(day, 1);
+	// the next opening day (code review M6) – the E2E practice is open every day (ALL_DAY in daily.ts), so tomorrow,
+	// Sundays included; skipping closed days is covered by the unit tests of nextOpenDay and the backend tests
+	const day = addDays(tunisNow().day, 1);
 	await p.api.post('/api/appointments', { patientId: yes.id, startsAt: iso(day, '09:00'), durationMin: 20, reason: 'Consultation' });
 	await p.api.post('/api/appointments', { patientId: no.id, startsAt: iso(day, '09:30'), durationMin: 20, reason: 'Contrôle' });
 

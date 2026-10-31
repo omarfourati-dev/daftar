@@ -564,9 +564,9 @@
 		border: 1.5px solid #e2e8f0;
 		background: #fff;
 		padding: 0.75rem 1rem;
-		transition:
-			border-color 0.12s,
-			background-color 0.12s;
+		/* only the border fades: a chosen day/time turns its text white at once, so the background must follow at
+		   once too – fading it would show white text on a light background for a moment (axe color-contrast) */
+		transition: border-color 0.12s;
 	}
 	.choice:hover .choice-box {
 		border-color: #99f6e4;
