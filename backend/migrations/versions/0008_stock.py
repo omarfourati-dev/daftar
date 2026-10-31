@@ -121,7 +121,7 @@ CREATE TABLE stock_movement (
         REFERENCES stock_receipt_line (id, practice_id) ON DELETE CASCADE,
     CONSTRAINT stock_movement_line_key UNIQUE (receipt_line_id),
     -- receipts add and come from a receipt line; use and waste take away; an inventory count says why
-    CONSTRAINT stock_movement_kind_check CHECK (
+    CONSTRAINT stock_movement_sign_check CHECK (
         (kind = 'receipt' AND quantity > 0 AND receipt_line_id IS NOT NULL)
         OR (kind IN ('use', 'waste') AND quantity < 0 AND receipt_line_id IS NULL)
         OR (kind = 'adjust' AND receipt_line_id IS NULL AND char_length(reason) >= 1)
