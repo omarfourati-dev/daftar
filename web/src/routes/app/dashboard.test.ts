@@ -135,6 +135,27 @@ describe('/app – today at a glance', () => {
 		expect(screen.getByRole('button', { name: 'Réessayer' })).toBeInTheDocument();
 	});
 
+	it('the first steps lead to pages that exist (fixlist 2: no anchors that are not there)', async () => {
+		auth.set('tok', owner);
+		const KEYS = ['hours', 'services', 'practitioners', 'team', 'booking', 'import', 'install', 'poster'];
+		dashboardApi({ 'GET /api/onboarding': () => json(200, { steps: KEYS.map((key) => ({ key, done: false })), dismissed: false }) });
+		render(Page);
+		const steps = within(await screen.findByRole('region', { name: 'Premiers pas' }));
+		const hrefs = steps.getAllByRole('link').map((a) => a.getAttribute('href') ?? '');
+		expect(hrefs).toEqual([
+			'/app/reglages/horaires',
+			'/app/reglages/actes',
+			'/app/reglages/praticiens',
+			'/app/reglages/equipe',
+			'/app/reglages/reservation',
+			'/app/import',
+			'/app/installer',
+			'/app/reglages/affiche'
+		]);
+		const pages = Object.keys(import.meta.glob('./**/+page*.svelte')).map((f) => '/app' + f.slice(1).replace(/\/\+page(@\w+)?\.svelte$/, ''));
+		for (const href of hrefs) expect(pages, href).toContain(href);
+	});
+
 	it('shows the first steps to the owner until they are done or hidden', async () => {
 		auth.set('tok', owner);
 		dashboardApi({

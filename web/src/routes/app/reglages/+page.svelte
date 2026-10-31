@@ -4,7 +4,7 @@
 	 * and the reminder messages. Other roles land on their account here.
 	 */
 	import { onMount, tick } from 'svelte';
-	import { api, apiErrorMessage } from '#lib/api';
+	import { api, apiErrorMessage, deps } from '#lib/api';
 	import { auth } from '#lib/auth.svelte';
 	import { t } from '#lib/i18n.svelte';
 	import { practiceUrl } from '#lib/links';
@@ -54,7 +54,14 @@
 			loading = false;
 		}
 	}
+	/** Old links of the first steps (`/app/reglages#horaires` …) open the section itself, without a history entry. */
+	const SECTIONS = ['horaires', 'actes', 'praticiens', 'equipe', 'reservation', 'ecran', 'donnees', 'compte'];
 	onMount(() => {
+		const section = location.hash.slice(1);
+		if (SECTIONS.includes(section)) {
+			void deps.goto(`/app/reglages/${section}`, { replaceState: true });
+			return;
+		}
 		if (isOwner) void load();
 	});
 

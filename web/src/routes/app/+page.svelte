@@ -20,11 +20,11 @@
 	import StatusPill from '../../lib/components/agenda/StatusPill.svelte';
 
 	const STEP_LINKS: Record<string, string> = {
-		hours: '/app/reglages#horaires',
-		services: '/app/reglages#actes',
-		practitioners: '/app/reglages#praticiens',
-		team: '/app/reglages#equipe',
-		booking: '/app/reglages#reservation',
+		hours: '/app/reglages/horaires',
+		services: '/app/reglages/actes',
+		practitioners: '/app/reglages/praticiens',
+		team: '/app/reglages/equipe',
+		booking: '/app/reglages/reservation',
 		import: '/app/import',
 		install: '/app/installer',
 		poster: '/app/reglages/affiche'

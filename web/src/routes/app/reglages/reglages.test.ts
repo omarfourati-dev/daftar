@@ -68,6 +68,22 @@ describe('/app/reglages – practice data (owner)', () => {
 		await vi.waitFor(() => expect(auth.user?.practice?.name).toBe('Cabinet du Lac – Dr Ben Salah'));
 	});
 
+	it('sends old links of the first steps (/app/reglages#horaires …) to the section itself', async () => {
+		mockApi({ 'GET /api/practice': () => json(200, practice()) });
+		for (const section of ['horaires', 'actes', 'praticiens', 'equipe', 'reservation']) {
+			history.replaceState(null, '', `/app/reglages#${section}`);
+			const { unmount } = render(Cabinet);
+			await vi.waitFor(() => expect(deps.goto).toHaveBeenLastCalledWith(`/app/reglages/${section}`, { replaceState: true }));
+			unmount();
+		}
+		history.replaceState(null, '', '/app/reglages#inconnu');
+		vi.mocked(deps.goto).mockClear();
+		render(Cabinet);
+		expect(await screen.findByLabelText('Nom du cabinet')).toBeInTheDocument();
+		expect(deps.goto).not.toHaveBeenCalled();
+		history.replaceState(null, '', '/');
+	});
+
 	it('shows field errors and sends nothing', async () => {
 		mockApi({ 'GET /api/practice': () => json(200, practice()) });
 		render(Cabinet);

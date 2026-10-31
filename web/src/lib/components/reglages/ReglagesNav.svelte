@@ -37,6 +37,12 @@
 					? OWNER_MORE.slice(2)
 					: []
 	);
+	/** On phones the sections scroll sideways: the current one is brought into view (e.g. after "Premiers pas"). */
+	let nav = $state<HTMLElement>();
+	$effect(() => {
+		void path;
+		nav?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+	});
 	const current = (href: string) => (href === '/app/reglages' ? path === href || path === href + '/' : path === href || path.startsWith(href + '/'));
 	const linkClass = (href: string) =>
 		`flex min-h-11 items-center whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${
@@ -44,7 +50,7 @@
 		}`;
 </script>
 
-<nav aria-label={t('reglages.nav.label')} class="-mx-4 overflow-x-auto px-4 lg:mx-0 lg:px-0">
+<nav bind:this={nav} aria-label={t('reglages.nav.label')} class="-mx-4 overflow-x-auto px-4 lg:mx-0 lg:px-0">
 	<ul class="flex min-w-max gap-2 lg:min-w-0 lg:flex-col lg:gap-0.5">
 		{#each sections as link (link.href)}
 			<li><a href={link.href} class={linkClass(link.href)} aria-current={current(link.href) ? 'page' : undefined}>{t(link.key)}</a></li>

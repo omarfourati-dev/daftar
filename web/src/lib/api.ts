@@ -26,7 +26,7 @@ export class ApiError extends Error {
 /** Swappable in tests (see `mockApi` in src/test-utils.ts). */
 export const deps = {
 	fetch: (...a: Parameters<typeof fetch>) => fetch(...a),
-	goto: (url: string): unknown => goto(url)
+	goto: (url: string, opts?: { replaceState?: boolean }): unknown => goto(url, opts)
 };
 
 type Init = RequestInit & { json?: unknown };
