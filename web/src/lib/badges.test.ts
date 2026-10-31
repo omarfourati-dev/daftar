@@ -18,14 +18,16 @@ describe('badges in the navigation (GET /api/badges every 60 s)', () => {
 	});
 
 	it('counts the products to order apart: they belong to "Stock", not to "Aujourd’hui"', async () => {
-		mockApi({ 'GET /api/badges': () => json(200, { onlineRequests: 1, overdue: 0, stockToOrder: 4 }) });
+		mockApi({ 'GET /api/badges': () => json(200, { onlineRequests: 1, overdue: 0, stockToOrder: 4, hygiene: 3 }) });
 		const badges = new Badges();
 		await badges.refresh();
 		expect(badges.stockToOrder).toBe(4);
+		expect(badges.hygiene).toBe(3);
 		expect(badges.total).toBe(1);
 		mockApi({ 'GET /api/badges': () => json(200, { onlineRequests: 0, overdue: 0 }) }); // an older server
 		await badges.refresh();
 		expect(badges.stockToOrder).toBe(0);
+		expect(badges.hygiene).toBe(0);
 	});
 
 	it('keeps the last counts when the server does not answer', async () => {

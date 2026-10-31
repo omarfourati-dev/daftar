@@ -32,6 +32,7 @@
 		{ href: '/app/caisse', key: 'nav.caisse' },
 		{ href: '/app/rappels', key: 'nav.rappels' },
 		{ href: '/app/stock', key: 'nav.stock' },
+		{ href: '/app/hygiene', key: 'nav.hygiene' },
 		{ href: '/app/statistiques', key: 'nav.statistiques', ownerOnly: true },
 		{ href: '/app/reglages', key: 'nav.reglages' }
 	];
@@ -49,8 +50,13 @@
 	const isAdmin = $derived(auth.user?.role === 'admin');
 	const items = $derived(isAdmin ? ADMIN : STAFF.filter((i) => !i.ownerOnly || auth.user?.role === 'owner'));
 	/** Online requests + overdue appointments next to "Aujourd'hui" (they are handled there), products to order next to
-	 * "Stock"; on phones the menu "Plus" carries the sum of what it hides. */
-	const badgeFor = (href: string) => (isAdmin ? 0 : href === '/app' ? badges.total : href === '/app/stock' ? badges.stockToOrder : 0);
+	 * "Stock", open hygiene tasks next to "Hygiène"; on phones the menu "Plus" carries the sum of what it hides. */
+	const BADGES: Record<string, () => number> = {
+		'/app': () => badges.total,
+		'/app/stock': () => badges.stockToOrder,
+		'/app/hygiene': () => badges.hygiene
+	};
+	const badgeFor = (href: string) => (isAdmin ? 0 : (BADGES[href]?.() ?? 0));
 	const bottom = $derived(items.slice(0, isAdmin ? items.length : 4));
 	const more = $derived(isAdmin ? [] : items.slice(4));
 	const moreBadge = $derived(more.reduce((sum, item) => sum + badgeFor(item.href), 0));

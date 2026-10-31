@@ -19,7 +19,19 @@ describe('AppShell – daily work', () => {
 		badges.onlineRequests = 0;
 		badges.overdue = 0;
 		badges.stockToOrder = 0;
+		badges.hygiene = 0;
 		i18n.setLocale('fr');
+	});
+
+	it('counts the open hygiene tasks next to "Hygiène" (spec stock-hygiène 5.2)', async () => {
+		auth.set('tok', assistant);
+		mockApi({ 'GET /api/auth/me': () => json(200, assistant), 'GET /api/badges': () => json(200, { onlineRequests: 0, overdue: 0, stockToOrder: 1, hygiene: 2 }) });
+		render(AppShell, { props: { path: '/app', children } });
+		const main = within(screen.getByRole('navigation', { name: 'Navigation principale' }));
+		await vi.waitFor(() => expect(main.getByRole('link', { name: /Hygiène/ })).toHaveTextContent('2 à traiter'));
+		const bar = within(screen.getByRole('navigation', { name: 'Navigation rapide' }));
+		expect(bar.getByRole('button', { name: /Plus/ })).toHaveTextContent('3 à traiter');
+		badges.stop();
 	});
 
 	it('counts the products to order next to "Stock", also behind "Plus" on phones (spec stock-hygiène 8)', async () => {

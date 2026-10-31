@@ -62,6 +62,7 @@ describe('AppShell – tools and phone shortcuts (fixlist 2)', () => {
 			'/app/caisse',
 			'/app/rappels',
 			'/app/stock',
+			'/app/hygiene',
 			'/app/statistiques',
 			'/app/reglages',
 			'/app/import',
