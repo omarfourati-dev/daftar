@@ -140,6 +140,14 @@ describe('/app – today at a glance', () => {
 		expect(overdue.getByRole('button', { name: 'Absent' })).toBeInTheDocument();
 	});
 
+	it('shows the card "À commander" with the number of products at their threshold (spec stock-hygiène 8)', async () => {
+		dashboardApi({ 'GET /api/dashboard': () => json(200, { ...dashboard, onlineRequests: [], stockToOrder: 3 }) });
+		render(Page);
+		const card = within(await screen.findByRole('region', { name: 'À commander' }));
+		expect(card.getByText('3 produit(s) au seuil de commande')).toBeInTheDocument();
+		expect(card.getByRole('link', { name: 'Voir la liste' })).toHaveAttribute('href', '/app/stock?tab=commander');
+	});
+
 	it('hides the lists that have nothing to do', async () => {
 		dashboardApi({
 			'GET /api/appointments/overdue': () => json(200, []),

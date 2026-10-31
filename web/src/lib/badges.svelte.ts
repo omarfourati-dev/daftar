@@ -1,6 +1,7 @@
 /**
- * Counters in the navigation (story C2): online requests to confirm and overdue appointments ("Non venus ?"),
- * from `GET /api/badges`, refreshed every 60 s while the app is open and right after the desk handled one.
+ * Counters in the navigation (story C2): online requests to confirm and overdue appointments ("Non venus ?") next to
+ * "Aujourd'hui", products to order next to "Stock" (spec stock-hygiène 8), from `GET /api/badges`, refreshed every
+ * 60 s while the app is open and right after the desk handled one.
  */
 import { api } from './api';
 import type { Badges as BadgeCounts } from './types/agenda';
@@ -10,6 +11,7 @@ const EVERY_MS = 60_000;
 export class Badges {
 	onlineRequests = $state(0);
 	overdue = $state(0);
+	stockToOrder = $state(0);
 	private timer: ReturnType<typeof setInterval> | null = null;
 
 	get total(): number {
@@ -21,6 +23,7 @@ export class Badges {
 			const counts = await api<BadgeCounts>('/api/badges');
 			this.onlineRequests = counts.onlineRequests ?? 0;
 			this.overdue = counts.overdue ?? 0;
+			this.stockToOrder = counts.stockToOrder ?? 0;
 		} catch {
 			/* offline or a short server hiccup: keep the last counts */
 		}

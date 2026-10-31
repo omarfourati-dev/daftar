@@ -12,6 +12,8 @@ export const nav: Messages['nav'] = {
 	rappels: 'التذكيرات',
 	reglages: 'الإعدادات',
 	statistiques: 'الإحصائيات',
+	stock: 'المخزون',
+	hygiene: 'النظافة والتعقيم',
 	toHandle: '{count} للمعالجة',
 	admin: 'الإدارة',
 	tools: 'أدوات',

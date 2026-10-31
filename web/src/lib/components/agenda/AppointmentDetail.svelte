@@ -2,7 +2,8 @@
 	/**
 	 * An appointment opened from the agenda (story B3): who, when, warnings, and the next steps as big buttons
 	 * (requested → confirmed → arrived → in consultation → done, or no-show / cancelled). Online requests are confirmed
-	 * or declined with a ready WhatsApp message in the patient's language. Deposit can be collected here.
+	 * or declined with a ready WhatsApp message in the patient's language. Deposit can be collected here, and the material used
+	 * noted (optional, from the arrival on).
 	 */
 	import { errorText } from '../../agenda/errors';
 	import { untrack } from 'svelte';
@@ -19,6 +20,7 @@
 	import Icon from '../daily/Icon.svelte';
 	import Modal from '../daily/Modal.svelte';
 	import StatusPill from './StatusPill.svelte';
+	import MaterialUsed from '../stock/MaterialUsed.svelte';
 
 	type Props = {
 		appointment: Appointment;
@@ -39,6 +41,8 @@
 	/** After confirming/declining a request: the message to send. */
 	let sendMessage = $state<PatientMessage | null>(null);
 	let receiptId = $state<number | null>(null);
+	/** Material can be noted once the patient is there (spec stock-hygiène 4.2) – optional, folded away. */
+	const MATERIAL_STATUSES: string[] = ['arrived', 'in_treatment', 'done'];
 
 	type Action = { status: AppointmentStatus; key: MessageKey; primary?: boolean };
 	const NEXT: Record<string, Action[]> = {
@@ -204,6 +208,9 @@
 		{/if}
 		{#if a.reminderSentAt}
 			<p class="text-sm text-slate-600">{t('agenda.detail.reminderSent', { date: formatDateTime(a.reminderSentAt) })}</p>
+		{/if}
+		{#if MATERIAL_STATUSES.includes(a.status)}
+			<MaterialUsed appointmentId={a.id} />
 		{/if}
 
 		{#if notice}<p role="status" class="rounded-lg bg-emerald-50 px-3 py-2 font-medium text-emerald-900">{notice}</p>{/if}

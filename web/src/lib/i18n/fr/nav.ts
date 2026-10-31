@@ -11,6 +11,8 @@ export const nav = {
 	rappels: 'Rappels',
 	reglages: 'Réglages',
 	statistiques: 'Statistiques',
+	stock: 'Stock',
+	hygiene: 'Hygiène',
 	toHandle: '{count} à traiter',
 	admin: 'Administration',
 	tools: 'Outils',

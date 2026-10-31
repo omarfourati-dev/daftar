@@ -2,7 +2,8 @@
 	/**
 	 * /app "Aujourd'hui" – the desk's start page: the day in five numbers, online requests to confirm or decline (with a
 	 * WhatsApp message), appointments whose time has passed without arrival ("Non venus ?", story B5), the next
-	 * appointments, and for the owner the "Premiers pas" checklist (story A5) until it is done or hidden.
+	 * appointments, the card "À commander" (spec stock-hygiène 8), and for the owner the "Premiers pas" checklist (story A5)
+	 * until it is done or hidden.
 	 */
 	import { errorText } from '#lib/agenda/errors';
 	import { onMount } from 'svelte';
@@ -311,6 +312,17 @@
 						</li>
 					{/each}
 				</ul>
+			</section>
+		{/if}
+
+		{#if data?.stockToOrder}
+			<section aria-labelledby="stock-card-title" class="card flex flex-wrap items-center gap-3 border-amber-300 bg-amber-50/60">
+				<span class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-amber-100 text-amber-900" aria-hidden="true"><Icon name="alert" /></span>
+				<div class="min-w-0 flex-1">
+					<h2 id="stock-card-title" class="text-lg font-bold">{t('stock.card.title')}</h2>
+					<p class="text-sm text-slate-700">{t('stock.card.count', { count: data.stockToOrder })}</p>
+				</div>
+				<a class="btn-secondary min-h-11" href="/app/stock?tab=commander">{t('stock.card.link')}</a>
 			</section>
 		{/if}
 

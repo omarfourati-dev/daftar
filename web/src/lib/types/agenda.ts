@@ -142,6 +142,8 @@ export interface SeriesCreated {
 export interface Badges {
 	onlineRequests: number;
 	overdue: number;
+	/** Products at their order threshold (spec stock-hygiène 8). */
+	stockToOrder?: number;
 }
 
 /** `GET /api/dashboard`. */
@@ -159,6 +161,8 @@ export interface Dashboard {
 	onlineRequestsCount?: number;
 	/** Owner only (section 16.3): closed cash days not verified yet. */
 	unverifiedCashDays?: { day: string; differenceMillimes: number; closedBy?: string | null }[];
+	/** Products at their order threshold – card "À commander" (spec stock-hygiène 8). */
+	stockToOrder?: number;
 }
 
 export type OnboardingKey = 'hours' | 'services' | 'practitioners' | 'team' | 'booking' | 'import' | 'install' | 'poster';

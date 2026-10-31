@@ -18,7 +18,21 @@ describe('AppShell – daily work', () => {
 		badges.stop();
 		badges.onlineRequests = 0;
 		badges.overdue = 0;
+		badges.stockToOrder = 0;
 		i18n.setLocale('fr');
+	});
+
+	it('counts the products to order next to "Stock", also behind "Plus" on phones (spec stock-hygiène 8)', async () => {
+		auth.set('tok', assistant);
+		mockApi({ 'GET /api/auth/me': () => json(200, assistant), 'GET /api/badges': () => json(200, { onlineRequests: 0, overdue: 0, stockToOrder: 3 }) });
+		render(AppShell, { props: { path: '/app', children } });
+		const main = within(screen.getByRole('navigation', { name: 'Navigation principale' }));
+		await vi.waitFor(() => expect(main.getByRole('link', { name: /Stock/ })).toHaveTextContent('3 à traiter'));
+		const bar = within(screen.getByRole('navigation', { name: 'Navigation rapide' }));
+		expect(bar.getByRole('button', { name: /Plus/ })).toHaveTextContent('3 à traiter');
+		await fireEvent.click(bar.getByRole('button', { name: /Plus/ }));
+		expect(within(screen.getByRole('dialog', { name: 'Plus' })).getByRole('link', { name: /Stock/ })).toHaveTextContent('3 à traiter');
+		badges.stop();
 	});
 
 	it('shows what is waiting to be handled next to "Aujourd’hui" in both navigations', async () => {

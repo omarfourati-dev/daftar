@@ -61,6 +61,7 @@ describe('AppShell – tools and phone shortcuts (fixlist 2)', () => {
 		expect(hrefs(more.getAllByRole('link'))).toEqual([
 			'/app/caisse',
 			'/app/rappels',
+			'/app/stock',
 			'/app/statistiques',
 			'/app/reglages',
 			'/app/import',

@@ -46,6 +46,7 @@ describe('AppShell', () => {
 			['Patients', '/app/patients'],
 			['Caisse', '/app/caisse'],
 			['Rappels', '/app/rappels'],
+			['Stock', '/app/stock'],
 			['Réglages', '/app/reglages']
 		]);
 		expect(mainNav().getByRole('link', { name: 'Agenda' })).toHaveAttribute('aria-current', 'page');
@@ -62,7 +63,7 @@ describe('AppShell', () => {
 		expect(bar.getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual(['/app', '/app/agenda', '/app/salle', '/app/patients']);
 		await fireEvent.click(bar.getByRole('button', { name: 'Plus' }));
 		const more = within(screen.getByRole('dialog', { name: 'Plus' }));
-		expect(more.getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual(['/app/caisse', '/app/rappels', '/app/reglages', '/app/import', '/app/installer']);
+		expect(more.getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual(['/app/caisse', '/app/rappels', '/app/stock', '/app/reglages', '/app/import', '/app/installer']);
 	});
 
 	it('gives the admin the administration and sends him there from /app', async () => {
