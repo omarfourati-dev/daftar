@@ -112,6 +112,60 @@ def test_import_roles_and_subscription(client: TestClient, make_practice: Factor
     assert_problem(upload(client, auth_headers(make_user(make_practice(status="suspended"), "owner"))), 402, "subscription_suspended")
 
 
+def test_demo_practices_cannot_import(client: TestClient, db: Engine, make_practice: Factory, make_user: Factory,
+                                     auth_headers: Factory) -> None:
+    """Security review H1/H2: every visitor is the owner of a demo – no uploads there (the file is never read)."""
+    demo = make_practice(is_demo=True, demo_expires_at=T0 + timedelta(hours=24))
+    for role in ("owner", "assistant"):
+        body = assert_problem(upload(client, auth_headers(make_user(demo, role))), 403, "demo_import_disabled")
+        assert "démo" in body["detail"]
+    assert_problem(upload(client, auth_headers(make_user(demo, "owner")), b"PK broken", "x.xlsx"), 403,
+                   "demo_import_disabled")
+    assert _count(db, import_job) == 0
+
+
+def test_uploads_are_limited_per_user(client: TestClient, make_practice: Factory, make_user: Factory,
+                                      auth_headers: Factory, clock: Any) -> None:
+    """10 uploads per user and hour – failed ones count too (a broken file costs the same parsing)."""
+    p = make_practice()
+    owner, assistant = make_user(p, "owner"), make_user(p, "assistant")
+    h = auth_headers(owner)
+    for i in range(10):
+        data, name = (PATIENTS, "patients.xlsx") if i % 2 else (b"PK broken", "x.xlsx")
+        assert upload(client, h, data, name).status_code in (201, 422)
+    res = upload(client, h)
+    assert_problem(res, 429, "too_many_requests")
+    assert int(res.headers["Retry-After"]) > 0
+    assert upload(client, auth_headers(assistant)).status_code == 201  # per user, not per practice
+    clock.advance(hours=1, seconds=1)
+    assert upload(client, h).status_code == 201
+
+
+def test_at_most_three_open_imports_per_practice(client: TestClient, db: Engine, make_practice: Factory,
+                                                 make_user: Factory, auth_headers: Factory, clock: Any) -> None:
+    """Security review H2: a new upload deletes the oldest open job (each keeps up to 2 MB for 24 h)."""
+    p = make_practice()
+    owner, assistant = make_user(p, "owner"), make_user(p, "assistant")
+    other = make_user(make_practice(), "owner")
+    other_job = upload(client, auth_headers(other)).json()["id"]
+    h = auth_headers(owner)
+    done = upload(client, h).json()["id"]
+    assert client.post(f"/api/imports/{done}/commit", json={"kind": "patients", "mapping": MAPPING}, headers=h).status_code == 200
+    jobs = []
+    for user in (owner, assistant, owner, assistant):
+        clock.advance(minutes=1)
+        jobs.append(upload(client, auth_headers(user)).json()["id"])
+    with db.connect() as conn:
+        open_jobs = conn.execute(select(import_job.c.id).where(import_job.c.practice_id == p.id,
+                                                               import_job.c.committed_at.is_(None))
+                                 .order_by(import_job.c.created_at)).scalars().all()
+        kept = {str(i) for i in conn.execute(select(import_job.c.id)).scalars()}
+    assert [str(i) for i in open_jobs] == jobs[1:]
+    assert {done, other_job} <= kept  # the report of a committed import and other practices stay
+    assert_problem(client.post(f"/api/imports/{jobs[0]}/sheet", json={"sheet": "Patients", "headerRow": 1},
+                               headers=h), 404, "not_found")
+
+
 def test_jobs_of_other_practices_and_unknown_jobs_are_404(client: TestClient, owner: Any, make_user: Factory,
                                                          auth_headers: Factory) -> None:
     job = upload(client, auth_headers(owner)).json()["id"]

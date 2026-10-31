@@ -7,7 +7,7 @@ from datetime import datetime
 
 import pytest
 
-from daftar.import_files import MAX_BYTES, ImportFileError, read_table, read_workbook
+from daftar.import_files import MAX_BYTES, MAX_PART_UNZIPPED, MAX_UNZIPPED, ImportFileError, read_table, read_workbook
 from tests.import_helpers import csv_bytes, xls_biff2, xlsx
 
 
@@ -119,6 +119,62 @@ def test_zip_bombs_are_refused() -> None:
     assert len(out.getvalue()) < MAX_BYTES
     with pytest.raises(ImportFileError) as caught:
         read_workbook("bomb.xlsx", out.getvalue())
+    assert caught.value.code == "file_too_complex"
+
+
+def _shared_strings_bomb(entries: int) -> bytes:
+    """A workbook whose ``xl/sharedStrings.xml`` holds "Nom" plus ``entries`` one-letter strings (security review H1:
+    3.4 million of them are 57.8 MB unpacked, 142 KB packed, and cost openpyxl ~300 MB of memory). The sheet uses
+    the first two: ``[["Nom"], ["a"]]``."""
+    main = b"http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    parts = {
+        "xl/sharedStrings.xml": b'<sst xmlns="' + main + b'"><si><t>Nom</t></si>' + b"<si><t>a</t></si>" * entries + b"</sst>",
+    }
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(xlsx(("Patients", [["Nom"], ["a"]])))) as source,             zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            data = source.read(info.filename)
+            if info.filename == "xl/worksheets/sheet1.xml":
+                data = data.replace(b't="inlineStr"><is><t>Nom</t></is>', b't="s"><v>0</v>')
+                data = data.replace(b't="inlineStr"><is><t>a</t></is>', b't="s"><v>1</v>')
+            elif info.filename == "[Content_Types].xml":
+                data = data.replace(b"</Types>", b'<Override PartName="/xl/sharedStrings.xml" ContentType="application/'
+                                    b'vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>')
+            elif info.filename == "xl/_rels/workbook.xml.rels":
+                data = data.replace(b"</Relationships>", b'<Relationship Id="rIdStrings" Type="http://schemas.openxmlformats'
+                                    b'.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>'
+                                    b"</Relationships>")
+            target.writestr(info.filename, data)
+        for name, data in parts.items():
+            target.writestr(name, data)
+    return out.getvalue()
+
+
+def test_limits_per_zip_entry_and_in_total() -> None:
+    assert (MAX_PART_UNZIPPED, MAX_UNZIPPED) == (5 * 1024 * 1024, 20 * 1024 * 1024)
+    small = _shared_strings_bomb(2_000)  # ~34 KB of shared strings
+    assert read_workbook("ok.xlsx", small).sheets["Patients"] == [["Nom"], ["a"]]  # read through the shared strings
+    # the shared strings alone are over the limit per entry – the total is not
+    with pytest.raises(ImportFileError) as caught:
+        read_workbook("bomb.xlsx", small, max_part=16 * 1024, max_total=10 * 1024 * 1024)
+    assert (caught.value.status, caught.value.code) == (422, "file_too_complex")
+    # every worksheet has the same limit, wherever the workbook keeps it
+    sheet = xlsx(("Patients", [["Nom", "Prénom"]] + [[f"Nom {i}", f"Prénom {i}"] for i in range(300)]))
+    assert read_workbook("ok.xlsx", sheet, max_part=1024 * 1024, max_total=1024 * 1024)
+    with pytest.raises(ImportFileError) as caught:
+        read_workbook("big-sheet.xlsx", sheet, max_part=4 * 1024, max_total=1024 * 1024)
+    assert caught.value.code == "file_too_complex"
+    # each entry under its limit, but all together over the total
+    with pytest.raises(ImportFileError) as caught:
+        read_workbook("many.xlsx", small, max_part=1024 * 1024, max_total=32 * 1024)
+    assert caught.value.code == "file_too_complex"
+
+
+def test_shared_strings_bomb_with_the_real_limits() -> None:
+    bomb = _shared_strings_bomb(330_000)  # 5.6 MB unpacked: under the old 60 MB, over the 5 MB per entry
+    assert len(bomb) < 100 * 1024
+    with pytest.raises(ImportFileError) as caught:
+        read_workbook("bomb.xlsx", bomb)
     assert caught.value.code == "file_too_complex"
 
 

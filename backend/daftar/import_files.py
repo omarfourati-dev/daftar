@@ -4,8 +4,11 @@
 - CSV/TXT: UTF-8 with or without BOM, UTF-16 with BOM (Excel "Texte Unicode"), otherwise Windows-1256 when the
   text is mainly Arabic, otherwise Windows-1252; delimiter ``;`` ``,`` or tab – whichever splits the first lines most
   consistently.
-- Limits: 2 MB per file (413), 20 000 data rows and 100 columns per sheet (422), 60 MB uncompressed xlsx content
-  (zip bombs, 422). Cells keep their type (text, int, float, datetime, bool); empty cells are ``None``.
+- Limits: 2 MB per file (413), 20 000 data rows and 100 columns per sheet (422). Zip bombs (422
+  ``file_too_complex``): every entry of an xlsx at most 5 MB unpacked – ``xl/sharedStrings.xml`` and every worksheet,
+  wherever the workbook keeps them (openpyxl loads the shared strings completely, even read-only: security review
+  H1) – and 20 MB in total. ``zipfile`` enforces the declared sizes while reading (CRC/size check), so they cannot
+  be faked. Cells keep their type (text, int, float, datetime, bool); empty cells are ``None``.
 """
 
 from __future__ import annotations
@@ -24,7 +27,8 @@ MAX_BYTES = 2 * 1024 * 1024
 MAX_ROWS = 20_000
 MAX_COLUMNS = 100
 MAX_HEADER_ROW = 20
-MAX_UNZIPPED = 60 * 1024 * 1024
+MAX_PART_UNZIPPED = 5 * 1024 * 1024
+MAX_UNZIPPED = 20 * 1024 * 1024
 CSV_SHEET = "CSV"
 _OLE2 = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 _BIFF_STREAMS = (b"\x09\x00\x04\x00", b"\x09\x02\x06\x00", b"\x09\x04\x06\x00")
@@ -74,11 +78,12 @@ def _trim(row: list[Any] | tuple[Any, ...]) -> list[Any]:
 
 # --- formats ---------------------------------------------------------------------------------------------------
 
-def _read_xlsx(data: bytes) -> Book:
+def _read_xlsx(data: bytes, max_part: int, max_total: int) -> Book:
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             names = archive.namelist()
-            if sum(info.file_size for info in archive.infolist()) > MAX_UNZIPPED:
+            sizes = [info.file_size for info in archive.infolist()]
+            if any(size > max_part for size in sizes) or sum(sizes) > max_total:
                 raise ImportFileError("file_too_complex", "Fichier trop volumineux une fois décompressé.")
     except zipfile.BadZipFile:
         raise ImportFileError("unreadable_file", "Fichier Excel illisible.") from None
@@ -184,13 +189,15 @@ def _read_csv(data: bytes) -> Book:
     return Book("csv", {CSV_SHEET: rows})
 
 
-def read_workbook(filename: str, data: bytes) -> Book:
+def read_workbook(filename: str, data: bytes, *, max_part: int = MAX_PART_UNZIPPED, max_total: int = MAX_UNZIPPED) -> Book:
+    """The sheets of an upload. ``max_part``/``max_total``: unpacked xlsx limits per zip entry and in total (tests
+    turn them down instead of building megabyte files)."""
     if len(data) > MAX_BYTES:
         raise ImportFileError("file_too_large", "Fichier trop volumineux (2 Mo au maximum).", status=413)
     if not data.strip():
         raise ImportFileError("empty_file", "Le fichier est vide.")
     if data.startswith(b"PK\x03\x04"):
-        book = _read_xlsx(data)
+        book = _read_xlsx(data, max_part, max_total)
     elif data.startswith(_OLE2) or data.startswith(_BIFF_STREAMS):
         book = _read_xls(data)
     elif filename.lower().endswith((".csv", ".txt", ".tsv")) and not data.startswith(_BINARY):

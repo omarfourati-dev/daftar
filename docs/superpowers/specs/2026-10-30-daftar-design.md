@@ -464,6 +464,11 @@ und legen die Zuordnung der Spalten **selbst in der Oberfläche** fest.
 - Tabelle `import_job(id UUID, practice_id, created_by, filename, file_bytes BYTEA, created_at, expires_at,
   committed_at)` – die Datei wird beim Commit bzw. spätestens nach 24 h gelöscht (Aufräumjob); `import_template(id,
   practice_id, name, kind, mapping JSONB, options JSONB, created_at)`. Mandantentrennung wie überall.
+- Schutz (Security-Review H1/H2): `.xlsx` je ZIP-Eintrag (u. a. `xl/sharedStrings.xml`, jedes Arbeitsblatt) höchstens
+  5 MB entpackt, insgesamt höchstens 20 MB (422 `file_too_complex`); höchstens 3 offene (nicht übernommene)
+  Import-Jobs je Praxis – ein neuer Upload löscht den ältesten; 10 Uploads je Benutzer und Stunde (429, auch
+  fehlgeschlagene zählen); in Demo-Praxen kein Import (403 `demo_import_disabled`, die Importseite zeigt stattdessen
+  einen Hinweis).
 - Die Checkliste „Erste Schritte“ bekommt „Importer vos patients (Excel)“; Landing und Rechtstexte erwähnen den Import.
 
 ## 15. API-Verträge für die Backlog-Stories (Release 1)

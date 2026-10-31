@@ -18,6 +18,8 @@
 	const STEPS = ['file', 'sheet', 'mapping', 'check', 'done'] as const;
 	type Step = (typeof STEPS)[number];
 	const allowed = ['owner', 'assistant'].includes(String(auth.user?.role));
+	/** In a demo nothing is uploaded (the server answers 403 `demo_import_disabled`): a hint instead of the form. */
+	const demo = !!auth.user?.practice?.isDemo;
 
 	let step = $state<Step>('file');
 	let kind = $state<ImportKind>('patients');
@@ -51,7 +53,7 @@
 	let heading = $state<HTMLHeadingElement>();
 
 	onMount(async () => {
-		if (!allowed) return;
+		if (!allowed || demo) return;
 		try {
 			templates = await api<ImportTemplate[]>('/api/import-templates');
 		} catch {
@@ -304,6 +306,8 @@
 
 	{#if !allowed}
 		<p class="card text-slate-700">{t('importer.forbidden')}</p>
+	{:else if demo}
+		<p class="card max-w-3xl border-amber-200 bg-amber-50 text-amber-900">{t('importer.demo')}</p>
 	{:else}
 		<ol aria-label={t('importer.stepsLabel')} class="flex flex-wrap gap-x-2 gap-y-1 text-sm">
 			{#each STEPS as s, i (s)}

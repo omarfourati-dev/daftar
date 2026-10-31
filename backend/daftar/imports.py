@@ -2,7 +2,9 @@
 
 Flow (owner and assistant; writing steps blocked with 402 while the subscription is suspended):
 - ``POST /api/imports`` (multipart ``file``) → 201 ``{id, filename, sheets, sheet, headerRow, columns:[{index,
-  header, samples}], rowCount, suggestedMapping}`` – the file is kept in ``import_job`` for 24 h at most;
+  header, samples}], rowCount, suggestedMapping}`` – the file is kept in ``import_job`` for 24 h at most; at most 3
+  open (not committed) jobs per practice, a new upload deletes the oldest; 10 uploads per user and hour (429, failed
+  ones count too); 403 ``demo_import_disabled`` in a demo practice (security review H1/H2);
 - ``POST /api/imports/{id}/sheet {sheet, headerRow}`` → same shape (``headerRow`` 1-based, 0 = no header row);
 - ``POST /api/imports/{id}/preview {kind, mapping:{field: column|null}, options}`` → counts, ``errors``,
   ``duplicates``, ``conflicts`` and 10 normalised rows – nothing is written;
@@ -66,7 +68,7 @@ from .import_values import (
     suggest_mapping,
 )
 from .onboarding import flag
-from .problems import ApiError, conflict, not_found, unprocessable
+from .problems import ApiError, conflict, forbidden, not_found, unprocessable
 from .schemas import ApiModel, Lang, Name, TunisDateTime
 from .tables import (
     FREEING_STATUSES,
@@ -89,6 +91,10 @@ JOB_TTL = timedelta(hours=24)
 LIST_LIMIT = 500
 SAMPLE_ROWS = 10
 MAX_TEMPLATES = 100
+#: Open (not committed) import jobs per practice – each keeps its file (up to 2 MB) for 24 h.
+MAX_OPEN_JOBS = 3
+#: Uploads per user and hour; every upload is parsed, failed ones too.
+UPLOADS_PER_HOUR = 10
 OPENING_BALANCE = "Reprise de solde"
 
 Kind = Literal["patients", "appointments"]
@@ -721,8 +727,20 @@ def _plan(conn: Connection, user: Principal, job: Any, body: MappingIn, now: dat
     return plan_appointments(conn, user.pid, table, used, body.options, now)
 
 
+def _make_room(conn: Connection, practice_id: int) -> None:
+    """Deletes the oldest open jobs of the practice so that the next one is the ``MAX_OPEN_JOBS``-th."""
+    is_open = (import_job.c.practice_id == practice_id) & import_job.c.committed_at.is_(None)
+    newest = (select(import_job.c.id).where(is_open)
+              .order_by(import_job.c.created_at.desc(), import_job.c.id.desc()).limit(MAX_OPEN_JOBS - 1))
+    conn.execute(delete(import_job).where(is_open, import_job.c.id.not_in(newest)))
+
+
 @router.post("", status_code=201)
 def upload(user: ImportWriter, ctx: Ctx, conn: Conn, file: Annotated[UploadFile, File()]) -> ImportOut:
+    if user.is_demo:  # every visitor owns a demo practice: no parsing, no stored files there
+        raise forbidden("L'import de fichiers n'est pas disponible dans la démo.", code="demo_import_disabled")
+    ctx.limiter("import-upload", UPLOADS_PER_HOUR, timedelta(hours=1)).enforce(
+        str(user.user_id), "Trop d'imports en une heure. Veuillez réessayer plus tard.")
     data = file.file.read(MAX_BYTES + 1)
     filename = _clean_filename(file.filename)
     try:
@@ -732,6 +750,7 @@ def upload(user: ImportWriter, ctx: Ctx, conn: Conn, file: Annotated[UploadFile,
     except ImportFileError as exc:
         raise _file_error(exc) from None
     now = ctx.clock.now()
+    _make_room(conn, user.pid)
     job_id = conn.execute(
         insert(import_job)
         .values(practice_id=user.pid, created_by=user.user_id, filename=filename, file_bytes=data, created_at=now,

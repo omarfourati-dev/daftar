@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from './+page.svelte';
+import { ApiError, apiErrorMessage } from '#lib/api';
 import { auth } from '#lib/auth.svelte';
 import { i18n } from '#lib/i18n.svelte';
 import { calls, json, mockApi, noContent, problem, sentJson } from '#lib/test-utils';
@@ -186,5 +187,19 @@ describe('/app/import – Excel/CSV import with own mapping (E5)', () => {
 		mockApi({ 'GET /api/import-templates': () => json(200, []) });
 		render(Page);
 		expect(screen.getByLabelText('Choisir un fichier')).toBeInTheDocument();
+	});
+
+	it('explains that the demo does not import files, instead of the form', () => {
+		auth.set('tok', { ...owner, practice: { ...owner.practice!, isDemo: true } });
+		mockApi({}); // not even the templates are asked for
+		render(Page);
+		expect(screen.getByRole('heading', { level: 1, name: 'Importer depuis Excel' })).toBeInTheDocument();
+		expect(screen.getByText(/L’import de fichiers n’est pas disponible dans la démo/)).toBeInTheDocument();
+		expect(screen.queryByLabelText('Choisir un fichier')).not.toBeInTheDocument();
+		expect(calls()).toEqual([]);
+	});
+
+	it('translates the server refusal for a demo', () => {
+		expect(apiErrorMessage(new ApiError(403, '', 'demo_import_disabled'))).toMatch(/pas disponible dans la démo/);
 	});
 });

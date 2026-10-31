@@ -3,6 +3,7 @@ export const importer = {
 	title: 'Importer depuis Excel',
 	intro: 'Reprenez vos patients ou vos rendez-vous depuis un fichier Excel ou CSV. Vous choisissez quelle colonne va où ; rien n’est enregistré avant la dernière étape.',
 	forbidden: 'L’import est réservé au titulaire du cabinet et à l’assistance.',
+	demo: 'L’import de fichiers n’est pas disponible dans la démo. Dans votre cabinet, c’est ici que vous reprendrez vos patients et vos rendez-vous depuis Excel ou CSV – nous vous aidons volontiers au démarrage.',
 	stepsLabel: 'Étapes de l’import',
 	steps: { file: 'Fichier', sheet: 'Feuille', mapping: 'Correspondance', check: 'Vérification', done: 'Import' },
 	kind: 'Que voulez-vous importer ?',
