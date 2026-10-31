@@ -1,0 +1,89 @@
+/* Tutorial-Video Daftar, Bühne 1920 x 1080. Marke wie scenes.css / landing: Teal #0f766e, Dunkel #134e4a, Mint,
+   Amber nur als Akzent, IBM Plex Sans Arabic. Bewegung kommt nur aus tutoriel-scenes.js (seek(t)). */
+:root {
+  --teal: #0f766e; --teal-deep: #134e4a; --mint: #f0fdfa; --mint-strong: #ccfbf1;
+  --amber: #f59e0b; --amber-soft: #fef3c7; --amber-ink: #78350f;
+  --ink: #0f172a; --ink-2: #334155;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #000; }
+body { font-family: "Plex Arabic", sans-serif; color: var(--ink); font-synthesis: none; -webkit-font-smoothing: antialiased; }
+#stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #fff; }
+h1, h2, p { margin: 0; }
+img { display: block; }
+.scene { position: absolute; inset: 0; overflow: hidden; visibility: hidden; }
+.anim { will-change: opacity, transform; }
+
+.bg { position: absolute; inset: 0; }
+.bg-light { background: linear-gradient(180deg, var(--mint) 0%, #ffffff 75%); }
+.bg-light::after { content: ""; position: absolute; inset: 0; background: url("../shared/img/seyes.svg") 0 0 / 616px 400px repeat; opacity: 0.3; }
+[dir="rtl"] .bg-light::after { transform: scaleX(-1); }
+.bg-dark { background: radial-gradient(120% 90% at 30% 20%, #18645d 0%, var(--teal-deep) 55%, #0c3b37 100%); }
+
+/* ---------- Schritt: Kopf, Bildfenster, Merkkarte ---------- */
+.head { position: absolute; top: 34px; inset-inline: 80px; display: flex; flex-direction: column; gap: 10px; }
+.chip { align-self: flex-start; background: var(--teal); color: #fff; font-weight: 700; font-size: 26px; border-radius: 999px; padding: 4px 20px; }
+.head h2 { font-size: 52px; line-height: 1.15; font-weight: 700; color: var(--ink); letter-spacing: -0.01em; }
+[lang="ar"] .head h2 { letter-spacing: 0; line-height: 1.35; font-size: 50px; }
+.head h2 .num { color: var(--teal); margin-inline-end: 18px; font-variant-numeric: tabular-nums; }
+.mini-logo { position: absolute; top: 40px; inset-inline-end: 80px; width: 190px; opacity: 0.9; }
+
+.vp { position: absolute; top: 178px; inset-inline: 80px; height: 692px; overflow: hidden; border-radius: 28px; background: rgb(204 251 241 / 0.55); box-shadow: inset 0 0 0 1px rgb(15 118 110 / 0.12); direction: ltr; }
+.frame { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.frame .shot { display: block; width: 100%; height: auto; }
+.frame.page { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 24px 60px rgb(15 23 42 / 0.2), 0 0 0 1px rgb(15 23 42 / 0.08); }
+.frame.page .bar { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 16px; background: #eef2f6; border-bottom: 1px solid #dbe2ea; }
+.frame.page .bar i { width: 12px; height: 12px; border-radius: 50%; background: #cbd5e1; }
+.frame.page .bar i:nth-child(1) { background: #fca5a5; } .frame.page .bar i:nth-child(2) { background: #fcd34d; } .frame.page .bar i:nth-child(3) { background: #86efac; }
+.frame.page .bar span { margin-inline-start: 16px; height: 26px; border-radius: 13px; background: #fff; color: #475569; font-size: 15px; line-height: 26px; padding: 0 14px; }
+.frame.dialog, .frame.section { background: #fff; border-radius: 18px; overflow: hidden; box-shadow: 0 24px 60px rgb(15 23 42 / 0.22), 0 0 0 1px rgb(15 23 42 / 0.08); }
+.frame.mobile { background: #0f172a; border-radius: 52px; padding: 14px; box-shadow: 0 30px 70px rgb(15 23 42 / 0.3); }
+.frame.mobile .shot-wrap { border-radius: 40px; overflow: hidden; position: relative; }
+.frame.tv { background: #0f172a; border-radius: 20px; padding: 18px; box-shadow: 0 30px 70px rgb(15 23 42 / 0.3); }
+.shot-wrap { position: relative; }
+.ring { position: absolute; border: 5px solid var(--amber); border-radius: 12px; box-shadow: 0 0 0 4000px rgb(15 23 42 / 0.26), 0 0 0 3px rgb(255 255 255 / 0.7); pointer-events: none; opacity: 0; }
+
+.panel { position: absolute; top: 300px; inset-inline-start: 130px; width: 560px; background: #fff; border-radius: 28px; padding: 34px 40px; box-shadow: 0 30px 80px rgb(15 23 42 / 0.28); display: flex; flex-direction: column; gap: 18px; }
+.panel .ico { width: 84px; height: 84px; border-radius: 22px; background: var(--mint-strong); display: grid; place-items: center; }
+.panel .ico svg { width: 60%; height: 60%; }
+.panel ol { margin: 0; padding: 0; list-style: none; counter-reset: s; display: flex; flex-direction: column; gap: 14px; }
+.panel li { counter-increment: s; display: flex; gap: 18px; align-items: center; font-size: 36px; font-weight: 600; color: var(--ink); }
+.panel li::before { content: counter(s); flex: none; width: 52px; height: 52px; border-radius: 50%; background: var(--teal); color: #fff; display: grid; place-items: center; font-size: 28px; font-weight: 700; }
+
+/* ---------- Untertitel und Fortschritt (über allen Szenen) ---------- */
+.subs { position: absolute; left: 0; right: 0; top: 888px; height: 172px; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 5; }
+.subs .box { max-width: 1640px; background: rgb(15 23 42 / 0.86); color: #fff; border-radius: 22px; padding: 16px 38px; font-size: 40px; line-height: 1.38; font-weight: 500; text-align: center; text-wrap: balance; }
+[lang="ar"] .subs .box { font-size: 42px; line-height: 1.6; }
+.subs.on-dark .box { background: rgb(0 0 0 / 0.35); }
+.progress { position: absolute; left: 0; bottom: 0; height: 8px; background: var(--amber); z-index: 6; }
+[dir="rtl"] .progress { left: auto; right: 0; }
+
+/* ---------- Kapiteltafel ---------- */
+.chapter-card { position: absolute; inset-inline: 160px; top: 200px; display: flex; flex-direction: column; gap: 26px; color: #fff; }
+.chapter-card .no { width: 190px; height: 190px; border-radius: 50%; background: var(--amber); color: var(--teal-deep); display: grid; place-items: center; font-size: 120px; font-weight: 700; }
+.chapter-card .lbl { font-size: 34px; font-weight: 600; color: #99f6e4; letter-spacing: 0.04em; text-transform: uppercase; }
+[lang="ar"] .chapter-card .lbl { letter-spacing: 0; text-transform: none; }
+.chapter-card h1 { font-size: 96px; line-height: 1.1; font-weight: 700; letter-spacing: -0.015em; }
+[lang="ar"] .chapter-card h1 { letter-spacing: 0; line-height: 1.4; font-size: 90px; }
+.chapter-card .who { font-size: 40px; color: #d5f5ef; }
+
+/* ---------- Intro / Outro ---------- */
+.big { position: absolute; inset-inline-start: 140px; top: 150px; width: 1000px; display: flex; flex-direction: column; gap: 32px; color: #fff; }
+.big .logo { width: 520px; }
+.big h1 { font-size: 104px; line-height: 1.08; font-weight: 700; letter-spacing: -0.02em; }
+[lang="ar"] .big h1 { letter-spacing: 0; line-height: 1.35; }
+.big p { font-size: 42px; line-height: 1.4; color: #d5f5ef; }
+.big .mail { font-size: 40px; font-weight: 700; color: #fff; direction: ltr; unicode-bidi: isolate; }
+.price { align-self: flex-start; display: inline-flex; flex-direction: column; gap: 2px; background: var(--amber-soft); color: var(--amber-ink); border-radius: 26px; padding: 14px 36px; font-size: 34px; }
+.big .price { color: var(--amber-ink); font-size: 34px; line-height: 1.3; }
+.price strong { font-weight: 700; }
+.price span { font-size: 0.82em; }
+.qr-block { position: absolute; inset-inline-end: 170px; top: 210px; width: 470px; display: flex; flex-direction: column; align-items: center; gap: 22px; }
+.qr-card { width: 470px; background: #fff; border-radius: 36px; padding: 26px; box-shadow: 0 30px 80px rgb(0 0 0 / 0.3); }
+.qr-card img { width: 100%; height: auto; }
+.qr-block .cap { color: #fff; font-size: 40px; font-weight: 700; text-align: center; }
+.qr-block .url { color: #d5f5ef; font-size: 34px; font-weight: 600; direction: ltr; }
+
+/* Vorschau im Browser */
+.preview body { background: #334155; }
+.preview #stage { transform-origin: 0 0; }
