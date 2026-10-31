@@ -144,6 +144,15 @@ def test_the_horizon_counts_tunis_days(client: TestClient, lac: Any, db: Any, cl
     assert slot_times(client, "cabinet-lac", date=TUE.isoformat(), serviceId=s) != []
 
 
+def test_the_horizon_is_days_from_today_also_for_a_booking(client: TestClient, lac: Any, db: Any) -> None:
+    """Code review N9: horizon N = today and the next N days – the web's day strip shows exactly these (N + 1)."""
+    with db.begin() as conn:
+        conn.execute(update(practice).where(practice.c.id == lac.id).values(booking_horizon_days=3))
+    s = lac.consultation.id
+    assert book(client, "cabinet-lac", serviceId=s, startsAt=iso(MON, "17:00")).status_code == 201  # today + 3
+    assert_problem(book(client, "cabinet-lac", serviceId=s, startsAt=iso(TUE, "09:00"), phone="20 999 888"), 422, "outside_horizon")
+
+
 def test_slots_leave_out_booked_times(client: TestClient, lac: Any, make_patient: Factory, make_appointment: Factory) -> None:
     a, b = lac.practitioners
     make_appointment(make_patient(lac), practitioner_id=a.id, starts_at=at(MON, "09:00"))

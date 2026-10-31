@@ -8,9 +8,12 @@ export const bookingDeps = {
 	replace: (url: string): void => location.replace(url)
 };
 
-/** The bookable calendar days: today and the next `horizon - 1` days (`YYYY-MM-DD`). */
+/**
+ * The bookable calendar days (`YYYY-MM-DD`): today and the next `horizon` days – the horizon counts days from today,
+ * like the server (last bookable day = today + horizon; code review N9).
+ */
 export function bookingDays(today: string, horizon: number): string[] {
-	return Array.from({ length: Math.max(1, Math.min(horizon, 365)) }, (_, i) => addDays(today, i));
+	return Array.from({ length: Math.max(0, Math.min(horizon, 365)) + 1 }, (_, i) => addDays(today, i));
 }
 
 function intl(): string {

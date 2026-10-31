@@ -5,7 +5,8 @@ Practice pages (``/r/<slug>`` and ``https://<slug>.<BASE_DOMAIN>``); suspended o
   ``onlineBookingEnabled``, ``horizonDays``, ``minNoticeHours``, ``isDemo`` (the page shows a demo banner and
   ``noindex`` – security review N3), online-bookable active services and practitioners
 - ``GET /api/public/practices/{slug}/slots?date=&serviceId=&practitionerId=`` → ``{date, slots: ["09:00", …]}`` –
-  the staff rules (grid, hours, closures, booked times) plus the minimum notice, the horizon (Tunis days from today)
+  the staff rules (grid, hours, closures, booked times) plus the minimum notice, the horizon (Tunis days from today:
+  today and the next N days, the last one is today + N – the web's day strip shows the same, code review N9)
   and ``booking_max_per_day`` online bookings a day; 404 ``booking_disabled``; 422 ``invalid_service`` /
   ``invalid_practitioner``
 - ``POST /api/public/practices/{slug}/bookings {serviceId, practitionerId?, startsAt, firstName, lastName, phone, lang,

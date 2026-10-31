@@ -313,7 +313,7 @@ reserviert: www, app, api, admin, demo, mail, smtp, static, assets, daftar, stat
 `status 'pilot'|'trial'|'active'|'suspended'` (Standard pilot), `pilot_until DATE`, `admin_notes` (nur Admin),
 `weekly_hours JSONB` (ISO-Wochentag → Liste von Zeitfenstern, z. B. `{"1":[["08:00","12:30"],["14:00","18:00"]],…,"7":[]}`;
 **ersetzt `day_start`/`day_end`** – Agenda-Bereich = früheste bis späteste Öffnungszeit), Online-Buchung:
-`online_booking_enabled` (false), `online_auto_confirm` (false), `booking_horizon_days` (30),
+`online_booking_enabled` (false), `online_auto_confirm` (false), `booking_horizon_days` (30; Horizont in Tagen ab heute: heute und die nächsten N Tage – letzter buchbarer Tag = heute + N, in API und Tagesleiste der Buchungsseite gleich, Code-Review N9),
 `booking_min_notice_hours` (2), `booking_max_per_day` (20), `booking_block_no_shows` (2; 0 = aus).
 
 Neue Tabellen:
