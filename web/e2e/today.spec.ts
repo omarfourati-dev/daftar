@@ -75,3 +75,42 @@ test('Arabic – the daily pages read right to left', async ({ page, request }) 
 		await axe(page);
 	}
 });
+
+test('A5 – the first steps open the settings sections (no missing anchors)', async ({ page, request }) => {
+	const p = await newPractice(request);
+	await signIn(page, p);
+	await page.goto(APP + '/app');
+	const steps = page.getByRole('region', { name: 'Premiers pas' });
+	await steps.getByRole('link', { name: 'Praticiens' }).click();
+	await expect(page).toHaveURL(/\/app\/reglages\/praticiens$/);
+	await expect(page.getByRole('heading', { level: 2, name: 'Praticiens' })).toBeVisible();
+	await page.goto(APP + '/app/reglages#equipe'); // an old link with an anchor
+	await expect(page).toHaveURL(/\/app\/reglages\/equipe$/);
+	await expect(page.getByRole('heading', { level: 2, name: 'Équipe' })).toBeVisible();
+});
+
+test('B4 – on a phone: appointment by phone and patient search from "Aujourd’hui" and the menu "Plus"', async ({ page, request }) => {
+	const p = await newPractice(request);
+	const patient = await newPatient(p, { firstName: 'Rania', lastName: 'Mobile' });
+	await page.setViewportSize({ width: 390, height: 844 });
+	await signIn(page, p);
+	await page.goto(APP + '/app');
+	await page.getByRole('button', { name: 'Rendez-vous par téléphone' }).click();
+	const phone = page.getByRole('dialog', { name: 'Rendez-vous par téléphone' });
+	await expect(phone.getByLabel('Numéro de l’appelant')).toBeVisible();
+	await phone.getByRole('button', { name: 'Fermer' }).last().click();
+
+	await page.getByRole('navigation', { name: 'Navigation rapide' }).getByRole('button', { name: 'Plus' }).click();
+	const more = page.getByRole('dialog', { name: 'Plus' });
+	await expect(more.getByRole('link', { name: 'Importer' })).toHaveAttribute('href', '/app/import');
+	await expect(more.getByRole('link', { name: 'Abonnement' })).toHaveAttribute('href', '/app/abonnement');
+	await axe(page);
+	await more.getByRole('button', { name: 'Rechercher un patient' }).click();
+	const search = page.getByRole('combobox', { name: 'Rechercher un patient' });
+	await expect(search).toBeFocused();
+	await search.fill('Mobile');
+	await page.getByRole('option', { name: /Rania Mobile/ }).click();
+	await expect(page).toHaveURL(new RegExp(`/app/patients/${patient.id}$`));
+	await expect(search).toBeHidden(); // folded away again on the new page
+	expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+});
