@@ -12,7 +12,8 @@ practice that is not suspended.
   else the first free one (code review H1, :func:`daftar.scheduling.choose_practitioner`) – also when moving or
   reopening an appointment that has none.
 - ``PATCH /{id}`` → ``{appointment, conflicts: []}``; time, length, practitioner and patient only change while the
-  appointment is requested, scheduled or confirmed (409 ``appointment_locked``); a new start time clears
+  appointment is requested, scheduled or confirmed (409 ``appointment_locked``) – sent unchanged they are no change
+  (code review N1: a note on an appointment that has started is fine); a new start time clears
   ``reminderSentAt`` (the reminder named the old time – code review M1) · ``DELETE /{id}`` → 204
 - ``POST /{id}/status {status}`` → Appointment (transitions: :data:`TRANSITIONS`, 409 ``invalid_transition``;
   arrival and treatment only on the day – 409 ``not_today`` –, no-show only after the start – 409 ``not_started``).
@@ -49,6 +50,8 @@ router = APIRouter(prefix="/api/appointments", tags=["appointments"])
 AppointmentStatus = Literal["requested", "scheduled", "confirmed", "arrived", "in_treatment", "done", "no_show", "cancelled"]
 #: Statuses in which an appointment can still be moved (time, length, practitioner, patient).
 OPEN = ("requested", "scheduled", "confirmed")
+#: Changing one of these is a move (checked like a new booking).
+MOVING_FIELDS = frozenset({"starts_at", "duration_min", "practitioner_id", "patient_id"})
 TRANSITIONS: dict[str, frozenset[str]] = {
     "requested": frozenset({"scheduled", "confirmed", "cancelled"}),
     "scheduled": frozenset({"confirmed", "arrived", "in_treatment", "done", "no_show", "cancelled"}),
@@ -338,7 +341,12 @@ def create_appointment(body: AppointmentIn, user: StaffWriter, ctx: Ctx, conn: C
 def patch_appointment(appointment_id: int, body: AppointmentPatch, user: StaffWriter, ctx: Ctx, conn: Conn) -> AppointmentResult:
     current = _row(conn, user.pid, appointment_id)
     values = body.model_dump(exclude_unset=True, by_alias=False)
-    moving = bool(values.keys() & {"starts_at", "duration_min", "practitioner_id", "patient_id"})
+    # code review N1: a value sent unchanged (the dialog sends the time with a new note) is no move – no lock, no
+    # "in the past" or "outside the hours" for an appointment that has started or whose hours changed since
+    for name in MOVING_FIELDS:
+        if name in values and values[name] == getattr(current, name):
+            del values[name]
+    moving = bool(values.keys() & MOVING_FIELDS)
     if moving and current.status not in OPEN:
         raise conflict("Ce rendez-vous est terminé ou annulé : il ne peut plus être déplacé.", code="appointment_locked")
     if "patient_id" in values:

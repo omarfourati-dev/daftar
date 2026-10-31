@@ -179,7 +179,27 @@ describe('AppointmentForm – new appointment in a few clicks', () => {
 		await fireEvent.input(dialog.getByLabelText('Heure'), { target: { value: '09:00' } });
 		await fireEvent.click(dialog.getByRole('button', { name: 'Enregistrer le rendez-vous' }));
 		await vi.waitFor(() => expect(onsaved).toHaveBeenCalled());
-		expect(sentJson('PATCH /api/appointments/50')).toMatchObject({ startsAt: '2026-10-31T09:00:00+01:00', practitionerId: 11, durationMin: 30 });
+		expect(sentJson('PATCH /api/appointments/50')).toEqual({ startsAt: '2026-10-31T09:00:00+01:00' }); // only what changed
+	});
+
+	it('a note or a deposit on an appointment that has started sends only that (code review N1)', async () => {
+		const started = appt({ id: 52, status: 'confirmed', startsAt: '2026-10-30T09:00:00+01:00', notes: '' });
+		mockApi({ 'PATCH /api/appointments/52': () => json(200, { appointment: { ...started, notes: 'En retard', depositRequiredMillimes: 20000 } }) });
+		const { onsaved } = open({ appointment: started, day: undefined, time: undefined, practitionerId: undefined });
+		await fireEvent.input(screen.getByLabelText('Note interne'), { target: { value: 'En retard' } });
+		await fireEvent.input(screen.getByLabelText('Acompte demandé (DT)'), { target: { value: '20' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Enregistrer le rendez-vous' }));
+		await vi.waitFor(() => expect(onsaved).toHaveBeenCalled());
+		expect(sentJson('PATCH /api/appointments/52')).toEqual({ notes: 'En retard', depositRequiredMillimes: 20000 });
+	});
+
+	it('saving without any change sends nothing', async () => {
+		const same = appt({ id: 53 });
+		mockApi({});
+		const { onsaved } = open({ appointment: same, day: undefined, time: undefined, practitionerId: undefined });
+		await fireEvent.click(screen.getByRole('button', { name: 'Enregistrer le rendez-vous' }));
+		await vi.waitFor(() => expect(onsaved).toHaveBeenCalledWith(same));
+		expect(calls()).toEqual([]);
 	});
 
 	it('works in Arabic', async () => {

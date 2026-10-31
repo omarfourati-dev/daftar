@@ -158,6 +158,23 @@
 		};
 	}
 
+	/**
+	 * Editing: only what really changed (code review N1) – a note or a deposit on an appointment that has already
+	 * started would otherwise send its time again and be refused as "in the past".
+	 */
+	function changedFields(before: Appointment, body: ReturnType<typeof common> & { depositRequiredMillimes: number }) {
+		const changes: Partial<typeof body> = {};
+		if (Date.parse(body.startsAt) !== Date.parse(before.startsAt)) changes.startsAt = body.startsAt;
+		if (body.durationMin !== before.durationMin) changes.durationMin = body.durationMin;
+		if (body.reason !== before.reason) changes.reason = body.reason;
+		if (body.serviceId !== (before.serviceId ?? null)) changes.serviceId = body.serviceId;
+		if (body.practitionerId !== (before.practitionerId ?? null)) changes.practitionerId = body.practitionerId;
+		if (body.notes !== before.notes) changes.notes = body.notes;
+		if (body.depositRequiredMillimes !== before.depositRequiredMillimes) changes.depositRequiredMillimes = body.depositRequiredMillimes;
+		if (body.patientId !== before.patient.id) changes.patientId = body.patientId;
+		return changes;
+	}
+
 	/** Checks before any request; false (with the message shown) when something is missing. */
 	function ready(): boolean {
 		error = '';
@@ -188,10 +205,13 @@
 		busy = true;
 		try {
 			const body = { ...common((await ensurePatient()).id), depositRequiredMillimes: depositMillimes };
-			const saved = current
-				? await api<AppointmentSaved>(`/api/appointments/${current.id}`, { method: 'PATCH', json: body })
-				: await api<AppointmentSaved>('/api/appointments', { method: 'POST', json: body });
-			onsaved(savedAppointment(saved));
+			if (current) {
+				const changes = changedFields(current, body);
+				const saved = Object.keys(changes).length
+					? await api<AppointmentSaved>(`/api/appointments/${current.id}`, { method: 'PATCH', json: changes })
+					: current;
+				onsaved(savedAppointment(saved));
+			} else onsaved(savedAppointment(await api<AppointmentSaved>('/api/appointments', { method: 'POST', json: body })));
 		} catch (err) {
 			failed(err);
 		} finally {

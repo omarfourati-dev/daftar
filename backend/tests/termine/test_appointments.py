@@ -9,10 +9,10 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from daftar import scheduling
-from daftar.tables import appointment
+from daftar.tables import appointment, practice
 from tests.helpers import assert_problem
 from tests.termine.conftest import FRI, MON, SAT, TUE, Factory, at, iso
 
@@ -354,6 +354,29 @@ def test_finished_appointments_cannot_be_moved(client: TestClient, lac: Any, ids
     assert_problem(client.patch(f"/api/appointments/{done.id}", json={"startsAt": iso(MON, "09:00")}, headers=h), 409, "appointment_locked")
     res = client.patch(f"/api/appointments/{done.id}", json={"notes": "Bien passé", "depositRequiredMillimes": 0}, headers=h)
     assert res.status_code == 200 and res.json()["appointment"]["notes"] == "Bien passé"
+    same = {"startsAt": iso(FRI, "08:00"), "durationMin": 30, "patientId": ids["amira"].id, "practitionerId": None, "notes": "Payé"}
+    res = client.patch(f"/api/appointments/{done.id}", json=same, headers=h)  # the dialog sends the unchanged time too
+    assert res.status_code == 200, res.text
+
+
+def test_notes_and_deposit_of_a_started_appointment_can_change(
+    client: TestClient, lac: Any, ids: dict[str, Any], make_appointment: Factory, as_user: Factory, clock: Any, db: Any
+) -> None:
+    """Code review N1: only a real change of time, length, practitioner or patient is a move (with its checks)."""
+    h = as_user(lac, "assistant")
+    late = make_appointment(ids["amira"], practitioner_id=ids["a"], starts_at=at(FRI, "09:00"), status="confirmed")
+    clock.set(at(FRI, "09:20"))
+    url = f"/api/appointments/{late.id}"
+    assert client.patch(url, json={"notes": "En retard"}, headers=h).status_code == 200
+    unchanged = {"startsAt": iso(FRI, "09:00"), "durationMin": 30, "practitionerId": ids["a"], "patientId": ids["amira"].id,
+                 "depositRequiredMillimes": 20_000}
+    res = client.patch(url, json=unchanged, headers=h)
+    assert res.status_code == 200, res.text
+    assert res.json()["appointment"]["depositRequiredMillimes"] == 20_000
+    with db.begin() as conn:  # the opening hours changed since: the appointment now lies outside them
+        conn.execute(update(practice).where(practice.c.id == lac.id).values(weekly_hours={"5": [["10:00", "12:00"]]}))
+    assert client.patch(url, json={**unchanged, "notes": "x"}, headers=h).status_code == 200
+    assert_problem(client.patch(url, json={"startsAt": iso(FRI, "09:15")}, headers=h), 422, "in_past")
 
 
 def test_delete_an_appointment(client: TestClient, lac: Any, ids: dict[str, Any], make_appointment: Factory, as_user: Factory) -> None:
