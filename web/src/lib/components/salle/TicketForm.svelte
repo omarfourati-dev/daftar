@@ -51,7 +51,7 @@
 	}
 </script>
 
-<Modal title={t('salle.form.title')} {onclose}>
+<Modal title={t('salle.form.title')} {onclose} guard={!created}>
 	{#if created}
 		<div class="flex flex-col items-center gap-2">
 			<p class="text-6xl font-bold text-brand-800 tabular-nums">{created.ticketNo}</p>

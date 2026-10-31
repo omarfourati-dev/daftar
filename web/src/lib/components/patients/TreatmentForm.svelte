@@ -51,7 +51,7 @@
 	}
 </script>
 
-<Modal title={t('patients.treatmentForm.title')} {onclose}>
+<Modal title={t('patients.treatmentForm.title')} {onclose} guard>
 	<form id="treatment-form" class="flex flex-col gap-4" onsubmit={submit} novalidate>
 		<label class="label"
 			>{t('patients.treatmentForm.label')}<input

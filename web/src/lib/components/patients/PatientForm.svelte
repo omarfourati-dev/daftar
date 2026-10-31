@@ -55,7 +55,7 @@
 	}
 </script>
 
-<Modal title={start ? t('patients.form.editTitle') : t('patients.form.newTitle')} {onclose}>
+<Modal title={start ? t('patients.form.editTitle') : t('patients.form.newTitle')} {onclose} guard>
 	<form id="patient-form" class="flex flex-col gap-4" onsubmit={submit} novalidate>
 		<div class="grid gap-3 sm:grid-cols-2">
 			<label class="label">{t('patients.form.firstName')}<input class="input" bind:value={firstName} maxlength="120" required autocomplete="off" data-autofocus /></label>

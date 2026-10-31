@@ -268,7 +268,7 @@
 	}
 </script>
 
-<Modal title={editing ? t('agenda.form.editTitle') : t('agenda.form.newTitle')} {onclose} wide>
+<Modal title={editing ? t('agenda.form.editTitle') : t('agenda.form.newTitle')} {onclose} wide guard>
 	<form id="appointment-form" class="grid gap-5 md:grid-cols-2" onsubmit={submit} novalidate>
 		<fieldset class="flex min-w-0 flex-col gap-3">
 			<legend class="mb-1 text-sm font-semibold text-slate-500">{t('agenda.form.patient')}</legend>
