@@ -230,7 +230,7 @@ Loader mit `ca-pub-4072840905222883`, Googles Einwilligungsfenster, Knopf „Par
   d'attente, impayés, tout sur papier), Funktionen mit Screenshots (`landing/img/`, PNG/WebP; bis echte Screenshots
   da sind: gezeichnete Platzhalter), „Sur tous vos appareils“ inkl. Installationsanleitung (iPhone: Partager → Sur
   l'écran d'accueil; Android/Chrome; Windows/Edge), Sicherheit & Datenschutz, Ablauf in 3 Schritten, Preise
-  („Phase pilote : gratuite“, danach „à partir de 49 DT/mois, sans engagement, tarif préférentiel pour les cabinets
+  („Phase pilote : gratuite“, danach „à partir de 29 DT/mois, sans engagement, tarif préférentiel pour les cabinets
   pilotes“ – Omar kann das ändern), FAQ, Formular „Demander un accès pilote“ (POST `/api/public/pilot-requests`,
   progressive enhancement mit externer `landing/site.js`; ohne JS normaler Form-POST ist nicht nötig – ohne JS
   Hinweis + `mailto:`), Kontakt `info@omarfourati.de`. CTAs: „Essayer la démo“ → `/app/demo`, „Demander un accès pilote“.
@@ -391,7 +391,7 @@ Omar trägt Zahlungen (Virement, espèces) als Admin von Hand ein.
 - `practice` statt `status`/`pilot_until`: `plan_code` (FK `plan`), `status 'pilot'|'trial'|'active'|'past_due'|
   'suspended'|'canceled'` (Standard pilot), `paid_until DATE` (Ende Pilot/bezahlter Zeitraum).
 - `plan(code PK, name_fr, name_ar, price_millimes, period_months, active)`; Startwerte: `pilot` 0/1,
-  `cabinet_mensuel` 49 000/1, `cabinet_annuel` 490 000/12 (Admin kann Preise ändern).
+  `cabinet_mensuel` 29 000/1, `cabinet_annuel` 290 000/12 (seit Migration 0007, vorher 49 000/490 000) (Admin kann Preise ändern).
 - `invoice(id, practice_id, number UNIQUE 'DAF-2026-0001', plan_code, period_start, period_end, amount_millimes,
   status 'open'|'paid'|'void', due_on, paid_at, method 'flouci'|'virement'|'especes'|'autre', provider_payment_id,
   created_at)`.

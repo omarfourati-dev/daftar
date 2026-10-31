@@ -6,7 +6,7 @@ Fonctions : agenda par jour et par semaine avec une colonne par praticien ; cata
 
 Ce que Daftar ne fait pas : pas d'encaissement des paiements des patients, pas d'envoi automatique de SMS, pas de radiographies, pas de facturation CNAM.
 
-Tarifs : phase pilote gratuite ; ensuite à partir de 49 DT par mois, sans engagement, avec un tarif préférentiel pour les cabinets pilotes ; paiement de l'abonnement par Flouci ou virement.
+Tarifs : phase pilote gratuite ; ensuite à partir de 29 DT par mois, sans engagement, avec un tarif préférentiel pour les cabinets pilotes ; paiement de l'abonnement par Flouci ou virement.
 
 Données : hébergement en Allemagne (IONOS SE), connexions chiffrées ; l'application, y compris les pages de réservation, n'utilise ni cookie, ni traceur, ni publicité. Seules les deux pages de présentation (française et arabe) affichent des annonces Google AdSense, avec la fenêtre de consentement de Google. Le cabinet reste responsable des données de ses patients ; Daftar agit comme sous-traitant (article 28 du RGPD).
 

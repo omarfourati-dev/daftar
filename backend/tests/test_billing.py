@@ -141,8 +141,8 @@ def test_job_invoices_active_practices_ten_days_before_the_end(db: Engine, make_
         run_billing(conn, T0)  # idempotent
     rows = _invoices(db)
     assert [(r.practice_id, r.period_start, r.period_end, r.amount_millimes, r.due_on, r.status) for r in rows] == [
-        (due.id, date(2026, 11, 10), date(2026, 12, 9), 49_000, date(2026, 11, 10), "open"),
-        (yearly.id, date(2026, 11, 3), date(2027, 11, 2), 490_000, date(2026, 11, 3), "open"),
+        (due.id, date(2026, 11, 10), date(2026, 12, 9), 29_000, date(2026, 11, 10), "open"),
+        (yearly.id, date(2026, 11, 3), date(2027, 11, 2), 290_000, date(2026, 11, 3), "open"),
     ]
     assert [r.number for r in rows] == ["DAF-2026-0001", "DAF-2026-0002"]
     assert all(r.plan_code == _practice(db, r.practice_id).plan_code for r in rows)
@@ -191,7 +191,7 @@ def test_owner_sees_plan_status_and_invoices(client: TestClient, db: Engine, mak
     assert res.status_code == 200, res.text
     body = res.json()
     assert body["plan"] == {"code": "cabinet_mensuel", "nameFr": "Cabinet – mensuel", "nameAr": "العيادة – شهري",
-                            "priceMillimes": 49_000, "periodMonths": 1}
+                            "priceMillimes": 29_000, "periodMonths": 1}
     assert (body["status"], body["paidUntil"], body["onlinePaymentAvailable"]) == ("active", "2026-10-31", False)
     assert [pl["code"] for pl in body["plans"]] == ["pilot", "cabinet_mensuel", "cabinet_annuel"]
     assert [i["id"] for i in body["invoices"]] == [new.id, old.id]
@@ -405,7 +405,7 @@ def test_admin_creates_the_next_invoice(client: TestClient, db: Engine, make_pra
     res = client.post(f"/api/admin/practices/{renewing.id}/invoices", headers=admin)
     assert res.status_code == 201, res.text
     assert (res.json()["periodStart"], res.json()["periodEnd"], res.json()["amountMillimes"], res.json()["number"]) == (
-        "2027-01-01", "2027-12-31", 490_000, "DAF-2026-0001")
+        "2027-01-01", "2027-12-31", 290_000, "DAF-2026-0001")
     assert_problem(client.post(f"/api/admin/practices/{renewing.id}/invoices", headers=admin), 409, "invoice_exists")
     starting = make_practice(status="trial", plan_code="cabinet_mensuel")
     body = client.post(f"/api/admin/practices/{starting.id}/invoices", headers=admin).json()

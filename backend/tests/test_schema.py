@@ -65,7 +65,7 @@ def test_tables_py_mirrors_the_migrated_schema(db: Engine) -> None:
 def test_plans_are_seeded(db: Engine) -> None:
     with db.connect() as conn:
         rows = conn.execute(select(plan.c.code, plan.c.price_millimes, plan.c.period_months, plan.c.active).order_by(plan.c.price_millimes)).all()
-    assert rows == [("pilot", 0, 1, True), ("cabinet_mensuel", 49_000, 1, True), ("cabinet_annuel", 490_000, 12, True)]
+    assert rows == [("pilot", 0, 1, True), ("cabinet_mensuel", 29_000, 1, True), ("cabinet_annuel", 290_000, 12, True)]
 
 
 def test_practice_defaults(db: Engine) -> None:
