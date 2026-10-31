@@ -1,5 +1,6 @@
 """Demo practices (sections 5, 12, 15): one per visitor, filled with invented data, throttled, deleted after 24 h."""
 
+import random
 from collections import Counter
 from collections.abc import Callable
 from datetime import timedelta
@@ -188,3 +189,69 @@ def test_the_demo_cleanup_job_is_registered() -> None:
 
     job = next(job for job in JOBS if job.name == "demo-cleanup")
     assert job.every == timedelta(minutes=30)
+
+
+def test_an_evening_demo_asks_about_nobody_and_few_patients_missed_appointments(client: TestClient, clock: Any) -> None:
+    """Fixlist 2, through the API: started at 20:15 the day is over – nothing for "Non venus ?" (overdue), at most one
+    no-show today; most patients never missed an appointment."""
+    clock.set(T0 + timedelta(hours=11, minutes=15))
+    headers = {"Authorization": f"Bearer {start(client).json()['token']}"}
+    assert client.get("/api/appointments/overdue", headers=headers).json() == []
+    statuses = Counter(a["status"] for a in client.get("/api/appointments", headers=headers).json())  # today
+    assert (statuses["in_treatment"], statuses["arrived"]) == (1, 3)
+    assert statuses["no_show"] <= 1 and statuses["done"] > 1 and not statuses["scheduled"] and not statuses["confirmed"]
+    patients = client.get("/api/patients?limit=50", headers=headers).json()["items"]
+    counts = Counter(min(p["noShows"], 2) for p in patients)
+    assert counts[0] >= 15 and 2 <= counts[1] <= 8 and 1 <= counts[2] <= 2, counts
+
+
+# --- how realistic the day looks (fixlist 2) – the plan alone, no database needed -------------------------------------
+
+#: Friday 30.10.2026 in Tunis (UTC+1): before opening, the morning, lunch, the afternoon, after closing; and a Sunday.
+NOWS = [T0 - timedelta(hours=2), T0, T0 + timedelta(hours=2, minutes=37), T0 + timedelta(hours=4),
+        T0 + timedelta(hours=7, minutes=20), T0 + timedelta(hours=11, minutes=15), T0 + timedelta(days=2, hours=1)]
+
+
+def planned(now: Any, specialty: str = "generaliste", seed: int = 1) -> demo_module.DemoSeeder:
+    seeder = demo_module.DemoSeeder(None, now, "fr", specialty, random.Random(seed))  # type: ignore[arg-type]
+    seeder.doctors = [101, 102] if specialty != "psychologue" else [101]
+    catalog = DEFAULT_CATALOGS[specialty]
+    seeder.services = [demo_module.Svc(n, i.name_fr, i.name_ar, i.duration_min, 30_000) for n, i in enumerate(catalog, 1)]
+    seeder.plan()
+    return seeder
+
+
+@pytest.mark.parametrize("now", NOWS, ids=lambda now: now.astimezone(TUNIS).strftime("%a-%H%M"))
+@pytest.mark.parametrize("specialty", ["generaliste", "dentiste", "psychologue"])
+def test_today_before_now_is_done_and_nothing_is_overdue(now: Any, specialty: str) -> None:
+    """Fixlist 2: no list of 20 "Non venus ?" – what ended before now is done (at most one no-show today)."""
+    for seed in range(12):
+        seeder = planned(now, specialty, seed)
+        today = now.astimezone(TUNIS).date()
+        todays = [p for p in seeder.plans if p.start.astimezone(TUNIS).date() == today]
+        overdue = [p for p in todays if p.status in ("scheduled", "confirmed") and p.end < now - timedelta(minutes=15)]
+        assert overdue == [], (seed, [(p.start, p.status) for p in overdue])
+        ended = [p for p in todays if p.end <= now and p.status not in ("in_treatment", "arrived")]
+        assert all(p.status in ("done", "no_show") for p in ended), (seed, Counter(p.status for p in ended))
+        assert sum(p.status == "no_show" for p in todays) <= 1, seed
+        # the rest of the day is still to come (the story's waiting room may lie ahead before opening time)
+        later = [p for p in todays if p.start >= now and p.status not in ("in_treatment", "arrived")
+                 and not (p.patient == demo_module.TODAY_DONE and p.status == "done")]
+        assert all(p.status in ("scheduled", "confirmed", "cancelled") for p in later), (seed, Counter(p.status for p in later))
+        statuses = Counter(p.status for p in todays)
+        assert statuses["in_treatment"] == 1 and 2 <= statuses["arrived"] <= 3, (seed, statuses)
+        assert statuses["done"] >= 1, seed
+
+
+@pytest.mark.parametrize("specialty", ["generaliste", "dentiste", "kinesitherapeute", "psychologue"])
+def test_most_patients_never_missed_an_appointment(specialty: str) -> None:
+    """Fixlist 2: most patients 0 no-shows, some 1, very few 2 or more – not "2–6 absences" for everybody."""
+    for seed in range(12):
+        for now in (T0, T0 + timedelta(hours=9)):
+            plans = planned(now, specialty, seed).plans
+            per_patient = Counter(p.patient for p in plans if p.status == "no_show")
+            counts = Counter(per_patient.get(i, 0) for i in range(demo_module.PATIENTS))
+            assert counts[0] >= 15, (seed, counts)  # most
+            assert 2 <= counts[1] <= 8, (seed, counts)  # some
+            assert 1 <= sum(n for k, n in counts.items() if k >= 2) <= 2, (seed, counts)  # very few ("Acompte conseillé")
+            assert max(per_patient.values()) == 2, (seed, counts)

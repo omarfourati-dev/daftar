@@ -9,6 +9,10 @@ online requests), today's waiting room (3 waiting, 1 in treatment), acts, instal
 and psychologists. Appointments are written directly
 into the tables and never overlap (the database's EXCLUDE constraints would refuse them).
 
+Realistic (fixlist 2): today's appointments that ended before now are done (at most one no-show today), so the
+dashboard has nothing "Non venus ?" to ask; most patients never missed an appointment, some once, the two unreliable
+ones of the story twice.
+
 Limits: 5 demos per IP and hour, 300 per day in total → 429. The job ``demo-cleanup`` (every 30 min) deletes expired
 demo practices with everything in them (ON DELETE CASCADE).
 """
@@ -111,6 +115,8 @@ NOTES = {0: ("Préfère les rendez-vous le matin.", "يفضّل المواعيد
 #: Indices of patients with a role in the story (see :func:`seed_demo`).
 PLAN_PATIENT, FAMILY_PARENT, FAMILY_CHILD = 0, 1, 2
 UNRELIABLE = (4, 5)
+#: Patients (besides the two unreliable ones) who missed one appointment on a past day.
+MISSED_ONCE = 4
 SERIES_PATIENTS = (7, 8)
 TODAY_DONE, TODAY_IN_TREATMENT, TODAY_ARRIVED = 9, 10, (11, 12, 13)
 METHODS = ["cash"] * 14 + ["d17"] * 2 + ["card"] * 2 + ["cheque", "transfer"]
@@ -270,15 +276,25 @@ class DemoSeeder:
         days = [self.today + timedelta(days=d) for d in offsets]
         return [d for d in days if windows_for(DEFAULT_WEEKLY_HOURS, d)]
 
+    def plan(self) -> None:
+        """Every appointment of the demo, in memory (needs ``doctors`` and ``services``; no database)."""
+        self.story()
+        self.fill()
+        self.no_shows()
+        self.requests()
+
     def story(self) -> None:
         """The appointments every demo must show, placed before the random filling."""
         main, first = self.doctors[0], self.services[0]
-        # "now" in the story: the current time, kept inside the morning/afternoon so the waiting room makes sense
-        local_now = self.now.astimezone(TUNIS)
-        anchor = at_tunis(self.today, min(max(local_now.time(), time(9, 0)), time(14, 30)))
+        minutes = timedelta(minutes=first.minutes)
+        # "now" in the story: the current time, moved into today's opening hours when needed, so the patient done
+        # just before and the three waiting after it fit in (an evening demo still shows a busy waiting room)
+        windows = self._windows(self.today)
+        earliest = windows[0][0] + minutes + timedelta(minutes=10)
+        latest = max(earliest, windows[-1][1] - 4 * minutes + timedelta(minutes=10))
+        anchor = min(max(self.now.astimezone(TUNIS), earliest), latest)
         self.anchor = anchor.replace(minute=anchor.minute - anchor.minute % 5, second=0, microsecond=0)
         start = self.anchor - timedelta(minutes=10)
-        minutes = timedelta(minutes=first.minutes)
         self._place(Plan(TODAY_DONE, main, first, start - minutes, "done"))
         self._place(Plan(TODAY_IN_TREATMENT, main, first, start, "in_treatment"))
         for n, who in enumerate(TODAY_ARRIVED, start=1):
@@ -321,7 +337,7 @@ class DemoSeeder:
         while cursor < end:
             svc = self._service()
             stop = cursor + timedelta(minutes=svc.minutes)
-            straddles_now = offset == 0 and cursor < self.anchor < stop
+            straddles_now = offset == 0 and (cursor < self.anchor < stop or cursor < self.now < stop)
             if stop > end or straddles_now or not self.calendar.free((("d", doctor),), cursor, stop):
                 cursor += STEP
                 continue
@@ -342,10 +358,28 @@ class DemoSeeder:
         return self.rng.choice(pool) if pool else None
 
     def _status(self, offset: int, end: datetime) -> str:
+        """Past days: done or cancelled; today: done once it is over (the real clock); the rest is still to come.
+        No-shows are handed out afterwards (:meth:`no_shows`)."""
         r = self.rng.random()
-        if offset < 0 or (offset == 0 and end <= self.anchor):
-            return "cancelled" if r < 0.08 and offset < 0 else "no_show" if r < 0.16 else "done"
+        if offset < 0:
+            return "cancelled" if r < 0.08 else "done"
+        if offset == 0 and end <= self.now:
+            return "done"
         return "cancelled" if r < 0.05 else "confirmed" if r < 0.45 else "scheduled"
+
+    def no_shows(self) -> None:
+        """Who did not come: the two unreliable patients twice (the story), :data:`MISSED_ONCE` others once on a past
+        day, and at most one appointment of today that is over – everybody else always came."""
+        story_today = {TODAY_DONE, TODAY_IN_TREATMENT, *TODAY_ARRIVED}
+        done = [p for p in self.plans if p.status == "done" and p.series_id is None and p.patient not in UNRELIABLE]
+        past = [p for p in done if p.start.astimezone(TUNIS).date() < self.today]
+        once = self.rng.sample(sorted({p.patient for p in past}), k=min(MISSED_ONCE, len({p.patient for p in past})))
+        for who in once:
+            self.rng.choice([p for p in past if p.patient == who]).status = "no_show"
+        today = [p for p in done if p.start.astimezone(TUNIS).date() == self.today and p.patient not in story_today
+                 and p.patient not in once and p.end <= self.now - timedelta(minutes=30)]
+        if today:
+            self.rng.choice(today).status = "no_show"
 
     def requests(self) -> None:
         """Three online requests in the coming days (one from a new patient with a note) and a few online bookings."""
@@ -488,9 +522,7 @@ def seed_demo(conn: Connection, *, now: datetime, lang: str, specialty: str, rng
     seeder.practice()
     seeder.owner()
     seeder.patients()
-    seeder.story()
-    seeder.fill()
-    seeder.requests()
+    seeder.plan()
     seeder.write_appointments()
     seeder.money()
     seeder.cash_closings()
