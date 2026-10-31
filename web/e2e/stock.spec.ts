@@ -29,7 +29,8 @@ test('stock on the phone: start list, delivery of two lines, use in three taps, 
 	await dialog.getByLabel('Nom').fill('Pharma Distribution Tunis');
 	await dialog.getByLabel('WhatsApp').fill('20 123 456');
 	await dialog.getByRole('button', { name: 'Enregistrer le fournisseur' }).click();
-	await expect(page.getByLabel('Fournisseur')).toHaveValue(/\d+/);
+	await expect(dialog).toHaveCount(0);
+	await expect(page.getByRole('combobox', { name: /^Fournisseur/ })).toHaveValue(/\d+/);
 	await page.getByLabel('Ajouter un produit reçu').fill('serin');
 	await page.getByRole('button', { name: 'Seringues 5 ml' }).click();
 	await page.getByLabel('Quantité').fill('60');

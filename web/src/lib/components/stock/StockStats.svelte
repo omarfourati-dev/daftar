@@ -88,7 +88,7 @@
 		{#if stats.unpricedLines}<p class="text-sm text-slate-600">{t('stock.stats.unpriced', { count: stats.unpricedLines })}</p>{/if}
 
 		{#if stats.byService.length}
-			<div class="card overflow-x-auto p-0">
+			<div class="card overflow-x-auto p-0" role="region" aria-label={t('stock.stats.byService')} tabindex="0">
 				<table class="w-full text-sm">
 					<caption class="px-4 pt-4 text-start text-lg font-bold">{t('stock.stats.byService')}</caption>
 					<thead>

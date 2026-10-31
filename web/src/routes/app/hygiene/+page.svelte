@@ -262,7 +262,13 @@
 			</div>
 			<p class="text-sm font-semibold text-slate-700">{t('hygiene.history.summary', counts)}</p>
 			{#if historyData.rows.length}
-				<div class="card overflow-x-auto p-0 print:overflow-visible print:border-0 print:shadow-none">
+				<!-- on a phone the register scrolls sideways inside its card: focusable, so keyboards can scroll it too -->
+				<div
+					class="card overflow-x-auto p-0 print:overflow-visible print:border-0 print:shadow-none"
+					role="region"
+					aria-label={t('hygiene.history.label')}
+					tabindex="0"
+				>
 					<table class="w-full text-sm">
 						<caption class="sr-only">{t('hygiene.history.label')}</caption>
 						<thead>

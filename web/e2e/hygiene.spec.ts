@@ -40,8 +40,8 @@ test('hygiene on the phone: plan of the specialty, tick on "Aujourd’hui", fail
 	await page.goto(APP + '/app/hygiene');
 	const row = page.getByRole('listitem').filter({ hasText: 'Contrôle du stérilisateur' });
 	await row.getByRole('button', { name: 'Résultat et note – Contrôle du stérilisateur' }).click();
-	await row.getByLabel('Non conforme').check();
-	await row.getByLabel('Note').fill('Joint de porte usé');
+	await row.getByLabel('Non conforme', { exact: true }).check();
+	await row.getByLabel('Note', { exact: true }).fill('Joint de porte usé');
 	await row.getByRole('button', { name: 'Enregistrer' }).click();
 	await expect(row.getByText('Joint de porte usé')).toBeVisible();
 	await axe(page);
