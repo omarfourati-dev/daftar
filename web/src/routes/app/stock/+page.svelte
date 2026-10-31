@@ -321,7 +321,7 @@
 								<span class="min-w-0 flex-1">
 									<span class="block font-semibold text-ink" dir="auto">{p.name}</span>
 									<span class="block text-sm text-slate-600"
-										>{categoryLabel(p.category)}{#if p.supplierName}<span dir="auto"> – {p.supplierName}</span>{/if}</span
+										>{categoryLabel(p.category)}{#if p.supplierName}{' – '}<span dir="auto">{p.supplierName}</span>{/if}</span
 									>
 									{#if p.expiry && p.expiresOn}
 										<span class="mt-1 inline-block rounded px-1.5 text-xs font-semibold {p.expiry === 'expired' ? 'bg-rose-100 text-rose-900' : 'bg-amber-100 text-amber-950'}"
@@ -397,8 +397,8 @@
 						<span class="min-w-0 flex-1">
 							<span class="block font-semibold" dir="auto">{m.productName}</span>
 							<span class="block text-sm text-slate-600"
-								>{t(KIND_KEY[m.kind])}{#if m.serviceName}<span dir="auto"> – {m.serviceName}</span>{/if}{#if m.patientName}<span dir="auto"> – {m.patientName}</span
-									>{/if}{#if m.reason}<span dir="auto"> – {m.reason}</span>{/if}</span
+								>{t(KIND_KEY[m.kind])}{#if m.serviceName}{' – '}<span dir="auto">{m.serviceName}</span>{/if}{#if m.patientName}{' – '}<span dir="auto">{m.patientName}</span
+									>{/if}{#if m.reason}{' – '}<span dir="auto">{m.reason}</span>{/if}</span
 							>
 							<span class="block text-xs text-slate-500"
 								>{formatDateTime(m.createdAt)}{#if m.createdBy}<span dir="auto"> {t('stock.movements.by', { name: m.createdBy })}</span>{/if}</span
@@ -442,7 +442,7 @@
 							<div class="min-w-0">
 								<p class="font-bold" dir="auto">{s.name}</p>
 								<p class="text-sm text-slate-600">
-									{t('stock.suppliers.products', { count: s.products })}{#if !s.active} – {t('stock.suppliers.inactive')}{/if}
+									{t('stock.suppliers.products', { count: s.products })}{#if !s.active}{' – '}{t('stock.suppliers.inactive')}{/if}
 								</p>
 								{#if s.note}<p class="text-sm text-slate-700" dir="auto">{s.note}</p>{/if}
 							</div>

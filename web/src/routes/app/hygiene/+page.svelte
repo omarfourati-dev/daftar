@@ -185,7 +185,7 @@
 									<div class="min-w-0 flex-1">
 										<p class="font-semibold" dir="auto">{task.title}</p>
 										<p class="text-sm text-slate-600">
-											{frequencyText(task)}{#if task.equipmentName}<span dir="auto"> – {task.equipmentName}</span>{/if}
+											{frequencyText(task)}{#if task.equipmentName}{' – '}<span dir="auto">{task.equipmentName}</span>{/if}
 										</p>
 										<p class="text-sm text-slate-600">
 											{task.active ? (task.nextDueOn ? t('hygiene.setup.next', { date: formatDay(task.nextDueOn) }) : '') : t('hygiene.setup.inactive')}
@@ -220,7 +220,7 @@
 									<div class="min-w-0 flex-1">
 										<p class="font-semibold" dir="auto">{item.name}</p>
 										<p class="text-sm text-slate-600">
-											{kindLabel(item.kind)} – {t('hygiene.setup.taskCount', { count: item.tasks })}{#if item.serialNumber}<span dir="ltr"> – {item.serialNumber}</span>{/if}
+											{kindLabel(item.kind)}{' – '}{t('hygiene.setup.taskCount', { count: item.tasks })}{#if item.serialNumber}{' – '}<span dir="ltr">{item.serialNumber}</span>{/if}
 										</p>
 									</div>
 									{#if manager}

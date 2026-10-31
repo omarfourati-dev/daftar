@@ -109,7 +109,7 @@
 						<div class="min-w-0 flex-1">
 							<p class="font-semibold text-ink" dir="auto">{item.title}</p>
 							<p class="text-sm {item.state === 'overdue' ? 'font-semibold text-rose-800' : 'text-slate-600'}">
-								{#if item.equipmentName}<span dir="auto">{item.equipmentName}</span> – {/if}{item.state === 'done' ? doneText(item) : dueText(item)}
+								{#if item.equipmentName}<span dir="auto">{item.equipmentName}</span>{' – '}{/if}{item.state === 'done' ? doneText(item) : dueText(item)}
 							</p>
 							{#if item.done?.result === 'not_ok'}
 								<p class="mt-1 inline-block rounded bg-rose-100 px-1.5 text-xs font-bold text-rose-900">{t('hygiene.today.notOk')}</p>
