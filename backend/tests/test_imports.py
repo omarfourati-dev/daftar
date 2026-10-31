@@ -350,6 +350,23 @@ def test_arabic_csv_from_excel_in_windows_1256(client: TestClient, db: Engine, o
     assert [tuple(n) for n in names] == [("الطرابلسي", "أميرة"), ("بن علي", "سامي")]
 
 
+def test_phones_with_arabic_digits_are_imported_and_other_digits_are_row_errors(
+    client: TestClient, db: Engine, owner: Any, auth_headers: Factory
+) -> None:
+    """Security review N1: one such number used to fail the whole commit with a 500 (and names in the log)."""
+    data = csv_bytes(["Nom;Prénom;Tél", "Trabelsi;Amira;٢٠ ١٢٣ ٤٥٦", "Ben Ali;Sami;۹۸۷۶۵۴۳۲", "Gharbi;Leila;２０１２３４５６"])
+    h = auth_headers(owner)
+    up = upload(client, h, data, "patients.csv").json()
+    mapping = {"lastName": 0, "firstName": 1, "phone": 2}
+    preview = client.post(f"/api/imports/{up['id']}/preview", json={"kind": "patients", "mapping": mapping}, headers=h).json()
+    assert (preview["willCreate"], preview["errorCount"]) == (2, 1)
+    res = client.post(f"/api/imports/{up['id']}/commit", json={"kind": "patients", "mapping": mapping}, headers=h)
+    assert res.status_code == 200, res.text
+    with db.connect() as conn:
+        phones = conn.execute(select(patient.c.phone).order_by(patient.c.id)).scalars().all()
+    assert phones == ["+21620123456", "+21698765432"]
+
+
 # --- appointments ----------------------------------------------------------------------------------------------
 
 def _appointments_file() -> bytes:

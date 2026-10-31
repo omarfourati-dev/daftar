@@ -17,6 +17,11 @@ describe('phone numbers typed by people', () => {
 	it('rejects too short, letters and empty', () => {
 		for (const raw of ['', '123', '20 12', 'abc', '+216 2012']) expect(looksLikePhone(raw), raw).toBe(false);
 	});
+
+	it('accepts the digits of an Arabic keyboard like the server does (security review N1), not other ones', () => {
+		for (const raw of ['٢٠ ١٢٣ ٤٥٦', '+٢١٦ ٢٠١٢٣٤٥٦', '۹۸۷۶۵۴۳۲']) expect(looksLikePhone(raw), raw).toBe(true);
+		for (const raw of ['２０１２３４５６', '२०१२३४५६']) expect(looksLikePhone(raw), raw).toBe(false);
+	});
 });
 
 describe('phone numbers shown to people', () => {

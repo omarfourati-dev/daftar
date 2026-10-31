@@ -222,6 +222,13 @@ def test_auto_confirm_and_free_practitioner(client: TestClient, lac: Any, db: An
     assert (body["status"], body["practitionerName"]) == ("confirmed", "Dr. B")
 
 
+def test_a_phone_typed_with_arabic_digits_is_booked(client: TestClient, lac: Any, db: Any) -> None:
+    """Security review N1: Arabic keyboards type "٢٠ ١١١ ٢٢٢" – it used to end in a 500 at the database."""
+    assert book(client, "cabinet-lac", serviceId=lac.consultation.id, phone="٢٠ ١١١ ٢٢٢").status_code == 201
+    with db.connect() as conn:
+        assert conn.execute(select(patient.c.phone)).scalar_one() == "+21620111222"
+
+
 def test_a_returning_patient_is_recognized_by_phone_and_last_name(
     client: TestClient, lac: Any, make_patient: Factory, db: Any
 ) -> None:
@@ -426,6 +433,7 @@ def test_the_honeypot_pretends_and_stores_nothing(client: TestClient, lac: Any, 
         ({"firstName": ""}, 422, "validation"),
         ({"lastName": "x" * 121}, 422, "validation"),
         ({"phone": "123"}, 422, "invalid_phone"),
+        ({"phone": "２０ １１１ ２２２"}, 422, "invalid_phone"),  # full-width digits: 422, never a 500 (N1)
         ({"lang": "en"}, 422, "validation"),
         ({"note": "x" * 1001}, 422, "validation"),
         ({"serviceId": "surgery"}, 422, "invalid_service"),

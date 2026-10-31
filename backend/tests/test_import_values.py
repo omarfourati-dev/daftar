@@ -173,13 +173,15 @@ def test_years() -> None:
         ("20 123 456 / 98 765 432", "+21620123456"),  # several numbers: the first valid one
         ("98-765-432 ; 71 000 000", "+21698765432"),
         ("+33 6 12 34 56 78", "+33612345678"),
+        ("٢٠١٢٣٤٥٦", "+21620123456"),  # Arabic-Indic digits from an Arabic keyboard (security review N1)
+        ("٢٠ ١٢٣ ٤٥٦ / ۹۸ ۷۶۵ ۴۳۲", "+21620123456"),
     ],
 )
 def test_phones(raw: object, expected: str) -> None:
     assert parse_phone(raw) == expected
 
 
-@pytest.mark.parametrize("raw", ["123", "abc", 1234567, "06 12 34 56 78"])
+@pytest.mark.parametrize("raw", ["123", "abc", 1234567, "06 12 34 56 78", "２０１２３４５６", "२०१२३४५६"])
 def test_invalid_phones(raw: object) -> None:
     with pytest.raises(ImportValueError):
         parse_phone(raw)

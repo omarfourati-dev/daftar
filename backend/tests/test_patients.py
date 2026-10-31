@@ -157,6 +157,13 @@ def test_create_normalizes_and_returns_the_file(client: TestClient, make_user: F
     assert body["samePhone"] == [] and body["nextAppointmentAt"] is None
 
 
+def test_arabic_digits_from_an_arabic_keyboard(client: TestClient, owner: Any, auth_headers: Factory) -> None:
+    """Security review N1: "٢٠ ١٢٣ ٤٥٦" used to reach the database as "+216٢٠١٢٣٤٥٦" – a 500 with the name in the log."""
+    res = client.post("/api/patients", json={**NEW, "phone": "٢٠ ١٢٣ ٤٥٦"}, headers=auth_headers(owner))
+    assert res.status_code == 201, res.text
+    assert res.json()["phone"] == "+21620123456"
+
+
 def test_create_defaults(client: TestClient, owner: Any, auth_headers: Factory) -> None:
     body = client.post("/api/patients", json={"firstName": "A", "lastName": "B", "phone": "+33612345678"},
                        headers=auth_headers(owner)).json()
@@ -168,6 +175,8 @@ def test_create_defaults(client: TestClient, owner: Any, auth_headers: Factory) 
     [
         ({"phone": "12"}, "invalid_phone"),
         ({"phone": ""}, "invalid_phone"),
+        ({"phone": "２０１２３４５６"}, "invalid_phone"),  # full-width digits: 422, not a 500 at the CHECK (N1)
+        ({"phone": "२०१२३४५६"}, "invalid_phone"),
         ({"firstName": ""}, "validation"),
         ({"lastName": "x" * 121}, "validation"),
         ({"birthYear": 1899}, "validation"),
