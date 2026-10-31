@@ -50,7 +50,7 @@
 	<svg viewBox="0 0 20 20" class="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7"
 		><path d="M4 4h12v9H8l-4 3z" stroke-linejoin="round" /></svg
 	>
-	<span class={variant === 'menu' ? '' : 'hidden lg:inline'}>{t('feedback.button')}</span>
+	<span class={variant === 'menu' ? '' : 'hidden xl:inline'}>{t('feedback.button')}</span>
 </button>
 
 <Modal {open} title={t('feedback.title')} onclose={() => (open = false)}>

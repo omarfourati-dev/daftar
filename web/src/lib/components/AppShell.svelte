@@ -2,9 +2,11 @@
 	/**
 	 * Frame of every /app page: guard (→ /connexion), account refresh, navigation (sidebar on desktop, bottom bar
 	 * on phones), language switch, banners (demo, suspended subscription, offline). Pages render as `children`.
+	 * Tools (import, subscription, installer) sit below the main navigation and in the phone menu "Plus", which also
+	 * opens the phone booking and the patient search (folded away on phones until asked for) – fixlist 2.
 	 * Printable pages (receipt) hide the frame with `print:hidden` automatically.
 	 */
-	import { onMount, type Snippet } from 'svelte';
+	import { onMount, untrack, type Snippet } from 'svelte';
 	import { api, deps } from '../api';
 	import { auth } from '../auth.svelte';
 	import { t, type MessageKey } from '../i18n.svelte';
@@ -17,7 +19,7 @@
 	import Shortcuts from './daily/Shortcuts.svelte';
 	import Icon from './daily/Icon.svelte';
 	import PhoneBooking from './agenda/PhoneBooking.svelte';
-	import { agendaChanges, phoneBooking } from '../agenda/requests.svelte';
+	import { agendaChanges, patientSearch, phoneBooking } from '../agenda/requests.svelte';
 
 	let { path, children }: { path: string; children: Snippet } = $props();
 
@@ -32,6 +34,12 @@
 		{ href: '/app/statistiques', key: 'nav.statistiques', ownerOnly: true },
 		{ href: '/app/reglages', key: 'nav.reglages' }
 	];
+	/** Less frequent pages, by role (as in the sections of /app/reglages). */
+	const TOOLS: (Item & { roles: string[] })[] = [
+		{ href: '/app/import', key: 'nav.import', roles: ['owner', 'assistant'] },
+		{ href: '/app/abonnement', key: 'nav.abonnement', roles: ['owner'] },
+		{ href: '/app/installer', key: 'nav.installer', roles: ['owner', 'assistant', 'dentist'] }
+	];
 	const ADMIN: Item[] = [
 		{ href: '/app/admin', key: 'nav.admin' },
 		{ href: '/app/reglages', key: 'nav.reglages' }
@@ -43,10 +51,22 @@
 	const badgeFor = (href: string) => (href === '/app' && !isAdmin ? badges.total : 0);
 	const bottom = $derived(items.slice(0, isAdmin ? items.length : 4));
 	const more = $derived(isAdmin ? [] : items.slice(4));
+	const tools = $derived(isAdmin ? [] : TOOLS.filter((i) => i.roles.includes(String(auth.user?.role))));
 	const practice = $derived(auth.user?.practice ?? null);
 	let moreOpen = $state(false);
 
 	const active = (href: string) => (href === '/app' ? path === '/app' || path === '/app/' : path === href || path.startsWith(href + '/'));
+
+	// every new page folds the phone search away again
+	$effect(() => {
+		void path;
+		untrack(() => (patientSearch.open = false));
+	});
+
+	function fromMenu(action: () => void) {
+		moreOpen = false;
+		action();
+	}
 
 	$effect(() => {
 		if (!auth.token) void deps.goto('/connexion');
@@ -101,24 +121,43 @@
 					>
 				{/each}
 			</nav>
+			{#if tools.length}
+				<nav aria-labelledby="nav-tools" class="flex flex-col gap-0.5 border-t border-slate-200 pt-3">
+					<p id="nav-tools" class="px-3 pb-1 text-xs font-semibold tracking-wide text-slate-500 uppercase">{t('nav.tools')}</p>
+					{#each tools as item (item.href)}
+						<a
+							href={item.href}
+							class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-brand-50 hover:text-brand-800"
+							class:bg-brand-50={active(item.href)}
+							class:text-brand-800={active(item.href)}
+							aria-current={active(item.href) ? 'page' : undefined}>{t(item.key)}</a
+						>
+					{/each}
+				</nav>
+			{/if}
 		</aside>
 
 		<div class="flex min-w-0 flex-1 flex-col">
-			<header class="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2 print:hidden">
-				<span class="min-w-0 flex-1 truncate font-semibold text-slate-800">{practice?.name ?? t('common.appName')}</span>
+			<header class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-slate-200 bg-white px-4 py-2 print:hidden">
+				<span dir="auto" class="min-w-0 flex-1 truncate font-semibold text-slate-800 rtl:text-right">{practice?.name ?? t('common.appName')}</span>
 				{#if !isAdmin}
-					<div class="hidden min-w-0 flex-1 sm:block"><GlobalSearch /></div>
+					<!-- on phones a row of its own, shown from the menu "Plus" or the button on "Aujourd'hui" -->
+					<div data-search class="{patientSearch.open ? 'block' : 'hidden'} order-last w-full min-w-0 sm:order-none sm:block sm:w-auto sm:flex-1">
+						<GlobalSearch />
+					</div>
 					<button
 						type="button"
 						class="btn-secondary hidden min-h-10 px-3 text-sm sm:inline-flex"
 						aria-label={t('agenda.phone.button')}
 						title="{t('agenda.phone.button')} (T)"
-						onclick={() => (phoneBooking.open = true)}><Icon name="phone" class="h-4 w-4" /><span class="hidden lg:inline">{t('agenda.phone.button')}</span></button
+						onclick={() => (phoneBooking.open = true)}><Icon name="phone" class="h-4 w-4" /><span class="hidden xl:inline">{t('agenda.phone.button')}</span></button
 					>
 					<FeedbackButton {path} />
 				{/if}
-				<LanguageSwitch onchange={saveLanguage} />
-				<button type="button" class="btn-secondary min-h-9 px-3 py-1 text-sm" onclick={logout}>{t('common.logout')}</button>
+				<LanguageSwitch onchange={saveLanguage} compact />
+				<button type="button" class="btn-secondary min-h-9 px-2.5 py-1 text-sm lg:px-3" title={t('common.logout')} onclick={logout}
+					><Icon name="logout" class="h-4 w-4 lg:hidden" /><span class="max-lg:sr-only">{t('common.logout')}</span></button
+				>
 			</header>
 			{#if practice?.isDemo}
 				<p class="bg-accent-400 px-4 py-2 text-center text-sm font-medium text-ink print:hidden">{t('shell.demoBanner')}</p>
@@ -167,13 +206,29 @@
 			<div
 				role="dialog"
 				aria-label={t('nav.more')}
-				class="fixed inset-x-0 bottom-14 z-20 flex flex-col gap-1 border-t border-slate-200 bg-white p-3 shadow-lg md:hidden"
+				class="fixed inset-x-0 bottom-14 z-20 flex max-h-[calc(100dvh-4.5rem)] flex-col gap-1 overflow-y-auto border-t border-slate-200 bg-white p-3 shadow-lg md:hidden"
 			>
+				<div class="grid grid-cols-2 gap-2 pb-1">
+					<button type="button" class="btn-secondary min-h-12 px-2 text-sm" onclick={() => fromMenu(() => (phoneBooking.open = true))}
+						><Icon name="phone" class="h-4 w-4 shrink-0" />{t('agenda.phone.button')}</button
+					>
+					<button type="button" class="btn-secondary min-h-12 px-2 text-sm" onclick={() => fromMenu(() => patientSearch.show())}
+						><Icon name="search" class="h-4 w-4 shrink-0" />{t('patients.globalSearch')}</button
+					>
+				</div>
 				{#each more as item (item.href)}
 					<a href={item.href} class="rounded-lg px-3 py-3 font-medium text-slate-700" onclick={() => (moreOpen = false)}
 						>{t(item.key)}</a
 					>
 				{/each}
+				{#if tools.length}
+					<div class="my-1 border-t border-slate-200" role="presentation"></div>
+					{#each tools as item (item.href)}
+						<a href={item.href} class="rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600" onclick={() => (moreOpen = false)}
+							>{t(item.key)}</a
+						>
+					{/each}
+				{/if}
 				<FeedbackButton {path} variant="menu" />
 			</div>
 		{/if}

@@ -14,5 +14,9 @@ export const nav: Messages['nav'] = {
 	statistiques: 'الإحصائيات',
 	toHandle: '{count} للمعالجة',
 	admin: 'الإدارة',
+	tools: 'أدوات',
+	import: 'استيراد',
+	abonnement: 'الاشتراك',
+	installer: 'تثبيت التطبيق',
 	more: 'المزيد'
 };

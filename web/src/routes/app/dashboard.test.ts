@@ -6,6 +6,7 @@ import { clock } from '#lib/clock';
 import { i18n } from '#lib/i18n.svelte';
 import { calls, json, mockApi, noContent, problem, sentJson, type Handler } from '#lib/test-utils';
 import { appt, assistant, NOW, owner, practice } from '#lib/agenda/fixtures';
+import { patientSearch, phoneBooking } from '#lib/agenda/requests.svelte';
 
 const dashboard = {
 	today: '2026-10-30',
@@ -77,6 +78,21 @@ describe('/app – today at a glance', () => {
 		const link = await requests.findByRole('link', { name: 'Prévenir par WhatsApp' });
 		expect(decodeURIComponent(link.getAttribute('href') ?? '')).toContain('votre rendez-vous au Cabinet du Lac le 02/11/2026 à 11:45 est confirmé');
 		expect(requests.getByText('Salma Ben Omar : Confirmé.')).toBeInTheDocument();
+	});
+
+	it('has big buttons for the phone appointment and, on phones, the patient search (fixlist 2)', async () => {
+		dashboardApi();
+		phoneBooking.open = false;
+		render(Page);
+		await fireEvent.click(screen.getByRole('button', { name: 'Rendez-vous par téléphone' }));
+		expect(phoneBooking.open).toBe(true);
+		phoneBooking.open = false;
+		const search = screen.getByRole('button', { name: 'Rechercher un patient' });
+		expect(search).toHaveClass('sm:hidden'); // larger screens have the search in the header
+		const show = vi.spyOn(patientSearch, 'show').mockImplementation(() => undefined);
+		await fireEvent.click(search);
+		expect(show).toHaveBeenCalledOnce();
+		show.mockRestore();
 	});
 
 	it('writes to the patient in the patient’s language, not the screen’s (fixlist 2)', async () => {

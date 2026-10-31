@@ -13,6 +13,7 @@
 	import { money, personName, practitionerLabel, shortDay, statusLabel } from '#lib/agenda/format';
 	import { whatsappUrl } from '#lib/agenda/links';
 	import { appointmentMessage, type PatientMessage } from '#lib/agenda/messages';
+	import { patientSearch, phoneBooking } from '#lib/agenda/requests.svelte';
 	import { formatDay, formatTime, t, todayTunis, type MessageKey } from '#lib/i18n.svelte';
 	import type { AppointmentStatus } from '#lib/status';
 	import type { Appointment, Dashboard, Onboarding, PracticeSettings } from '#lib/types/agenda';
@@ -145,9 +146,13 @@
 			<h1 class="text-2xl font-bold">{t('today.title')}</h1>
 			<p class="text-slate-600 first-letter:uppercase">{formatDay(today, 'long')}</p>
 		</div>
-		<div class="flex flex-wrap gap-2">
-			<a class="btn-secondary" href="/app/salle"><Icon name="ticket" />{t('today.newTicket')}</a>
-			<a class="btn-primary" href="/app/agenda?nouveau=1"><Icon name="plus" />{t('today.newAppointment')}</a>
+		<!-- big buttons on phones (two per row): the phone appointment and the patient search are one tap away -->
+		<div class="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+			<!-- from xl on the header shows the same button with its label -->
+			<button type="button" class="btn-secondary min-h-12 xl:hidden" onclick={() => (phoneBooking.open = true)}><Icon name="phone" />{t('agenda.phone.button')}</button>
+			<button type="button" class="btn-secondary min-h-12 sm:hidden" onclick={() => patientSearch.show()}><Icon name="search" />{t('patients.globalSearch')}</button>
+			<a class="btn-secondary min-h-12" href="/app/salle"><Icon name="ticket" />{t('today.newTicket')}</a>
+			<a class="btn-primary min-h-12" href="/app/agenda?nouveau=1"><Icon name="plus" />{t('today.newAppointment')}</a>
 		</div>
 	</div>
 

@@ -13,5 +13,9 @@ export const nav = {
 	statistiques: 'Statistiques',
 	toHandle: '{count} à traiter',
 	admin: 'Administration',
+	tools: 'Outils',
+	import: 'Importer',
+	abonnement: 'Abonnement',
+	installer: 'Installer l’application',
 	more: 'Plus'
 };
