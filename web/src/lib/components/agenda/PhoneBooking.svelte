@@ -151,9 +151,8 @@
 		}
 	}
 
-	const confirmation = $derived(
-		booked && base ? appointmentMessage({ startsAt: booked.startsAt, patient: { firstName: patient?.firstName ?? booked.patient.firstName, lang: patient?.lang } }, 'confirmed', base.practice) : ''
-	);
+	/** In the caller's language (the server's `patient.lang`), not the screen's. */
+	const confirmation = $derived(booked && base ? appointmentMessage(booked, 'confirmed', base.practice) : '');
 	const phoneOfPatient = $derived(patient?.phone ?? booked?.patient.phone ?? '');
 
 	async function copy() {

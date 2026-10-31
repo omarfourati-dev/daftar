@@ -65,7 +65,7 @@ export function appt(over: Partial<Appointment> = {}): Appointment {
 	const id = over.id ?? nextId++;
 	return {
 		id,
-		patient: { id: 500 + id, firstName: 'Sami', lastName: 'Trabelsi', phone: '+21620123456', noShows: 0, alerts: '' },
+		patient: { id: 500 + id, firstName: 'Sami', lastName: 'Trabelsi', phone: '+21620123456', noShows: 0, lang: 'fr', alerts: '' },
 		practitionerId: 11,
 		practitionerName: 'Amira Ben Salem',
 		serviceId: 21,

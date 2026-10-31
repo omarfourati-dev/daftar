@@ -14,7 +14,7 @@ const file = patientFile({
 	alerts: 'Sous anticoagulant',
 	samePhone: [{ id: 9, firstName: 'Leila', lastName: 'Trabelsi' }]
 });
-const upcoming = appt({ id: 80, startsAt: '2026-11-07T09:30:00+01:00', reason: 'Pose de la couronne', status: 'confirmed', patient: { id: 7, firstName: 'Sami', lastName: 'Trabelsi', phone: '+21620123456', noShows: 2 } });
+const upcoming = appt({ id: 80, startsAt: '2026-11-07T09:30:00+01:00', reason: 'Pose de la couronne', status: 'confirmed', patient: { id: 7, firstName: 'Sami', lastName: 'Trabelsi', phone: '+21620123456', noShows: 2, lang: 'fr' } });
 const past = appt({ id: 81, startsAt: '2026-10-03T10:00:00+01:00', reason: 'Couronne', status: 'done', patient: upcoming.patient });
 
 function fileApi(extra: Record<string, Handler> = {}) {

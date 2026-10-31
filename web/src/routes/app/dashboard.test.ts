@@ -11,8 +11,8 @@ const dashboard = {
 	today: '2026-10-30',
 	appointments: { total: 12, byStatus: { done: 3, arrived: 1, in_treatment: 1, confirmed: 4, scheduled: 2, no_show: 1 } },
 	upcoming: [
-		appt({ id: 20, startsAt: '2026-10-30T10:45:00+01:00', status: 'arrived', patient: { id: 1, firstName: 'Leila', lastName: 'Karoui', phone: '+21620000004', noShows: 0 } }),
-		appt({ id: 21, startsAt: '2026-10-30T11:15:00+01:00', status: 'confirmed', patient: { id: 2, firstName: 'Walid', lastName: 'Hammami', phone: '+21620000005', noShows: 0 } })
+		appt({ id: 20, startsAt: '2026-10-30T10:45:00+01:00', status: 'arrived', patient: { id: 1, firstName: 'Leila', lastName: 'Karoui', phone: '+21620000004', noShows: 0, lang: 'fr' } }),
+		appt({ id: 21, startsAt: '2026-10-30T11:15:00+01:00', status: 'confirmed', patient: { id: 2, firstName: 'Walid', lastName: 'Hammami', phone: '+21620000005', noShows: 0, lang: 'fr' } })
 	],
 	queue: { waiting: 3, called: 1 },
 	cashTodayMillimes: 185000,
@@ -29,7 +29,7 @@ const request = appt({
 	patientNote: 'Toux',
 	patient: { id: 3, firstName: 'Salma', lastName: 'Ben Omar', phone: '+21620000006', noShows: 0, lang: 'fr' }
 });
-const late = appt({ id: 40, startsAt: '2026-10-30T08:30:00+01:00', status: 'confirmed', patient: { id: 4, firstName: 'Hichem', lastName: 'Bouzid', phone: '+21620000007', noShows: 1 } });
+const late = appt({ id: 40, startsAt: '2026-10-30T08:30:00+01:00', status: 'confirmed', patient: { id: 4, firstName: 'Hichem', lastName: 'Bouzid', phone: '+21620000007', noShows: 1, lang: 'fr' } });
 
 function dashboardApi(extra: Record<string, Handler> = {}) {
 	return mockApi({
@@ -77,6 +77,24 @@ describe('/app – today at a glance', () => {
 		const link = await requests.findByRole('link', { name: 'Prévenir par WhatsApp' });
 		expect(decodeURIComponent(link.getAttribute('href') ?? '')).toContain('votre rendez-vous au Cabinet du Lac le 02/11/2026 à 11:45 est confirmé');
 		expect(requests.getByText('Salma Ben Omar : Confirmé.')).toBeInTheDocument();
+	});
+
+	it('writes to the patient in the patient’s language, not the screen’s (fixlist 2)', async () => {
+		const arabic = { ...request, patient: { ...request.patient, lang: 'ar' as const } };
+		mockApi({
+			'GET /api/dashboard': () => json(200, { ...dashboard, onlineRequests: [arabic], onlineRequestsCount: 1 }),
+			'GET /api/appointments/overdue': () => json(200, []),
+			'GET /api/practice': () => json(200, practice),
+			'GET /api/badges': () => json(200, { onlineRequests: 0, overdue: 0 }),
+			'POST /api/appointments/30/status': () => json(200, { ...arabic, status: 'cancelled' })
+		});
+		render(Page);
+		const requests = within(await screen.findByRole('region', { name: 'Nouvelles demandes en ligne' }));
+		await fireEvent.click(await requests.findByRole('button', { name: 'Refuser' }));
+		const link = await requests.findByRole('link', { name: 'Prévenir par WhatsApp' }); // the screen stays French
+		const text = decodeURIComponent(link.getAttribute('href') ?? '');
+		expect(text).toContain('مرحبًا Salma، لا يمكننا استقبالك يوم 02/11/2026 على الساعة 11:45');
+		expect(text).not.toContain('Bonjour');
 	});
 
 	it('marks a forgotten appointment as no-show in one click', async () => {

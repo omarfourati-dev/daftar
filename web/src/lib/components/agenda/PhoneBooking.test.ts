@@ -77,6 +77,24 @@ describe('PhoneBooking – appointment on the phone (section 16.1)', () => {
 		expect(dialog.getByRole('link', { name: 'SMS' }).getAttribute('href')).toContain('sms:+21620123456?&body=');
 	});
 
+	it('writes the confirmation in the caller’s language, not the screen’s (fixlist 2)', async () => {
+		const caller = summary({ lang: 'ar' });
+		const booked = appt({ id: 62, startsAt: '2026-10-30T10:30:00+01:00', patient: { id: 7, firstName: 'Sami', lastName: 'Trabelsi', phone: '+21620123456', noShows: 0, lang: 'ar' } });
+		phoneApi({
+			'GET /api/patients?q=20123&limit=8': () => json(200, { items: [caller], total: 1 }),
+			'GET /api/availability/next?patientId=7&limit=8': () => json(200, free),
+			'POST /api/appointments': () => json(201, { appointment: booked, conflicts: [] })
+		});
+		const { dialog } = open();
+		await fireEvent.input(dialog.getByLabelText('Numéro de l’appelant'), { target: { value: '20 123' } });
+		await fireEvent.click(await dialog.findByRole('button', { name: /Sami Trabelsi/ }));
+		const list = within(await dialog.findByRole('region', { name: 'Prochains créneaux libres' }));
+		await fireEvent.click(await list.findByRole('button', { name: '10:30 – Dr Amira Ben Salem' }));
+		const message = (await dialog.findByLabelText('Message de confirmation')) as HTMLTextAreaElement;
+		expect(message.value).toContain('مرحبًا Sami، تم تأكيد موعدك');
+		expect(message.value).toContain('30/10/2026');
+	});
+
 	it('creates a new caller with this number when booking', async () => {
 		phoneApi({
 			'GET /api/patients?q=20555666&limit=8': () => json(200, { items: [], total: 0 }),

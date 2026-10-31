@@ -32,7 +32,7 @@ function entry(over: Partial<QueueEntry>): QueueEntry {
 const next = {
 	entry: entry({}),
 	reason: 'appointment',
-	lateAppointments: [appt({ id: 3, startsAt: '2026-10-30T09:45:00+01:00', patient: { id: 4, firstName: 'Hichem', lastName: 'Bouzid', phone: '+21620000007', noShows: 1 } })],
+	lateAppointments: [appt({ id: 3, startsAt: '2026-10-30T09:45:00+01:00', patient: { id: 4, firstName: 'Hichem', lastName: 'Bouzid', phone: '+21620000007', noShows: 1, lang: 'fr' } })],
 	upcoming: [entry({ id: 15, ticketNo: 15, name: 'Mohamed Ali Kefi', appointmentAt: null, alerts: '' }), entry({ id: 16, ticketNo: 16, name: 'Walid Hammami', alerts: '' })]
 };
 

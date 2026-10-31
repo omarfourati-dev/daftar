@@ -63,7 +63,8 @@ export interface AppointmentPatient {
 	phone: string;
 	noShows: number;
 	alerts?: string;
-	lang?: string;
+	/** The patient's language – texts sent to them (confirmation, refusal) use it, not the screen's (fixlist 2). */
+	lang: 'fr' | 'ar';
 }
 
 export interface Appointment {

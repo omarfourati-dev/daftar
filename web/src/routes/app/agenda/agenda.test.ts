@@ -29,14 +29,14 @@ const lina = appt({
 	startsAt: '2026-10-30T11:00:00+01:00',
 	durationMin: 20,
 	status: 'confirmed',
-	patient: { id: 9, firstName: 'Lina', lastName: 'Zouari', phone: '+21620000002', noShows: 3, alerts: 'Allergie pénicilline' }
+	patient: { id: 9, firstName: 'Lina', lastName: 'Zouari', phone: '+21620000002', noShows: 3, lang: 'fr', alerts: 'Allergie pénicilline' }
 });
 const online = appt({
 	id: 3,
 	startsAt: '2026-10-30T11:45:00+01:00',
 	status: 'requested',
 	source: 'online',
-	patient: { id: 10, firstName: 'Salma', lastName: 'Ben Omar', phone: '+21620000003', noShows: 0 }
+	patient: { id: 10, firstName: 'Salma', lastName: 'Ben Omar', phone: '+21620000003', noShows: 0, lang: 'fr' }
 });
 
 describe('/app/agenda – day and week', () => {

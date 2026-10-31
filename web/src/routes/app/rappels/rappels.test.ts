@@ -8,21 +8,21 @@ import { calls, json, mockApi, problem, type Handler } from '#lib/test-utils';
 import { appt, assistant, NOW, practiceBrief } from '#lib/agenda/fixtures';
 
 const youssef = {
-	appointment: appt({ id: 31, startsAt: '2026-10-31T09:00:00+01:00', reason: 'Séance de rééducation', patient: { id: 1, firstName: 'Youssef', lastName: 'Marzouki', phone: '+21620000031', noShows: 0 } }),
+	appointment: appt({ id: 31, startsAt: '2026-10-31T09:00:00+01:00', reason: 'Séance de rééducation', patient: { id: 1, firstName: 'Youssef', lastName: 'Marzouki', phone: '+21620000031', noShows: 0, lang: 'fr' } }),
 	patientLang: 'fr',
 	reminderConsent: true,
 	phoneDigits: '21620000031',
 	message: 'Bonjour Youssef, rappel de votre rendez-vous demain 31/10/2026 à 09:00.'
 };
 const mounia = {
-	appointment: appt({ id: 30, startsAt: '2026-10-31T08:30:00+01:00', reminderSentAt: '2026-10-30T09:12:00+01:00', patient: { id: 2, firstName: 'Mounia', lastName: 'Chebbi', phone: '+21620000030', noShows: 0 } }),
+	appointment: appt({ id: 30, startsAt: '2026-10-31T08:30:00+01:00', reminderSentAt: '2026-10-30T09:12:00+01:00', patient: { id: 2, firstName: 'Mounia', lastName: 'Chebbi', phone: '+21620000030', noShows: 0, lang: 'fr' } }),
 	patientLang: 'ar',
 	reminderConsent: true,
 	phoneDigits: '21620000030',
 	message: 'مرحبًا منية، نذكّرك بموعدك غدًا.'
 };
 const anis = {
-	appointment: appt({ id: 32, startsAt: '2026-10-31T11:30:00+01:00', patient: { id: 3, firstName: 'Anis', lastName: 'Dridi', phone: '+21620000032', noShows: 0 } }),
+	appointment: appt({ id: 32, startsAt: '2026-10-31T11:30:00+01:00', patient: { id: 3, firstName: 'Anis', lastName: 'Dridi', phone: '+21620000032', noShows: 0, lang: 'fr' } }),
 	patientLang: 'fr',
 	reminderConsent: false,
 	phoneDigits: '21620000032',

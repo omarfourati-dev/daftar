@@ -33,7 +33,7 @@ describe('AppointmentDetail – status workflow with big buttons', () => {
 			status: 'requested',
 			source: 'online',
 			patientNote: 'Toux depuis trois jours',
-			patient: { id: 9, firstName: 'Lina', lastName: 'Zouari', phone: '+21620000002', noShows: 2, alerts: 'Allergie pénicilline' }
+			patient: { id: 9, firstName: 'Lina', lastName: 'Zouari', phone: '+21620000002', noShows: 2, lang: 'fr', alerts: 'Allergie pénicilline' }
 		});
 		const { dialog } = open(a);
 		expect(screen.getByRole('dialog', { name: 'Lina Zouari' })).toBeInTheDocument();

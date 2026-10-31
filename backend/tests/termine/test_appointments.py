@@ -46,7 +46,7 @@ def test_create_an_appointment(client: TestClient, lac: Any, ids: dict[str, Any]
     assert appt == {
         "id": appt["id"],
         "patient": {"id": ids["amira"].id, "firstName": "Amira", "lastName": "Ben Ali", "phone": "+21620111222",
-                    "noShows": 0, "alerts": "Anticoagulant"},
+                    "noShows": 0, "alerts": "Anticoagulant", "lang": "fr"},
         "practitionerId": ids["a"], "practitionerName": "Dr. A", "serviceId": None, "serviceName": None,
         "startsAt": "2026-11-02T09:30:00+01:00", "endsAt": "2026-11-02T10:00:00+01:00", "durationMin": 30,
         "reason": "Douleur", "status": "scheduled", "source": "staff", "notes": "Préfère le matin", "patientNote": "",
@@ -56,6 +56,17 @@ def test_create_an_appointment(client: TestClient, lac: Any, ids: dict[str, Any]
     metrics = client.get("/metrics").text
     assert 'daftar_appointments_created_total{source="staff"} 1.0' in metrics
     assert 'daftar_appointments_created_total{source="online"} 0.0' in metrics
+
+
+def test_the_patients_language_comes_with_the_appointment(client: TestClient, lac: Any, make_patient: Factory, as_user: Factory) -> None:
+    """Fixlist 2: confirmation, refusal and reminder texts go out in the patient's language, not the screen's."""
+    salma = make_patient(lac, first_name="Salma", last_name="Ayari", lang="ar")
+    h = as_user(lac, "assistant")
+    created = book(client, h, patientId=salma.id, startsAt=iso(MON, "11:00")).json()["appointment"]
+    assert created["patient"]["lang"] == "ar"
+    listed = client.get("/api/appointments?from=2026-11-02&to=2026-11-02", headers=h).json()
+    assert [a["patient"]["lang"] for a in listed] == ["ar"]
+    assert client.get(f"/api/appointments/{created['id']}", headers=h).json()["patient"]["lang"] == "ar"
 
 
 def test_a_service_sets_the_duration(client: TestClient, lac: Any, ids: dict[str, Any], make_service: Factory, as_user: Factory) -> None:

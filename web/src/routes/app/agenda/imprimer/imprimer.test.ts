@@ -27,9 +27,9 @@ describe('/app/agenda/imprimer – the day on paper', () => {
 
 	it('lists the appointments of the day per practitioner, without the cancelled ones', async () => {
 		api([
-			appt({ id: 1, startsAt: '2026-11-02T08:30:00+01:00', notes: 'À jeun', patient: { id: 1, firstName: 'Mounia', lastName: 'Chebbi', phone: '+21620000001', noShows: 0, alerts: 'Diabète' } }),
+			appt({ id: 1, startsAt: '2026-11-02T08:30:00+01:00', notes: 'À jeun', patient: { id: 1, firstName: 'Mounia', lastName: 'Chebbi', phone: '+21620000001', noShows: 0, lang: 'fr', alerts: 'Diabète' } }),
 			appt({ id: 2, startsAt: '2026-11-02T09:00:00+01:00', practitionerId: 12, practitionerName: 'Karim Jaziri', status: 'confirmed', reason: 'Vaccination' }),
-			appt({ id: 3, startsAt: '2026-11-02T10:00:00+01:00', status: 'cancelled', patient: { id: 3, firstName: 'Riadh', lastName: 'Ben Youssef', phone: '+21620000003', noShows: 0 } })
+			appt({ id: 3, startsAt: '2026-11-02T10:00:00+01:00', status: 'cancelled', patient: { id: 3, firstName: 'Riadh', lastName: 'Ben Youssef', phone: '+21620000003', noShows: 0, lang: 'fr' } })
 		]);
 		render(Page);
 		expect(await screen.findByRole('heading', { level: 1, name: 'Rendez-vous du lundi 2 novembre 2026' })).toBeInTheDocument();

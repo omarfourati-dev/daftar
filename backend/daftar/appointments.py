@@ -38,7 +38,7 @@ from .problems import conflict, not_found, unprocessable
 from .queue import ACTIVE as QUEUE_ACTIVE
 from .queue import add_to_queue, status_values
 from .scheduling import StartsAt, check_bookable, load_calendar, local_day, write_or_409
-from .schemas import ApiModel, Text, TunisDateTime
+from .schemas import ApiModel, Lang, Text, TunisDateTime
 from .tables import APPOINTMENT_STATUSES, FREEING_STATUSES, appointment, patient, payment, practitioner, queue_entry, service
 
 router = APIRouter(prefix="/api/appointments", tags=["appointments"])
@@ -72,6 +72,8 @@ class PatientBrief(ApiModel):
     no_shows: int
     #: Medical warning (allergy, anticoagulant …) – shown in red in the appointment dialog.
     alerts: str
+    #: The patient's language: texts sent to them (confirmation, refusal, reminder) use it, not the screen's (fixlist 2).
+    lang: Lang
 
 
 class AppointmentOut(ApiModel):
@@ -117,6 +119,7 @@ def _query() -> Any:
     return select(
         appointment,
         patient.c.first_name, patient.c.last_name, patient.c.phone.label("patient_phone"), patient.c.alerts,
+        patient.c.lang.label("patient_lang"),
         no_shows.label("no_shows"),
         practitioner.c.name.label("practitioner_name"),
         service.c.name_fr.label("service_name"),
@@ -132,7 +135,7 @@ def _out(row: Row[Any]) -> AppointmentOut:
     return AppointmentOut(
         id=row.id,
         patient=PatientBrief(id=row.patient_id, first_name=row.first_name, last_name=row.last_name, phone=row.patient_phone,
-                             no_shows=row.no_shows, alerts=row.alerts),
+                             no_shows=row.no_shows, alerts=row.alerts, lang=row.patient_lang),
         practitioner_id=row.practitioner_id, practitioner_name=row.practitioner_name,
         service_id=row.service_id, service_name=row.service_name,
         starts_at=row.starts_at, ends_at=row.ends_at, duration_min=row.duration_min, reason=row.reason,
