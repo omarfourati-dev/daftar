@@ -115,9 +115,14 @@ Anzahlung eines Termins bezahlt = Σ payment.amount mit `is_deposit` und diesem 
 Feldnamen camelCase. Zeitpunkte ISO-8601 mit Offset (`2026-10-30T09:30:00+01:00`), Tage `YYYY-MM-DD`.
 
 **Auth & Konto**
-- `POST /api/auth/login {email,password}` → `{token, user: Me}`; 401 falsch, 429 gedrosselt (wie Redefluss: 20/IP, 5/E-Mail+IP je 15 min).
+- `POST /api/auth/login {email,password}` → `{token, user: Me}`; 401 falsch, 429 gedrosselt (wie Redefluss: 20/IP, 5/E-Mail+IP je 15 min;
+  dazu je Konto unabhängig von der IP: nach 10 Fehlversuchen einer E-Mail in 15 min 429 für jede Anmeldung dieser E-Mail –
+  auch mit richtigem Passwort – bis der älteste Fehlversuch das Fenster verlässt; unbekannte E-Mails genauso, Security-Review M4).
 - `GET /api/auth/me` → `Me {id,email,name,role,lang,practice:{id,name,isDemo,demoExpiresAt}|null}`
-- `PATCH /api/auth/me {name?,lang?}` → Me · `POST /api/auth/password {current,next}` (next ≥ 10 Zeichen) → `{token}`
+- `PATCH /api/auth/me {name?,lang?}` → Me · `POST /api/auth/password {current,next}` → `{token}`. Passwortregel (auch bei
+  Einladung und Reset-Link): 10–200 Zeichen, nicht ein einziges wiederholtes Zeichen (`password_repeated`), keine reine
+  Ziffern-/Alphabet-/Tastaturfolge vor- oder rückwärts wie `1234567890`, `azertyuiop`, `qwertyuiop` (`password_sequence`),
+  nicht die eigene E-Mail oder ihr lokaler Teil ab 4 Zeichen (`password_contains_email`); jeweils 422.
 - `POST /api/auth/logout-all` → 204 (token_version++)
 - `POST /api/invitations/preview {token}` → `{practiceName, role, isDemo}` (404 ungültig/abgelaufen/benutzt)
 - `POST /api/invitations/accept {token,name,email,password}` → 201 `{token,user}`; 409 E-Mail vergeben; 403
