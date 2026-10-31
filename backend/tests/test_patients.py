@@ -319,7 +319,7 @@ def test_appointments_of_a_patient_newest_first(
     assert [a["id"] for a in items] == [new.id, old.id]
     first = items[0]
     assert first["patient"] == {"id": pat.id, "firstName": "Amira", "lastName": "Trabelsi", "phone": pat.phone,
-                                "noShows": 1, "alerts": "Diabète"}
+                                "noShows": 1, "alerts": "Diabète", "lang": "fr"}
     assert (first["practitionerId"], first["practitionerName"]) == (doctor.id, "Dr. Salah")
     assert (first["serviceId"], first["serviceName"]) == (svc.id, "Détartrage")
     assert first["startsAt"] == "2026-10-31T09:00:00+01:00" and first["endsAt"] == "2026-10-31T09:45:00+01:00"
