@@ -25,6 +25,8 @@ test('G1 – tomorrow’s reminders with WhatsApp/SMS links, no buttons without 
 	await axe(page);
 
 	await card('Youssef Accord').getByRole('button', { name: 'Marquer comme envoyé' }).click();
-	await expect(card('Youssef Accord').getByText(/^Envoyé à \d\d:\d\d$/)).toBeVisible();
+	await expect(card('Youssef Accord').getByText(/^Envoyé le \d\d\/\d\d à \d\d:\d\d$/)).toBeVisible();
 	await expect(page.getByText('2 rendez-vous, 1 rappel(s) envoyé(s)')).toBeVisible();
+	await expect(card('Youssef Accord').getByRole('link', { name: 'WhatsApp' })).toHaveCount(0); // only "Renvoyer" now (N7)
+	await expect(card('Youssef Accord').getByRole('button', { name: 'Renvoyer' })).toBeVisible();
 });

@@ -57,7 +57,7 @@ describe('/app/rappels – reminders of tomorrow by click', () => {
 		expect(y.getByText('Bonjour Youssef, rappel de votre rendez-vous demain 31/10/2026 à 09:00.')).toBeInTheDocument();
 		expect(y.getByRole('link', { name: 'WhatsApp' })).toHaveAttribute('href', `https://wa.me/21620000031?text=${encodeURIComponent(youssef.message)}`);
 		expect(y.getByRole('link', { name: 'SMS' })).toHaveAttribute('href', `sms:+21620000031?&body=${encodeURIComponent(youssef.message)}`);
-		expect(card(/Mounia Chebbi/).getByText('Envoyé à 09:12')).toBeInTheDocument();
+		expect(card(/Mounia Chebbi/).getByText('Envoyé le 30/10 à 09:12')).toBeInTheDocument();
 	});
 
 	it('marks the reminder as sent when WhatsApp is opened', async () => {
@@ -67,7 +67,7 @@ describe('/app/rappels – reminders of tomorrow by click', () => {
 		const link = card(/Youssef Marzouki/).getByRole('link', { name: 'WhatsApp' });
 		link.addEventListener('click', (e) => e.preventDefault()); // jsdom cannot navigate
 		await fireEvent.click(link);
-		expect(await card(/Youssef Marzouki/).findByText('Envoyé à 10:10')).toBeInTheDocument();
+		expect(await card(/Youssef Marzouki/).findByText('Envoyé le 30/10 à 10:10')).toBeInTheDocument();
 		expect(calls()).toContain('POST /api/appointments/31/reminder');
 		expect(screen.getByText('3 rendez-vous, 2 rappel(s) envoyé(s)')).toBeInTheDocument();
 	});
@@ -77,7 +77,41 @@ describe('/app/rappels – reminders of tomorrow by click', () => {
 		render(Page);
 		await screen.findByText('3 rendez-vous, 1 rappel(s) envoyé(s)');
 		await fireEvent.click(card(/Youssef Marzouki/).getByRole('button', { name: 'Marquer comme envoyé' }));
-		expect(await card(/Youssef Marzouki/).findByText('Envoyé à 10:10')).toBeInTheDocument();
+		expect(await card(/Youssef Marzouki/).findByText('Envoyé le 30/10 à 10:10')).toBeInTheDocument();
+		expect(card(/Youssef Marzouki/).queryByRole('link', { name: 'WhatsApp' })).not.toBeInTheDocument(); // no second send by mistake
+	});
+
+	it('after "Envoyé" only "Renvoyer", after a question (code review N7)', async () => {
+		rappelsApi({ 'POST /api/appointments/30/reminder': () => json(200, { ...mounia.appointment, reminderSentAt: NOW }) });
+		render(Page);
+		await screen.findByText('3 rendez-vous, 1 rappel(s) envoyé(s)');
+		const m = card(/Mounia Chebbi/);
+		expect(m.queryByRole('link', { name: 'WhatsApp' })).not.toBeInTheDocument();
+		expect(m.queryByRole('link', { name: 'SMS' })).not.toBeInTheDocument();
+		expect(m.queryByRole('button', { name: 'Marquer comme envoyé' })).not.toBeInTheDocument();
+		await fireEvent.click(m.getByRole('button', { name: 'Renvoyer' }));
+		const dialog = within(screen.getByRole('dialog', { name: 'Renvoyer le rappel ?' }));
+		expect(dialog.getByText('Le rappel de Mounia Chebbi est parti le 30/10 à 09:12. L’envoyer une seconde fois ?')).toBeInTheDocument();
+		await fireEvent.click(dialog.getByRole('button', { name: 'Annuler' }));
+		expect(m.queryByRole('link', { name: 'WhatsApp' })).not.toBeInTheDocument();
+		await fireEvent.click(m.getByRole('button', { name: 'Renvoyer' }));
+		await fireEvent.click(within(screen.getByRole('dialog', { name: 'Renvoyer le rappel ?' })).getByRole('button', { name: 'Oui, renvoyer' }));
+		const link = m.getByRole('link', { name: 'WhatsApp' });
+		link.addEventListener('click', (e) => e.preventDefault());
+		await fireEvent.click(link);
+		expect(await m.findByText('Envoyé le 30/10 à 10:10')).toBeInTheDocument();
+		expect(m.queryByRole('link', { name: 'WhatsApp' })).not.toBeInTheDocument();
+	});
+
+	it('loads the list again when the page comes back into view – another device may have sent', async () => {
+		let sentElsewhere = false;
+		rappelsApi({ 'GET /api/reminders?day=2026-10-31': () => json(200, sentElsewhere ? [{ ...youssef, appointment: { ...youssef.appointment, reminderSentAt: NOW } }, mounia, anis] : [youssef, mounia, anis]) });
+		render(Page);
+		await screen.findByText('3 rendez-vous, 1 rappel(s) envoyé(s)');
+		sentElsewhere = true;
+		window.dispatchEvent(new Event('focus'));
+		expect(await screen.findByText('3 rendez-vous, 2 rappel(s) envoyé(s)')).toBeInTheDocument();
+		expect(card(/Youssef Marzouki/).queryByRole('link', { name: 'WhatsApp' })).not.toBeInTheDocument();
 	});
 
 	it('greys out patients without consent', async () => {

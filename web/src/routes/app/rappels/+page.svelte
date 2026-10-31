@@ -4,6 +4,8 @@
 	 * Saturday Monday's, before a holiday the day after it – or another day) with the message ready in the patient's
 	 * language; WhatsApp (`wa.me`) and SMS (`sms:`) open with it and the reminder is noted as sent.
 	 * Without consent the buttons are greyed out; in demo practices nothing opens, a note explains instead.
+	 * Code review N7 (two assistants, two devices): once sent ("Envoyé le jj/mm à HH:MM") a card offers only
+	 * "Renvoyer", after a question; the list is loaded again whenever the page comes back into view.
 	 */
 	import { onMount } from 'svelte';
 	import { api } from '#lib/api';
@@ -12,9 +14,10 @@
 	import { errorText } from '#lib/agenda/errors';
 	import { personName } from '#lib/agenda/format';
 	import { smsUrl, whatsappUrl } from '#lib/agenda/links';
-	import { nextOpenDay } from '#lib/agenda/time';
+	import { nextOpenDay, tunisDayOf } from '#lib/agenda/time';
 	import { addDays, formatDay, formatTime, t, todayTunis } from '#lib/i18n.svelte';
 	import type { Appointment, Closure, PracticeSettings } from '#lib/types/agenda';
+	import ConfirmDialog from '../../../lib/components/ConfirmDialog.svelte';
 	import Icon from '../../../lib/components/daily/Icon.svelte';
 
 	type Reminder = { appointment: Appointment; patientLang: string; reminderConsent: boolean; phoneDigits: string; message: string };
@@ -27,6 +30,9 @@
 	let error = $state('');
 	let demoNote = $state<number | null>(null);
 	let rowError = $state<{ id: number; text: string } | null>(null);
+	/** "Renvoyer?" asked for this reminder; the ones confirmed show their buttons again. */
+	let asking = $state<Reminder | null>(null);
+	let resending = $state<number[]>([]);
 	let seq = 0;
 
 	const isDemo = $derived(!!auth.user?.practice?.isDemo);
@@ -41,6 +47,22 @@
 		} catch {
 			if (mine === seq) error = t('rappels.loadError');
 		}
+	}
+
+	/** Back on the page (another tab, the phone unlocked): what the other device sent meanwhile. */
+	function refresh() {
+		if (items !== null && document.visibilityState !== 'hidden') void load();
+	}
+
+	/** "le 30/10 à 09:12" of an instant, Tunis time. */
+	function sentWhen(at: string) {
+		const [, month, dayOfMonth] = tunisDayOf(at).split('-');
+		return { date: `${dayOfMonth}/${month}`, time: formatTime(at) };
+	}
+
+	function resend() {
+		if (asking) resending = [...resending, asking.appointment.id];
+		asking = null;
 	}
 	onMount(async () => {
 		try {
@@ -64,6 +86,7 @@
 		try {
 			const updated = await api<Appointment>(`/api/appointments/${r.appointment.id}/reminder`, { method: 'POST' });
 			items = (items ?? []).map((x) => (x.appointment.id === r.appointment.id ? { ...x, appointment: { ...x.appointment, ...updated } } : x));
+			resending = resending.filter((id) => id !== r.appointment.id);
 		} catch (err) {
 			rowError = { id: r.appointment.id, text: errorText(err) };
 		}
@@ -76,6 +99,8 @@
 </script>
 
 <svelte:head><title>{t('rappels.title')} · Daftar</title></svelte:head>
+<svelte:window onfocus={refresh} />
+<svelte:document onvisibilitychange={refresh} />
 
 <div class="flex flex-col gap-5">
 	<div class="flex flex-wrap items-end justify-between gap-3">
@@ -109,11 +134,12 @@
 			{#each items as r (r.appointment.id)}
 				{@const a = r.appointment}
 				{@const consent = r.reminderConsent}
+				{@const sent = !!a.reminderSentAt && !resending.includes(a.id)}
 				<li class="flex flex-col gap-3 rounded-2xl border bg-white p-4 shadow-sm {consent ? 'border-slate-200' : 'border-slate-200 bg-slate-50'}">
 					<div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
 						<h2 class="text-lg font-bold {consent ? '' : 'text-slate-500'}"><span class="tabular-nums">{formatTime(a.startsAt)}</span> {personName(a.patient)}</h2>
 						{#if a.reminderSentAt}
-							<span class="ms-auto inline-flex items-center gap-1 font-semibold text-emerald-800"><Icon name="check" class="h-4 w-4" />{t('rappels.sentAt', { time: formatTime(a.reminderSentAt) })}</span>
+							<span class="ms-auto inline-flex items-center gap-1 font-semibold text-emerald-800"><Icon name="check" class="h-4 w-4" />{t('rappels.sentAt', sentWhen(a.reminderSentAt))}</span>
 						{:else if !consent}
 							<span class="ms-auto text-sm font-semibold text-slate-500">{t('rappels.noConsent')}</span>
 						{/if}
@@ -122,6 +148,9 @@
 					{#if consent}
 						<p class="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-800" lang={r.patientLang} dir={r.patientLang === 'ar' ? 'rtl' : 'ltr'}>{r.message}</p>
 					{/if}
+					{#if consent && sent}
+						<button type="button" class="btn-secondary self-start" onclick={() => (asking = r)}><Icon name="repeat" class="h-4 w-4" />{t('rappels.resend')}</button>
+					{:else}
 					<div class="grid grid-cols-2 gap-2">
 						{#if !consent}
 							<button type="button" class="btn-secondary min-h-12" disabled>{t('rappels.whatsapp')}</button>
@@ -142,6 +171,7 @@
 							<a class="btn-secondary min-h-12" href={smsUrl(r.phoneDigits, r.message)} onclick={() => void markSent(r)}><Icon name="sms" />{t('rappels.sms')}</a>
 						{/if}
 					</div>
+					{/if}
 					{#if consent && !a.reminderSentAt && !isDemo}
 						<button type="button" class="self-start text-sm font-semibold text-brand-800 underline underline-offset-2" onclick={() => markSent(r)}>{t('rappels.markSent')}</button>
 					{/if}
@@ -152,3 +182,14 @@
 		</ul>
 	{/if}
 </div>
+
+<ConfirmDialog
+	open={!!asking}
+	title={t('rappels.resendTitle')}
+	message={asking?.appointment.reminderSentAt
+		? t('rappels.resendMessage', { patient: personName(asking.appointment.patient), ...sentWhen(asking.appointment.reminderSentAt) })
+		: ''}
+	confirmLabel={t('rappels.resendConfirm')}
+	onconfirm={resend}
+	oncancel={() => (asking = null)}
+/>
