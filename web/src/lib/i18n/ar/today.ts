@@ -27,6 +27,7 @@ export const today: Messages['today'] = {
 		hint: 'فات الموعد ولم يُسجَّل الوصول.',
 		noShow: 'غائب',
 		came: 'حضر',
+		left: 'غادر قبل الفحص',
 		done: '{patient}: {status}.'
 	},
 	cashCheck: {

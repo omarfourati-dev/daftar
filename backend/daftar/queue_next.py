@@ -17,16 +17,16 @@ from datetime import date, datetime, timedelta
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Body, Query
-from sqlalchemy import Connection, and_, exists, or_, select
+from sqlalchemy import Connection, or_, select
 
 from . import queue
 from .appointments import AppointmentOut, load_appointments
 from .clock import today_tunis, tunis_day_bounds
 from .deps import Conn, Ctx, StaffUser, StaffWriter
 from .problems import conflict, not_found
-from .queue import ACTIVE, QueueEntryOut
+from .queue import QueueEntryOut
 from .schemas import ApiModel
-from .tables import appointment, practitioner, queue_entry
+from .tables import appointment, practitioner
 
 router = APIRouter(prefix="/api/queue", tags=["queue"])
 
@@ -60,21 +60,12 @@ def late_appointments(
     conn: Connection, practice_id: int, day: date, now: datetime, practitioner_id: int | None
 ) -> list[AppointmentOut]:
     start, end = tunis_day_bounds(day)
-    present = exists().where(
-        queue_entry.c.practice_id == practice_id,
-        queue_entry.c.day == day,
-        queue_entry.c.status.in_(ACTIVE),
-        or_(
-            queue_entry.c.appointment_id == appointment.c.id,
-            and_(queue_entry.c.appointment_id.is_(None), queue_entry.c.patient_id == appointment.c.patient_id),
-        ),
-    )
     where = [
         appointment.c.starts_at >= start,
         appointment.c.starts_at < end,
         appointment.c.starts_at <= now - LATE_AFTER,
         appointment.c.status.in_(("scheduled", "confirmed")),
-        ~present,
+        ~queue.in_waiting_room(practice_id, day),
     ]
     if practitioner_id is not None:
         where.append(or_(appointment.c.practitioner_id == practitioner_id, appointment.c.practitioner_id.is_(None)))

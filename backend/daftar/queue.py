@@ -4,7 +4,9 @@ Staff (reading: every role; changing: staff of a practice that is not suspended)
 - ``GET /api/queue?day=`` (default today in Tunis) → ``[QueueEntry]``: active ones (waiting, called, in_treatment) by
   ticket, then the finished ones (done, left)
 - ``POST /api/queue {patientId? | name + phone?}`` → 201 – the next ticket number of the day (race-free: one
-  transaction-scoped advisory lock per practice); a patient has at most one active ticket a day (409 ``already_in_queue``)
+  transaction-scoped advisory lock per practice); a patient has at most one active ticket a day (409 ``already_in_queue``).
+  A patient with an appointment today (scheduled/confirmed, not linked yet – the earliest) has arrived for it: the
+  ticket is linked and the appointment becomes ``arrived`` (code review M4, like "Arrivé" in the agenda)
 - ``POST /api/queue/{id}/status {status}`` → QueueEntry; a linked appointment follows (waiting/called → arrived,
   in_treatment, done) as long as it is arrived, in treatment or done
 - ``DELETE /api/queue/{id}`` → 204
@@ -28,7 +30,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Response
 from pydantic import Field
-from sqlalchemy import Connection, Row, delete, desc, func, insert, or_, select, text, update
+from sqlalchemy import Connection, Row, and_, delete, desc, exists, func, insert, or_, select, text, update
 
 from .clock import today_tunis, tunis_day_bounds
 from .deps import ClientIp, Conn, Ctx, StaffUser, StaffWriter
@@ -207,6 +209,51 @@ def add_to_queue(
     ).scalar_one()
 
 
+def in_waiting_room(practice_id: int, day: date) -> Any:
+    """SQL condition on ``appointment``: its patient is in the waiting room of ``day`` – an active ticket linked to
+    it, or an active ticket of the patient linked to no appointment."""
+    return exists().where(
+        queue_entry.c.practice_id == practice_id,
+        queue_entry.c.day == day,
+        queue_entry.c.status.in_(ACTIVE),
+        or_(
+            queue_entry.c.appointment_id == appointment.c.id,
+            and_(queue_entry.c.appointment_id.is_(None), queue_entry.c.patient_id == appointment.c.patient_id),
+        ),
+    )
+
+
+def left_the_waiting_room(practice_id: int, day: date) -> Any:
+    """SQL condition on ``appointment``: its ticket of ``day`` says the patient left (code review N3)."""
+    return exists().where(
+        queue_entry.c.practice_id == practice_id,
+        queue_entry.c.day == day,
+        queue_entry.c.status == "left",
+        queue_entry.c.appointment_id == appointment.c.id,
+    )
+
+
+def _todays_appointment(conn: Connection, practice_id: int, patient_id: int, day: date) -> int | None:
+    """The patient's earliest scheduled/confirmed appointment of ``day`` that has no ticket yet."""
+    start, end = tunis_day_bounds(day)
+    ticketed = select(queue_entry.c.appointment_id).where(
+        queue_entry.c.practice_id == practice_id, queue_entry.c.appointment_id.is_not(None)
+    )
+    return conn.execute(
+        select(appointment.c.id)
+        .where(
+            appointment.c.practice_id == practice_id,
+            appointment.c.patient_id == patient_id,
+            appointment.c.starts_at >= start,
+            appointment.c.starts_at < end,
+            appointment.c.status.in_(("scheduled", "confirmed")),
+            appointment.c.id.not_in(ticketed),
+        )
+        .order_by(appointment.c.starts_at, appointment.c.id)
+        .limit(1)
+    ).scalar()
+
+
 def status_values(status: str, now: datetime, called_at: datetime | None) -> dict[str, Any]:
     """Column values for a new queue status: call time, end time (also used by appointments)."""
     if status == "waiting":
@@ -230,6 +277,7 @@ def list_queue(user: StaffUser, ctx: Ctx, conn: Conn, day: date | None = None) -
 def take_ticket(body: QueueIn, user: StaffWriter, ctx: Ctx, conn: Conn) -> QueueEntryOut:
     day = today_tunis(ctx.clock)
     name, phone = body.name, body.phone
+    appointment_id = None
     if body.patient_id is not None:
         pat = conn.execute(
             select(patient.c.first_name, patient.c.last_name, patient.c.phone).where(
@@ -250,11 +298,15 @@ def take_ticket(body: QueueIn, user: StaffWriter, ctx: Ctx, conn: Conn) -> Queue
             raise conflict("Ce patient a déjà un ticket en cours aujourd'hui.", code="already_in_queue")
         name = name or f"{pat.first_name} {pat.last_name}"
         phone = phone or pat.phone
+        appointment_id = _todays_appointment(conn, user.pid, body.patient_id, day)
     if not name:
         raise unprocessable("Indiquez un patient ou un nom.", code="name_required")
     entry_id = add_to_queue(
-        conn, user.pid, now=ctx.clock.now(), day=day, name=name, phone=phone, patient_id=body.patient_id
+        conn, user.pid, now=ctx.clock.now(), day=day, name=name, phone=phone, patient_id=body.patient_id,
+        appointment_id=appointment_id,
     )
+    if appointment_id is not None:
+        conn.execute(update(appointment).where(appointment.c.id == appointment_id).values(status="arrived"))
     return entry_out(conn, user.pid, entry_id)
 
 

@@ -26,6 +26,7 @@ export const today = {
 		hint: 'L’heure est passée et l’arrivée n’a pas été notée.',
 		noShow: 'Absent',
 		came: 'Venu',
+		left: 'Parti avant la consultation',
 		done: '{patient} : {status}.'
 	},
 	cashCheck: {

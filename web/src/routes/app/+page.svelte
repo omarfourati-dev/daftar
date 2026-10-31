@@ -295,7 +295,9 @@
 						{@const done = handled[a.id]}
 						<li class="flex flex-wrap items-center gap-x-3 gap-y-2 py-3">
 							<span class="font-semibold tabular-nums">{formatTime(a.startsAt)}</span>
-							<span class="min-w-0 flex-1 font-semibold">{personName(a.patient)}</span>
+							<span class="min-w-0 flex-1 font-semibold"
+								>{personName(a.patient)}{#if a.status === 'arrived'}<span class="block text-sm font-normal text-slate-600">{t('today.overdue.left')}</span>{/if}</span
+							>
 							{#if done}
 								<span class="font-medium text-emerald-800">{done.text}</span>
 							{:else}

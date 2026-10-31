@@ -9,8 +9,8 @@ Dashboard (section 5, online requests from 11.3)::
 
 ``appointments.total`` leaves cancelled appointments out (``byStatus`` still lists them).
 
-Badges (section 15, polled every 60 s – kept cheap): ``{onlineRequests, overdue}``; overdue = today's
-``scheduled``/``confirmed`` appointments that ended more than 15 minutes ago (same rule as the day closing).
+Badges (section 15, polled every 60 s – kept cheap): ``{onlineRequests, overdue}``; overdue = the appointments of
+the day closing (:func:`daftar.appointments.overdue_conditions` – the same rule as ``/api/appointments/overdue``).
 
 Statistics (section 15, H1): appointments of the month by status (``total`` counts every status), no-show rate
 = no_show / (done + no_show) rounded to 4 decimals (0 without data), revenue = payments of the month,
@@ -25,7 +25,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Query
 from sqlalchemy import Connection, func, select
 
-from .appointments import AppointmentOut, load_appointments
+from .appointments import AppointmentOut, load_appointments, overdue_conditions
 from .clock import TUNIS, now_tunis, today_tunis, tunis_day_bounds
 from .deps import Conn, Ctx, OwnerUser, StaffUser
 from .finance import UnverifiedDay, due_total, unverified_cash_days
@@ -37,7 +37,6 @@ router = APIRouter(prefix="/api", tags=["overview"])
 
 UPCOMING_LIMIT = 5
 REQUESTS_LIMIT = 20
-OVERDUE_AFTER = timedelta(minutes=15)
 TOP_SERVICES = 5
 #: Not shown as "upcoming" on the dashboard (done, gone, or a request that has its own list).
 NOT_UPCOMING = ("cancelled", "no_show", "done", "requested")
@@ -158,15 +157,7 @@ def dashboard(user: StaffUser, ctx: Ctx, conn: Conn) -> DashboardOut:
 @router.get("/badges")
 def badges(user: StaffUser, ctx: Ctx, conn: Conn) -> BadgesOut:
     now = ctx.clock.now()
-    start, _ = tunis_day_bounds(today_tunis(ctx.clock))
-    overdue = _count(
-        conn,
-        appointment,
-        appointment.c.practice_id == user.pid,
-        appointment.c.starts_at >= start,
-        appointment.c.status.in_(("scheduled", "confirmed")),
-        appointment.c.ends_at < now - OVERDUE_AFTER,
-    )
+    overdue = _count(conn, appointment, *overdue_conditions(user.pid, today_tunis(ctx.clock), now))
     return BadgesOut(online_requests=_count(conn, appointment, *_open_requests(user.pid, now)), overdue=overdue)
 
 

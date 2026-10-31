@@ -213,6 +213,66 @@ def test_a_cancelled_appointment_does_not_follow_the_queue(
         assert conn.execute(select(appointment.c.status)).scalar_one() == "cancelled"
 
 
+def _status_of(db: Any, appointment_id: int) -> str:
+    with db.connect() as conn:
+        return conn.execute(select(appointment.c.status).where(appointment.c.id == appointment_id)).scalar_one()
+
+
+def _overdue(client: TestClient, h: dict[str, str]) -> tuple[list[int], int]:
+    listed = [a["id"] for a in client.get("/api/appointments/overdue", headers=h).json()]
+    return listed, client.get("/api/badges", headers=h).json()["overdue"]
+
+
+def test_a_ticket_for_a_patient_with_an_appointment_today_is_their_arrival(
+    client: TestClient, lac: Any, make_patient: Factory, make_appointment: Factory, as_user: Factory, db: Any, clock: Any
+) -> None:
+    """Code review M4: the ticket taken in the waiting room is the appointment's arrival – never "Non venu ?"."""
+    pat = make_patient(lac)
+    clock.set(at(FRI, "08:55"))
+    appt = make_appointment(pat, starts_at=at(FRI, "09:00"), status="confirmed")
+    make_appointment(pat, starts_at=at(SAT, "09:00"))  # another day
+    h = as_user(lac, "assistant")
+    ticket = client.post("/api/queue", json={"patientId": pat.id}, headers=h).json()
+    assert (ticket["appointmentId"], ticket["appointmentAt"]) == (appt.id, "2026-10-30T09:00:00+01:00")
+    assert _status_of(db, appt.id) == "arrived"
+    client.post(f"/api/queue/{ticket['id']}/status", json={"status": "done"}, headers=h)
+    assert _status_of(db, appt.id) == "done"
+    clock.set(at(FRI, "09:50"))
+    assert _overdue(client, h) == ([], 0)
+
+
+def test_patients_in_the_waiting_room_are_not_overdue(
+    client: TestClient, lac: Any, make_patient: Factory, make_appointment: Factory, as_user: Factory, clock: Any
+) -> None:
+    pat = make_patient(lac)
+    h = as_user(lac, "assistant")
+    ticket = client.post("/api/queue", json={"patientId": pat.id}, headers=h).json()  # before the appointment existed
+    appt = make_appointment(pat, starts_at=at(FRI, "09:05"), duration_min=30)
+    clock.set(at(FRI, "09:55"))
+    assert _overdue(client, h) == ([], 0)
+    client.post(f"/api/queue/{ticket['id']}/status", json={"status": "left"}, headers=h)
+    assert _overdue(client, h) == ([appt.id], 1)
+
+
+def test_a_patient_who_left_before_the_visit_is_in_the_day_closing(
+    client: TestClient, lac: Any, make_patient: Factory, make_appointment: Factory, as_user: Factory, db: Any, clock: Any
+) -> None:
+    """Code review N3: "Parti" left the appointment "arrivé" for good – the day closing asks: absent or came?"""
+    pat = make_patient(lac)
+    appt = make_appointment(pat, starts_at=at(FRI, "09:10"), duration_min=30)
+    h = as_user(lac, "assistant")
+    client.post(f"/api/appointments/{appt.id}/status", json={"status": "arrived"}, headers=h)
+    ticket = client.get("/api/queue", headers=h).json()[0]
+    client.post(f"/api/queue/{ticket['id']}/status", json={"status": "left"}, headers=h)
+    assert _status_of(db, appt.id) == "arrived"
+    clock.set(at(FRI, "09:50"))
+    assert _overdue(client, h) == ([], 0)  # not over yet (ended 09:40, + 15 min)
+    clock.set(at(FRI, "10:00"))
+    assert _overdue(client, h) == ([appt.id], 1)
+    assert client.post(f"/api/appointments/{appt.id}/status", json={"status": "no_show"}, headers=h).status_code == 200
+    assert _overdue(client, h) == ([], 0)
+
+
 # --- public pages -------------------------------------------------------------------------------------------------
 
 SECRET_NAME = "Zeineb Secretnom"

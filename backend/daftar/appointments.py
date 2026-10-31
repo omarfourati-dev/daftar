@@ -2,8 +2,9 @@
 practice that is not suspended.
 
 - ``GET ?from=&to=&practitionerId=&status=a,b`` (days in Tunis, default today, at most 62 days) → ``[Appointment]``
-  by start · ``GET /overdue`` → today's ``scheduled|confirmed`` appointments that ended more than 15 min ago ·
-  ``GET /{id}``
+  by start · ``GET /overdue`` → the day closing (:func:`overdue_conditions`): today's ``scheduled|confirmed``
+  appointments that ended more than 15 min ago and whose patient is not in the waiting room, and ``arrived`` ones whose
+  patient left the waiting room before the visit · ``GET /{id}``
 - ``POST {patientId, startsAt, durationMin?, serviceId?, practitionerId?, reason?, notes?, depositRequiredMillimes?,
   status?: scheduled|confirmed}`` → 201 ``{appointment, conflicts: []}``; overlap → 409 ``appointment_conflict``
   ``{conflicts, suggestions}``; 422 ``in_past`` / ``closed`` / ``outside_hours`` / ``invalid_time`` /
@@ -32,7 +33,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Query, Response
 from pydantic import Field, model_validator
-from sqlalchemy import Connection, Row, delete, func, insert, select, update
+from sqlalchemy import Connection, Row, and_, delete, func, insert, or_, select, update
 
 from .clock import today_tunis, tunis_day_bounds
 from .deps import Conn, Ctx, StaffUser, StaffWriter
@@ -40,7 +41,7 @@ from .money import Millimes
 from .practice_settings import DurationMin
 from .problems import conflict, not_found, unprocessable
 from .queue import ACTIVE as QUEUE_ACTIVE
-from .queue import add_to_queue, status_values
+from .queue import add_to_queue, in_waiting_room, left_the_waiting_room, status_values
 from .scheduling import StartsAt, check_bookable, choose_practitioner, load_calendar, local_day, write_or_409
 from .schemas import ApiModel, Lang, Text, TunisDateTime
 from .tables import APPOINTMENT_STATUSES, FREEING_STATUSES, appointment, patient, payment, practitioner, queue_entry, service
@@ -289,16 +290,26 @@ def list_appointments(
     return load_appointments(conn, user.pid, *where)
 
 
+def overdue_conditions(practice_id: int, day: date, now: datetime) -> list[Any]:
+    """Appointments of ``day`` nobody has closed – the day closing "Non venus ?" and its badge: scheduled/confirmed
+    ones that ended more than 15 minutes ago while the patient is not in the waiting room (code review M4: a ticket
+    taken without the agenda), and arrived ones whose patient left the waiting room before the visit (N3)."""
+    start, end = tunis_day_bounds(day)
+    return [
+        appointment.c.practice_id == practice_id,
+        appointment.c.starts_at >= start,
+        appointment.c.starts_at < end,
+        appointment.c.ends_at < now - OVERDUE_AFTER,
+        or_(
+            and_(appointment.c.status.in_(("scheduled", "confirmed")), ~in_waiting_room(practice_id, day)),
+            and_(appointment.c.status == "arrived", left_the_waiting_room(practice_id, day)),
+        ),
+    ]
+
+
 @router.get("/overdue")
 def overdue(user: StaffUser, ctx: Ctx, conn: Conn) -> list[AppointmentOut]:
-    now = ctx.clock.now()
-    start, end = tunis_day_bounds(today_tunis(ctx.clock))
-    return load_appointments(
-        conn, user.pid,
-        appointment.c.starts_at >= start, appointment.c.starts_at < end,
-        appointment.c.status.in_(("scheduled", "confirmed")),
-        appointment.c.ends_at < now - OVERDUE_AFTER,
-    )
+    return load_appointments(conn, user.pid, *overdue_conditions(user.pid, today_tunis(ctx.clock), ctx.clock.now()))
 
 
 @router.get("/{appointment_id}")

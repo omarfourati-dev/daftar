@@ -132,6 +132,14 @@ describe('/app – today at a glance', () => {
 		await vi.waitFor(() => expect(sentJson('POST /api/appointments/40/status')).toEqual({ status: 'done' }));
 	});
 
+	it('says when the patient left the waiting room before the visit (code review N3)', async () => {
+		dashboardApi({ 'GET /api/appointments/overdue': () => json(200, [{ ...late, status: 'arrived' }]) });
+		render(Page);
+		const overdue = within(await screen.findByRole('region', { name: 'Non venus ?' }));
+		expect(await overdue.findByText('Parti avant la consultation')).toBeInTheDocument();
+		expect(overdue.getByRole('button', { name: 'Absent' })).toBeInTheDocument();
+	});
+
 	it('hides the lists that have nothing to do', async () => {
 		dashboardApi({
 			'GET /api/appointments/overdue': () => json(200, []),
