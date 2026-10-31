@@ -119,7 +119,7 @@ def test_owner_invites_and_the_link_works(client: TestClient, team: dict[str, An
     body = res.json()
     assert len(body["token"]) >= 40 and body["expiresAt"] == "2026-11-06T09:00:00+01:00"
     assert client.post("/api/invitations/preview", json={"token": body["token"]}).json() == {
-        "practiceName": "Cabinet Lac", "role": "assistant"}
+        "practiceName": "Cabinet Lac", "role": "assistant", "isDemo": False}
     listed = client.get("/api/staff/invitations", headers=owner).json()
     assert listed == [{"id": body["id"], "role": "assistant", "createdAt": "2026-10-30T09:00:00+01:00",
                        "expiresAt": "2026-11-06T09:00:00+01:00"}]

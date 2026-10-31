@@ -249,7 +249,7 @@ def test_new_owner_invitation(client: TestClient, admin: dict[str, str], make_pr
     assert res.status_code == 201, res.text
     token = res.json()["token"]
     assert res.json()["expiresAt"] == "2026-11-06T09:00:00+01:00"
-    assert client.post("/api/invitations/preview", json={"token": token}).json() == {"practiceName": "Cabinet Lac", "role": "owner"}
+    assert client.post("/api/invitations/preview", json={"token": token}).json() == {"practiceName": "Cabinet Lac", "role": "owner", "isDemo": False}
     assert_problem(client.post("/api/admin/practices/999999/invitation", headers=admin), 404, "not_found")
 
 
