@@ -217,6 +217,7 @@ def test_the_practice_export_contains_the_hygiene_tables(client: TestClient, cab
     data = client.get("/api/practice/export", headers=cab.owner).json()
     assert [t["title"] for t in data["hygieneTasks"]] == ["Purge des conduits"]
     assert [d["doneByName"] for d in data["hygieneTasksDone"]] == ["Nisrine"]
+    assert [(r["dueOn"], r["title"], r["status"]) for r in data["hygieneRegister"]] == [("2026-10-30", "Purge des conduits", "done")]
     assert data["equipment"] == []
 
 

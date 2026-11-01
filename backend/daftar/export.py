@@ -27,6 +27,7 @@ from .tables import (
     feedback,
     hygiene_task,
     hygiene_task_done,
+    hygiene_task_due,
     import_template,
     invitation,
     invoice,
@@ -77,6 +78,7 @@ SECTIONS: tuple[tuple[str, Table], ...] = (
     ("equipment", equipment),
     ("hygieneTasks", hygiene_task),
     ("hygieneTasksDone", hygiene_task_done),
+    ("hygieneRegister", hygiene_task_due),
 )
 
 
