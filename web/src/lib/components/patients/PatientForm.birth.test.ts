@@ -25,7 +25,7 @@ describe('the full birth date of a patient (spec stock-hygiène 6)', () => {
 		mockApi({ 'PATCH /api/patients/7': () => json(200, { ...patient, birthDate: '1978-03-12', birthYear: 1978 }) });
 		const onsaved = vi.fn();
 		render(PatientForm, { props: { patient, onsaved, onclose: vi.fn() } });
-		const year = screen.getByLabelText('ou année');
+		const year = screen.getByLabelText('Année de naissance');
 		expect(year).toHaveValue('1980');
 		await fireEvent.input(screen.getByLabelText('Date de naissance'), { target: { value: '1978-03-12' } });
 		expect(year).toBeDisabled();

@@ -72,12 +72,12 @@
 			>{t('patients.form.phone')}<input class="input" type="tel" inputmode="tel" dir="ltr" bind:value={phone} required autocomplete="off" aria-describedby="phone-hint" /></label
 		>
 		<p id="phone-hint" class="-mt-2 text-xs text-slate-500">{t('patients.form.phoneHint')}</p>
-		<div class="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
+		<div class="grid grid-cols-2 gap-3">
 			<label class="label"
 				>{t('patients.form.birthDate')}<input class="input" type="date" min="1900-01-01" max={todayTunis(clock.now())} bind:value={birthDate} aria-describedby="birth-hint" /></label
 			>
 			<label class="label"
-				>{t('patients.form.birthYearOr')}<input
+				>{t('patients.form.birthYear')}<input
 					class="input tabular-nums"
 					inputmode="numeric"
 					maxlength="4"

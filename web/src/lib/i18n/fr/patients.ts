@@ -31,7 +31,6 @@ export const patients = {
 		phoneHint: 'Ex. 20 123 456 (un numéro peut être partagé par une famille)',
 		birthYear: 'Année de naissance',
 		birthDate: 'Date de naissance',
-		birthYearOr: 'ou année',
 		birthHint: 'La date complète figure sur les étiquettes de prélèvement ; à défaut, l’année.',
 		lang: 'Langue des messages',
 		consent: 'Accepte les rappels par WhatsApp ou SMS',
