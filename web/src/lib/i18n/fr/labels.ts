@@ -63,8 +63,11 @@ export const labels = {
 			name: 'Nom trop long pour ce format – {count} caractère(s) en trop, même avec les prénoms en initiales : « {text} ».',
 			specimen: 'Prélèvement trop long pour ce format – {count} caractère(s) en trop : « {text} ».'
 		},
-		tooLongBigger: 'Choisissez un format plus grand (planche A4) ou raccourcissez le texte avant d’imprimer.',
-		tooLongShorten: 'Raccourcissez le texte avant d’imprimer.',
+		tooLongHelp: {
+			content: 'Essayez un autre format ; pour les prochains cycles, choisissez un contenu plus court.',
+			name: 'Raccourcissez le nom dans le dossier du patient (par exemple le nom d’usage), puis réimprimez.',
+			specimen: 'Raccourcissez le nom du prélèvement « Autre » et préparez de nouveau les étiquettes.'
+		},
 		initials: 'Prénom(s) en initiales pour tenir sur ce format : « {name} ».',
 		tipsTitle: 'Réglages de l’imprimante',
 		tips: {

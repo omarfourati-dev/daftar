@@ -11,7 +11,8 @@ import { APP, axe, currentQuarter, newPatient, newPractice, signIn, type Practic
  * each format printed to PDF with its own page size, nothing cut off, the QR code read back from the rendered PDF
  * (the procedure of marketing/shared/lib.mjs `readQr`: render, PNG, jsQR) –, the traceability in the appointment
  * (expired and "non conforme" packs refused with the reason), both searches of the owner, specimen labels with the
- * birth date, Arabic right to left.
+ * birth date – always in French, for the lab –, Arabic right to left, a cycle cancelled instead of deleted, texts too
+ * long for a label: smaller, initials for the first names, else a warning before printing (never cut silently).
  *
  * `LABEL_SHOTS=<folder>` keeps a PNG of the print preview (the rendered PDF) of every format there.
  */
@@ -159,7 +160,7 @@ async function checkPrint(page: Page, format: string, expected: { pages: number;
 	}
 }
 
-async function setupCycle(p: Practice) {
+async function setupCycle(p: Practice, content = 'Kit extraction chirurgicale complet') {
 	const autoclave = await p.api.post('/api/hygiene/equipment', { name: 'Autoclave Melag 23V', kind: 'autoclave' });
 	return p.api.post('/api/hygiene/cycles', {
 		equipmentId: autoclave.id,
@@ -167,10 +168,16 @@ async function setupCycle(p: Practice) {
 		program: '134 °C – 18 min',
 		result: 'ok',
 		packs: [
-			{ content: 'Kit extraction chirurgicale complet', packaging: 'sachet', quantity: 2 },
+			{ content, packaging: 'sachet', quantity: 2 },
 			{ content: 'Kit examen', packaging: 'double_sachet', quantity: 1 }
 		]
 	});
+}
+
+/** The warning of the label page about texts too long for the format (role alert), or null. */
+async function tooLongWarning(page: Page): Promise<string | null> {
+	const alert = page.getByRole('alert').filter({ hasText: 'Texte trop long' });
+	return (await alert.count()) ? await alert.innerText() : null;
 }
 
 test('a cycle on the phone: autoclave, packs in taps, labels at their real size', async ({ page, request }) => {
@@ -215,7 +222,10 @@ test('a cycle on the phone: autoclave, packs in taps, labels at their real size'
 
 test('every format comes out right: paper size, nothing cut, QR read from the PDF', async ({ page, request }) => {
 	const p = await newPractice(request);
-	const cycle = await setupCycle(p);
+	// the longest content the API takes (60 characters) – it fits at 7 pt on three lines, on every format (review M6)
+	const content = 'Kit extraction chirurgicale complet + élévateurs + davier 17';
+	expect(content).toHaveLength(60);
+	const cycle = await setupCycle(p, content);
 	const patient = await newPatient(p, { firstName: 'Mohamed Amine', lastName: 'Ben Abdallah El Ouerghemmi', birthDate: '1978-03-12' });
 	const specimens = await p.api.post('/api/labels/specimens', {
 		patientId: patient.id,
@@ -226,6 +236,8 @@ test('every format comes out right: paper size, nothing cut, QR read from the PD
 	for (const format of ['roll62', 'label57x32', 'a4_3x8']) {
 		await page.goto(`${APP}/app/etiquettes?cycle=${cycle.id}&format=${format}`);
 		await expect(page.getByRole('list', { name: 'Aperçu des étiquettes' }).getByRole('article')).toHaveCount(3);
+		await expect(page.getByRole('list', { name: 'Aperçu des étiquettes' }).getByRole('article').first()).toContainText(content);
+		expect(await tooLongWarning(page), `${format}: 60 characters fit`).toBeNull();
 		await checkPrint(page, format, { pages: format === 'a4_3x8' ? 1 : 3, qr: 'A1-0412-01', shot: `sterilisation-${format}` });
 		if (process.env.LABEL_SHOTS) await page.screenshot({ path: join(process.env.LABEL_SHOTS, `vorschau-${format}.png`), fullPage: true });
 		await page.goto(`${APP}/app/etiquettes?specimen=${specimens.id}&format=${format}`);
@@ -242,6 +254,20 @@ test('every format comes out right: paper size, nothing cut, QR read from the PD
 	const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
 	expect((await renderPdf(page, pdf, 3)).pages).toHaveLength(2);
 	await page.emulateMedia({ media: 'screen' });
+	// a name of 74 characters: the family name stays whole, the first names become initials where it does not fit
+	const long = await newPatient(p, { firstName: 'Mohamed Amine Fatma Zahra Wijden', lastName: 'Ben Hadj Abdallah El Ouerghemmi Bouzouita', birthYear: 1990 });
+	expect(`${long.lastName} ${long.firstName}`).toHaveLength(74);
+	const tubes = await p.api.post('/api/labels/specimens', { patientId: long.id, items: [{ kind: 'edta', count: 1 }] });
+	for (const format of ['roll62', 'label57x32', 'a4_3x8']) {
+		await page.goto(`${APP}/app/etiquettes?specimen=${tubes.id}&format=${format}`);
+		if (format === 'a4_3x8') await page.getByRole('button', { name: 'Commencer à la position 1', exact: true }).click(); // a fresh sheet
+		const tube = page.getByRole('list', { name: 'Aperçu des étiquettes' }).getByRole('article').first();
+		await expect(tube).toContainText('BEN HADJ ABDALLAH EL OUERGHEMMI BOUZOUITA');
+		expect(await tooLongWarning(page), `${format}: the name fits, with initials if need be`).toBeNull();
+		const initials = (await tube.innerText()).includes('M. A. F. Z. W.');
+		if (initials) await expect(page.getByText(/Prénom\(s\) en initiales pour tenir sur ce format/)).toBeVisible();
+		await checkPrint(page, format, { pages: 1, qr: `E${tubes.id}-01`, shot: `prelevement-74-${format}` });
+	}
 	// the test page of each format: the edge of the label is printed on purpose
 	for (const format of ['roll62', 'label57x32']) {
 		await page.goto(`${APP}/app/etiquettes?test=1&format=${format}`);
@@ -270,9 +296,70 @@ test('labels in Arabic stay right to left with codes left to right, and still fi
 	await page.setViewportSize({ width: 360, height: 780 });
 	await noHorizontalScroll(page, 'labels ar 360');
 	await checkPrint(page, 'roll62', { pages: 3, qr: 'A1-0412-01', shot: 'sterilisation-roll62-ar' });
+	// specimen labels go to the lab: in French, left to right, on an Arabic screen (review M3)
 	await page.goto(`${APP}/app/etiquettes?specimen=${specimens.id}&format=label57x32`);
-	await expect(page.getByRole('list', { name: 'معاينة الملصقات' }).getByRole('article').first()).toContainText('سنة الولادة 1990');
+	await expect(page.getByRole('heading', { level: 1, name: 'ملصقات العيّنات' })).toBeVisible();
+	const tube = page.getByRole('list', { name: 'معاينة الملصقات' }).getByRole('article').first();
+	await expect(tube).toHaveAttribute('lang', 'fr');
+	await expect(tube).toHaveAttribute('dir', 'ltr');
+	await expect(tube).toContainText('Né(e) en 1990');
+	await expect(tube).toContainText('Urine');
+	await expect(tube).toContainText('الطرابلسي سامي'); // the name as it was written
+	await axe(page);
 	await checkPrint(page, 'label57x32', { pages: 1, qr: `E${specimens.id}-01`, shot: 'prelevement-57x32-ar' });
+});
+
+test('a name too long even with initials: the page warns before printing, nothing is cut silently', async ({ page, request }) => {
+	const p = await newPractice(request);
+	const patient = await newPatient(p, {
+		firstName: 'Mohamed Amine',
+		lastName: 'Ben Hadj Abdallah El Ouerghemmi Bouzouita Ben Mohamed Ben Salah Trabelsi Jaziri Hammami Mabrouk Chaabane'
+	});
+	const tubes = await p.api.post('/api/labels/specimens', { patientId: patient.id, items: [{ kind: 'urine', count: 1 }] });
+	await signIn(page, p);
+	await page.setViewportSize({ width: 360, height: 780 });
+	await page.goto(`${APP}/app/etiquettes?specimen=${tubes.id}&format=roll62`);
+	const warning = page.getByRole('alert').filter({ hasText: 'Texte trop long' });
+	await expect(warning).toContainText(/Nom trop long pour ce format – \d+ caractère\(s\) en trop, même avec les prénoms en initiales/);
+	await expect(warning).toContainText('Raccourcissez le nom dans le dossier du patient');
+	// the family name comes first, the first names as initials; printing stays possible, knowingly
+	await expect(page.getByRole('list', { name: 'Aperçu des étiquettes' }).getByRole('article').first()).toContainText('BEN HADJ ABDALLAH');
+	await expect(page.getByRole('button', { name: 'Imprimer 1 étiquette(s)' })).toBeEnabled();
+	await axe(page);
+	await noHorizontalScroll(page, 'warning 360');
+});
+
+test('a cycle entered twice is cancelled, not deleted: its number stays taken, its packs are refused with the reason', async ({ page, request }) => {
+	const p = await newPractice(request);
+	const autoclave = await p.api.post('/api/hygiene/equipment', { name: 'Autoclave', kind: 'autoclave' });
+	const twice = await p.api.post('/api/hygiene/cycles', { equipmentId: autoclave.id, result: 'ok', packs: [{ content: 'Kit examen', quantity: 2 }] });
+	expect(twice.number).toBe(1);
+	await signIn(page, p);
+	await page.setViewportSize({ width: 360, height: 780 });
+	await page.goto(APP + '/app/hygiene?tab=sterilisation');
+	await page.getByRole('button', { name: 'Corriger – cycle A1 n° 1' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Corriger le cycle' });
+	await dialog.getByRole('button', { name: 'Annuler ce cycle (saisi par erreur)…' }).click();
+	await expect(dialog.getByText(/jetez-les/)).toBeVisible();
+	await dialog.getByLabel('Motif').fill('Saisi deux fois');
+	await axe(page);
+	await dialog.getByRole('button', { name: 'Oui, annuler le cycle' }).click();
+	await expect(page.getByText('Cycle annulé. Jetez ses étiquettes déjà imprimées.')).toBeVisible();
+	const cycles = page.getByRole('list', { name: 'Cycles de stérilisation' });
+	await expect(cycles).toContainText(/Annulé le .* : Saisi deux fois/);
+	await expect(cycles.getByRole('link', { name: 'Étiquettes' })).toHaveCount(0);
+	await axe(page);
+	await noHorizontalScroll(page, 'cancelled cycle 360');
+	// the next cycle gets n° 2 – the labels A1-0001-… never name another pack
+	const next = await p.api.post('/api/hygiene/cycles', { equipmentId: autoclave.id, result: 'ok', packs: [{ content: 'Kit examen', quantity: 1 }] });
+	expect(next.packs[0].code).toBe('A1-0002-01');
+	// an old link to its labels prints nothing
+	await page.goto(`${APP}/app/etiquettes?cycle=${twice.id}&packs=${twice.packs[0].id}`);
+	await expect(page.getByText('Cycle annulé (Saisi deux fois) : aucune étiquette.', { exact: false })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Imprimer 0 étiquette(s)' })).toBeDisabled();
+	await page.getByRole('link', { name: 'Retour' }).click();
+	await page.getByRole('button', { name: 'Historique' }).click();
+	await expect(page.getByRole('list', { name: 'Journal des corrections' })).toContainText('a annulé le cycle A1 n° 1');
 });
 
 test('traceability: the desk notes packs in the appointment, refused ones say why; the owner searches both ways', async ({ page, request }) => {
@@ -302,6 +389,15 @@ test('traceability: the desk notes packs in the appointment, refused ones say wh
 	await dialog.getByRole('button', { name: 'Traçabilité stérilisation' }).click();
 	const region = dialog.getByRole('region', { name: 'Paquets stérilisés utilisés' });
 	await region.getByRole('list', { name: 'Paquets à utiliser' }).getByRole('button', { name: /A1-0009-01/ }).click();
+	await expect(region.getByText('A1-0009-01 (Kit examen) noté pour ce patient.')).toBeVisible();
+	// taken back with a reason (review M1), then noted again as a desk scanner on a French keyboard types it (U1)
+	await region.getByRole('button', { name: 'Retirer A1-0009-01' }).click();
+	await region.getByRole('button', { name: 'Mauvais paquet' }).click();
+	await axe(page);
+	await region.getByRole('button', { name: 'Confirmer le retrait' }).click();
+	await expect(region.getByText('A1-0009-01 retiré.')).toBeVisible();
+	await region.getByLabel('Code du paquet').fill("Q&)àààç)à&");
+	await region.getByRole('button', { name: 'Noter' }).click();
 	await expect(region.getByText('A1-0009-01 (Kit examen) noté pour ce patient.')).toBeVisible();
 	// an expired pack, typed as on the label
 	await region.getByLabel('Code du paquet').fill('a1 0007 01');
@@ -339,7 +435,10 @@ test('traceability: the desk notes packs in the appointment, refused ones say wh
 	const cycles = page.getByRole('list', { name: 'Cycles de stérilisation' });
 	await expect(cycles).toContainText('Ses 1 paquet(s) sont refusés.');
 	await page.getByRole('button', { name: 'Historique' }).click();
-	await expect(page.getByRole('list', { name: 'Journal des corrections' })).toContainText('a corrigé le cycle A1 n° 8');
+	const journal = page.getByRole('list', { name: 'Journal des corrections' });
+	await expect(journal).toContainText('a corrigé le cycle A1 n° 8');
+	await expect(journal).toContainText('a retiré le paquet A1-0009-01 noté pour Hela Tracee');
+	await expect(journal).toContainText('Motif : Mauvais paquet');
 });
 
 test('specimen labels from the patient file with the full birth date; Arabic file', async ({ page, request }) => {

@@ -205,7 +205,7 @@ describe('/app/etiquettes – labels at their real size, then the browser prints
 			const alert = await screen.findByRole('alert');
 			expect(alert).toHaveTextContent('Texte trop long : il serait coupé sur l’étiquette');
 			expect(alert).toHaveTextContent(`Contenu trop long pour ce format – 20 caractère(s) en trop : « ${long} ».`);
-			expect(alert).toHaveTextContent('Choisissez un format plus grand (planche A4) ou raccourcissez le texte avant d’imprimer.');
+			expect(alert).toHaveTextContent('Essayez un autre format ; pour les prochains cycles, choisissez un contenu plus court.');
 			expect(within(alert).getAllByRole('listitem')).toHaveLength(1); // the same content once
 		} finally {
 			restore();

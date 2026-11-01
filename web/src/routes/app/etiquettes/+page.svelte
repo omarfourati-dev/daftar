@@ -300,7 +300,7 @@
 								<li dir="auto">{t(`labels.print.tooLong.${long.field}`, { count: long.excess, text: long.text })}</li>
 							{/each}
 						</ul>
-						<p>{format === 'a4_3x8' ? t('labels.print.tooLongShorten') : t('labels.print.tooLongBigger')}</p>
+						{#each [...new Set(tooLong.map((long) => long.field))] as field (field)}<p>{t(`labels.print.tooLongHelp.${field}`)}</p>{/each}
 					</div>
 				{/if}
 				{#if initialled.length && !testing}
