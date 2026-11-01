@@ -3,7 +3,9 @@
 	 * /app/stock/reception – a delivery in under a minute on the phone (spec stock-hygiène 4.2): supplier (or a new one),
 	 * then one line per product of the delivery note – search, tap, quantity with − / +, unit price (the last average
 	 * price is proposed), lot and expiry folded away. The total follows live; one button saves everything. A product that
-	 * does not exist yet is created from the search without leaving the page.
+	 * does not exist yet is created from the search without leaving the page. Each price is read back as dinars while it
+	 * is typed; an unusual one (above 500 DT, or more than 3 × away from the average) is asked about before saving
+	 * (review H2: "13500" for "13,500"). Quantities are whole numbers (review N2).
 	 */
 	import { onMount, tick } from 'svelte';
 	import { api } from '#lib/api';
@@ -13,9 +15,11 @@
 	import { money } from '#lib/agenda/format';
 	import { t, todayTunis } from '#lib/i18n.svelte';
 	import { dinarsText, parseDinars } from '#lib/money-input';
-	import { matches, stockError, unitWord } from '#lib/stock';
+	import { matches, stockError, unitLabel, unitWord, UNUSUAL_PRICE_MILLIMES, unusualPrice, wholeQuantity } from '#lib/stock';
 	import type { Product, Receipt, Supplier } from '#lib/types/stock';
 	import Icon from '../../../../lib/components/daily/Icon.svelte';
+	import Modal from '../../../../lib/components/daily/Modal.svelte';
+	import PriceField from '../../../../lib/components/stock/PriceField.svelte';
 	import ProductDialog from '../../../../lib/components/stock/ProductDialog.svelte';
 	import SupplierDialog from '../../../../lib/components/stock/SupplierDialog.svelte';
 
@@ -37,6 +41,8 @@
 	let saved = $state<Receipt | null>(null);
 	let creatingProduct = $state<string | null>(null);
 	let creatingSupplier = $state(false);
+	/** Lines with an unusual price, waiting for "Oui, ce prix est juste" or "Corriger le prix". */
+	let checking = $state<Line[] | null>(null);
 	let nextKey = 1;
 
 	async function load() {
@@ -80,20 +86,31 @@
 		e.preventDefault();
 		error = '';
 		if (!lines.length) return void (error = t('stock.receipt.noLines'));
-		const body = [];
 		for (const line of lines) {
-			const price = parseDinars(line.price);
-			if (Number.isNaN(price)) return void (error = t('stock.receipt.invalidPrice', { product: line.product.name }));
-			const quantity = Math.round(Number(line.quantity));
-			if (!Number.isFinite(quantity) || quantity < 1) return void (error = t('errors.validation'));
-			body.push({
-				productId: line.product.id,
-				quantity,
-				unitPriceMillimes: price,
-				lot: line.lot.trim(),
-				expiresOn: line.expiresOn || null
-			});
+			if (Number.isNaN(parseDinars(line.price))) return void (error = t('stock.receipt.invalidPrice', { product: line.product.name }));
+			if (wholeQuantity(line.quantity) === null) return void (error = t('stock.wholeNumber'));
 		}
+		const odd = lines.filter((l) => unusualPrice(parseDinars(l.price), l.product.averageCostMillimes));
+		if (odd.length) return void (checking = odd);
+		await send();
+	}
+
+	async function fixPrice() {
+		const first = checking?.[0];
+		checking = null;
+		await tick();
+		if (first) document.getElementById(`price-${first.key}`)?.focus();
+	}
+
+	async function send() {
+		checking = null;
+		const body = lines.map((line) => ({
+			productId: line.product.id,
+			quantity: wholeQuantity(line.quantity) ?? 1,
+			unitPriceMillimes: parseDinars(line.price),
+			lot: line.lot.trim(),
+			expiresOn: line.expiresOn || null
+		}));
 		busy = true;
 		try {
 			saved = await api<Receipt>('/api/stock/receipts', {
@@ -187,12 +204,19 @@
 										<label class="text-sm font-medium text-slate-700" for="qty-{line.key}">{t('stock.receipt.quantity')}</label>
 										<div class="flex items-center gap-1">
 											<button type="button" class="btn-secondary min-h-11 min-w-11 px-0 text-lg" aria-label={t('stock.useDialog.less')} onclick={() => step(line, -1)}>−</button>
-											<input id="qty-{line.key}" class="input w-20 text-center font-bold tabular-nums" type="number" inputmode="numeric" min="1" bind:value={line.quantity} />
+											<input id="qty-{line.key}" class="input w-20 text-center font-bold tabular-nums" type="number" inputmode="numeric" min="1" step="1" bind:value={line.quantity} />
 											<button type="button" class="btn-secondary min-h-11 min-w-11 px-0 text-lg" aria-label={t('stock.useDialog.more')} onclick={() => step(line, 1)}>+</button>
 											<span class="ms-1 text-sm text-slate-600">{unitWord(Number(line.quantity) || 0, line.product.unit)}</span>
 										</div>
 									</div>
-									<label class="label w-32">{t('stock.receipt.unitPrice')}<input class="input tabular-nums" inputmode="decimal" bind:value={line.price} autocomplete="off" dir="ltr" /></label>
+									<PriceField
+										id="price-{line.key}"
+										label={t('stock.receipt.unitPrice')}
+										bind:value={line.price}
+										unit={line.product.unit}
+										average={line.product.averageCostMillimes}
+										class="w-44"
+									/>
 								</div>
 								<button type="button" class="min-h-11 self-start text-sm font-semibold text-brand-800 underline-offset-2 hover:underline" aria-expanded={line.open} onclick={() => (line.open = !line.open)}
 									>{t('stock.receipt.more')}</button
@@ -257,6 +281,32 @@
 		}}
 		onclose={() => (creatingProduct = null)}
 	/>
+{/if}
+{#if checking}
+	<Modal title={t('stock.receipt.unusual.title')} onclose={() => (checking = null)}>
+		<div class="flex flex-col gap-3">
+			<p class="text-slate-700">{t('stock.receipt.unusual.text')}</p>
+			<ul class="flex flex-col gap-2">
+				{#each checking as line (line.key)}
+					{@const price = parseDinars(line.price) ?? 0}
+					<li class="rounded-lg bg-amber-50 px-3 py-2 ring-1 ring-amber-200">
+						<p class="font-semibold text-amber-950" dir="auto">
+							{t('stock.receipt.unusual.line', { product: line.product.name, price: money(price), unit: unitLabel(line.product.unit) })}
+						</p>
+						<p class="text-sm text-amber-900">
+							{price > UNUSUAL_PRICE_MILLIMES || line.product.averageCostMillimes === null
+								? t('stock.receipt.unusual.high', { unit: unitLabel(line.product.unit) })
+								: t('stock.receipt.unusual.average', { price: money(line.product.averageCostMillimes) })}
+						</p>
+					</li>
+				{/each}
+			</ul>
+		</div>
+		{#snippet footer()}
+			<button type="button" class="btn-secondary" onclick={fixPrice}>{t('stock.receipt.unusual.fix')}</button>
+			<button type="button" class="btn-primary" disabled={busy} onclick={send}>{t('stock.receipt.unusual.confirm')}</button>
+		{/snippet}
+	</Modal>
 {/if}
 {#if creatingSupplier}
 	<SupplierDialog

@@ -4,7 +4,7 @@ import Page from './+page.svelte';
 import { auth } from '#lib/auth.svelte';
 import { clock } from '#lib/clock';
 import { i18n } from '#lib/i18n.svelte';
-import { calls, json, labelInNameProblems, mockApi, noContent, sentJson, type Handler } from '#lib/test-utils';
+import { calls, json, labelInNameProblems, mockApi, noContent, problem, sentJson, type Handler } from '#lib/test-utils';
 import { assistant, NOW, owner } from '#lib/agenda/fixtures';
 import { dentist } from '#lib/testing/fixtures';
 import type { Movement, Product, Supplier } from '#lib/types/stock';
@@ -23,6 +23,7 @@ function product(overrides: Partial<Product> = {}): Product {
 		active: true,
 		quantity: 10,
 		status: 'ok',
+		hasHistory: true,
 		expiresOn: null,
 		expiry: null,
 		averageCostMillimes: 12000,
@@ -45,6 +46,12 @@ const carpules = product({
 	lastUsedAt: '2026-10-30T08:40:00+01:00'
 });
 const composite = product({ id: 3, name: 'Composite', category: 'restauration', unit: 'piece', quantity: 0, status: 'empty', minQuantity: 2 });
+const LOG = 'GET /api/audit-log?entity=stock_receipt,stock_receipt_line,stock_movement,stock_product,supplier&limit=30';
+const receiptMove: Movement = {
+	id: 60, productId: 1, productName: 'Gants d’examen', unit: 'boite', kind: 'receipt', quantity: 10, serviceId: null, serviceName: null,
+	serviceNameAr: null, appointmentId: null, patientName: null, receiptId: 8, receiptLineId: 81, receivedOn: '2026-10-28', reason: '',
+	unitCostMillimes: 13500000, createdBy: 'Nisrine', createdAt: '2026-11-01T09:00:00+01:00'
+};
 const supplier: Supplier = { id: 7, name: 'Dentalia Sfax', phone: '+21674000000', whatsapp: '+21620123456', note: 'Livre le mardi', active: true, products: 2 };
 
 function stockApi(extra: Record<string, Handler> = {}, products: Product[] = [gloves, carpules, composite]) {
@@ -182,12 +189,13 @@ describe('/app/stock – the material of the practice', () => {
 		auth.set('tok', owner);
 		const use: Movement = {
 			id: 50, productId: 1, productName: 'Gants d’examen', unit: 'boite', kind: 'use', quantity: -3, serviceId: null, serviceName: null,
-			appointmentId: null, patientName: null, receiptId: null, reason: '', unitCostMillimes: 12000, createdBy: 'Nisrine', createdAt: '2026-10-30T09:00:00+01:00'
+			appointmentId: null, patientName: null, receiptId: null, reason: '', unitCostMillimes: 12000, createdBy: 'Nisrine', createdAt: '2026-10-30T09:00:00+01:00',
+			serviceNameAr: null, receiptLineId: null, receivedOn: null
 		};
 		const fetch = stockApi({
 			'GET /api/stock/movements?limit=100': () => json(200, [use]),
-			'GET /api/audit-log?limit=20': () =>
-				json(200, [{ id: 1, at: '2026-10-30T09:10:00+01:00', userName: 'Dr Amira', entity: 'stock_movement', action: 'delete', before: { kind: 'use', quantity: -2, product: 'Composite' }, reason: 'Doublon' }]),
+			[LOG]: () =>
+				json(200, [{ id: 1, at: '2026-10-30T09:10:00+01:00', userName: 'Dr Amira', entity: 'stock_movement', entityId: 7, action: 'delete', before: { kind: 'use', quantity: -2, product: 'Composite' }, after: null, reason: 'Doublon' }]),
 			'DELETE /api/stock/movements/50': () => noContent()
 		});
 		history.replaceState(null, '', '/app/stock?tab=mouvements');
@@ -195,7 +203,9 @@ describe('/app/stock – the material of the practice', () => {
 		const moves = within(await screen.findByRole('list', { name: 'Derniers mouvements' }));
 		expect(moves.getByText('Gants d’examen')).toBeInTheDocument();
 		expect(moves.getByText(/par Nisrine/)).toBeInTheDocument();
-		expect(await screen.findByText(/Dr Amira a supprimé : Sortie de 2 Composite\. Motif : Doublon/)).toBeInTheDocument();
+		const log = within(await screen.findByRole('list', { name: 'Journal des corrections' }));
+		expect(log.getByText('30/10/2026 09:10 – Dr Amira a supprimé : Sortie de 2 Composite')).toBeInTheDocument();
+		expect(log.getByText('Motif : Doublon')).toBeInTheDocument();
 		await fireEvent.click(moves.getByRole('button', { name: 'Supprimer' }));
 		const dialog = within(screen.getByRole('dialog', { name: 'Supprimer ce mouvement ?' }));
 		await fireEvent.input(dialog.getByLabelText('Motif'), { target: { value: 'Saisi deux fois' } });
@@ -214,5 +224,134 @@ describe('/app/stock – the material of the practice', () => {
 		expect(list.getByText('Livre le mardi')).toBeInTheDocument();
 		expect(list.getByRole('link', { name: 'Appeler Dentalia Sfax' })).toHaveAttribute('href', 'tel:+21674000000');
 		expect(list.getByRole('link', { name: 'WhatsApp Dentalia Sfax' })).toHaveAttribute('href', 'https://wa.me/21620123456');
+	});
+
+	it('shows a product never received in grey, never to order (start list)', async () => {
+		const fresh = product({ id: 9, name: 'Pompes à salive', quantity: 0, status: 'unreceived', hasHistory: false, minQuantity: 2 });
+		stockApi({}, [gloves, fresh]);
+		render(Page);
+		const list = within(await screen.findByRole('list', { name: 'Produits en stock' }));
+		const row = list.getByText('Pompes à salive').closest('button') as HTMLElement;
+		expect(row).toHaveTextContent('Pas encore reçu');
+		expect(row).toHaveTextContent('notez sa première réception');
+		expect(screen.getByRole('button', { name: 'À commander' })).toBeInTheDocument(); // no count: nothing to order
+	});
+
+	it('says when a part cannot load and tries again – never "nothing to order" (review N3)', async () => {
+		let fail = true;
+		stockApi({ 'GET /api/stock/to-order': () => (fail ? problem(500, 'server_error') : json(200, { count: 0, groups: [] })) });
+		history.replaceState(null, '', '/app/stock?tab=commander');
+		render(Page);
+		const alert = await screen.findByRole('alert');
+		expect(alert).toHaveTextContent('La liste à commander n’a pas pu être chargée.');
+		expect(screen.queryByText('Rien à commander : tous les produits sont au-dessus de leur seuil.')).not.toBeInTheDocument();
+		fail = false;
+		await fireEvent.click(within(alert).getByRole('button', { name: 'Réessayer' }));
+		expect(await screen.findByText('Rien à commander : tous les produits sont au-dessus de leur seuil.')).toBeInTheDocument();
+	});
+
+	it('opens no WhatsApp and no call in a demo practice but shows the order text (review N7)', async () => {
+		auth.set('tok', { ...assistant, practice: { ...assistant.practice!, isDemo: true } });
+		stockApi({
+			'GET /api/stock/to-order': () =>
+				json(200, { count: 1, groups: [{ supplier: { id: 7, name: 'Dentalia Sfax', phone: '+21674000000', whatsapp: '+21620123456' }, items: [{ productId: 2, name: 'Carpules d’articaïne', unit: 'carpule', quantity: 40, minQuantity: 50, suggested: 60 }] }] })
+		});
+		history.replaceState(null, '', '/app/stock?tab=commander');
+		render(Page);
+		const group = within(await screen.findByRole('region', { name: 'Dentalia Sfax' }));
+		expect(group.getByText(/Démo : rien n’est envoyé/)).toBeInTheDocument();
+		expect(group.getByText(/– Carpules d’articaïne : 60 carpules/)).toBeInTheDocument();
+		expect(document.querySelector('a[href^="https://wa.me"]')).toBeNull();
+		expect(document.querySelector('a[href^="tel:"]')).toBeNull();
+		await fireEvent.click(screen.getByRole('button', { name: 'Fournisseurs' }));
+		expect(await screen.findByText(/numéros fictifs/)).toBeInTheDocument();
+		expect(document.querySelector('a[href^="https://wa.me"], a[href^="tel:"]')).toBeNull();
+	});
+
+	it('names the delivery day of a receipt and lets the owner correct its line (review N9, H2)', async () => {
+		auth.set('tok', owner);
+		stockApi({
+			'GET /api/stock/movements?limit=100': () => json(200, [receiptMove]),
+			[LOG]: () =>
+				json(200, [{ id: 3, at: '2026-11-01T09:20:00+01:00', userName: 'Amira', entity: 'stock_receipt_line', entityId: 81, action: 'update',
+					before: { product: 'Gants d’examen', unit: 'boite', receivedOn: '2026-10-28', unitPriceMillimes: 13500000 }, after: { unitPriceMillimes: 13500 }, reason: 'Virgule oubliée' }]),
+			'PATCH /api/stock/receipts/8/lines/81': () => json(200, { id: 8 })
+		});
+		history.replaceState(null, '', '/app/stock?tab=mouvements');
+		render(Page);
+		const moves = within(await screen.findByRole('list', { name: 'Derniers mouvements' }));
+		expect(moves.getByText(/Réception – 28\/10\/2026/)).toBeInTheDocument();
+		const log = within(await screen.findByRole('list', { name: 'Journal des corrections' }));
+		expect(log.getByText('01/11/2026 09:20 – Amira a corrigé la réception du 28/10/2026 : Gants d’examen')).toBeInTheDocument();
+		expect(log.getByText('Prix unitaire : 13 500 DT → 13,500 DT')).toBeInTheDocument();
+		await fireEvent.click(moves.getByRole('button', { name: 'Supprimer la réception' }));
+		expect(screen.getByRole('dialog', { name: 'Supprimer toute la réception du 28/10/2026 ?' })).toBeInTheDocument();
+		await fireEvent.click(screen.getByRole('button', { name: 'Annuler' }));
+		await fireEvent.click(moves.getByRole('button', { name: 'Corriger la réception : Gants d’examen' }));
+		const dialog = within(screen.getByRole('dialog', { name: 'Corriger la réception du 28/10/2026' }));
+		const price = dialog.getByLabelText('Prix unitaire (DT)');
+		expect(price).toHaveValue('13500');
+		expect(dialog.getByText('Soit 13 500 DT par boîte')).toBeInTheDocument();
+		await fireEvent.input(price, { target: { value: '13,5' } });
+		expect(dialog.getByText('Soit 13,500 DT par boîte')).toBeInTheDocument();
+		await fireEvent.input(dialog.getByLabelText('Motif'), { target: { value: 'Virgule oubliée' } });
+		await fireEvent.click(dialog.getByRole('button', { name: 'Enregistrer la correction' }));
+		await vi.waitFor(() => expect(calls()).toContain('PATCH /api/stock/receipts/8/lines/81'));
+		expect(sentJson('PATCH /api/stock/receipts/8/lines/81')).toEqual({ quantity: 10, unitPriceMillimes: 13500, reason: 'Virgule oubliée' });
+		expect(await screen.findByText('Réception corrigée : le stock et les coûts sont à jour.')).toBeInTheDocument();
+		expect(labelInNameProblems()).toEqual([]);
+	});
+
+	it('asks only for the stock entries of the change log and words them (review M3)', async () => {
+		auth.set('tok', owner);
+		stockApi({
+			'GET /api/stock/movements?limit=100': () => json(200, []),
+			[LOG]: () =>
+				json(200, [{ id: 4, at: '2026-10-30T11:00:00+01:00', userName: 'Salma', entity: 'stock_product', entityId: 1, action: 'update',
+					before: { product: 'Gants d’examen', minQuantity: 4, category: 'hygiene' }, after: { minQuantity: 6, category: 'bureau' }, reason: '' }])
+		});
+		history.replaceState(null, '', '/app/stock?tab=mouvements');
+		render(Page);
+		const log = within(await screen.findByRole('list', { name: 'Journal des corrections' }));
+		expect(log.getByText('30/10/2026 11:00 – Salma a modifié le produit « Gants d’examen »')).toBeInTheDocument();
+		expect(log.getByText('Seuil de commande : 4 → 6')).toBeInTheDocument();
+		expect(log.getByText('Catégorie : Hygiène → Bureau')).toBeInTheDocument();
+		expect(calls()).toContain(LOG);
+		expect(document.body.textContent).not.toContain('de 0');
+	});
+
+	it('refuses half a box instead of rounding it (review N2)', async () => {
+		stockApi({ 'GET /api/services': () => json(200, []) });
+		render(Page);
+		await screen.findByRole('list', { name: 'Produits en stock' });
+		await fireEvent.click(screen.getByRole('button', { name: 'Sortie' }));
+		const dialog = within(screen.getByRole('dialog', { name: 'Sortie de stock' }));
+		await fireEvent.click(dialog.getByRole('button', { name: /Gants d’examen/ }));
+		await fireEvent.input(dialog.getByLabelText('Quantité'), { target: { value: '0.5' } });
+		await fireEvent.click(dialog.getByRole('button', { name: 'Enregistrer la sortie' }));
+		expect(await dialog.findByRole('alert')).toHaveTextContent('Nombre entier seulement');
+		expect(calls()).not.toContain('POST /api/stock/movements');
+	});
+
+	it('counts the shelves in whole numbers only (review N2)', async () => {
+		stockApi();
+		history.replaceState(null, '', '/app/stock?tab=inventaire');
+		render(Page);
+		const list = within(await screen.findByRole('list', { name: 'Inventaire' }));
+		await fireEvent.input(list.getByLabelText(/Gants d’examen/), { target: { value: '2.5' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Enregistrer l’inventaire' }));
+		expect(await screen.findByText('Nombre entier seulement : pour une partie, comptez en pièces ou en ml.')).toBeInTheDocument();
+		expect(calls()).not.toContain('POST /api/stock/inventory');
+	});
+
+	it('shows the act of a movement in Arabic (review N6)', async () => {
+		i18n.setLocale('ar');
+		const soin: Movement = { ...receiptMove, id: 61, kind: 'use', quantity: -1, receiptId: null, receiptLineId: null, receivedOn: null, serviceId: 11, serviceName: 'Soin carie', serviceNameAr: 'علاج تسوس' };
+		stockApi({ 'GET /api/stock/movements?limit=100': () => json(200, [soin]) });
+		history.replaceState(null, '', '/app/stock?tab=mouvements');
+		render(Page);
+		const moves = within(await screen.findByRole('list', { name: 'آخر الحركات' }));
+		expect(moves.getByText('علاج تسوس')).toBeInTheDocument();
+		expect(moves.queryByText('Soin carie')).not.toBeInTheDocument();
 	});
 });

@@ -2,7 +2,8 @@
 	/**
 	 * Create or change a product (assistant, owner): name, category (those of the specialty first), unit, usual supplier,
 	 * order threshold, note. Editing also (de)activates or deletes it – deleting works only without history (409
-	 * product_in_use); otherwise the product is deactivated so the past stays readable.
+	 * product_in_use); otherwise the product is deactivated so the past stays readable. Once something was recorded the
+	 * unit is locked (review M2: 2 boxes must not become 2 pieces) – the dialog says why and offers a new product.
 	 */
 	import { untrack } from 'svelte';
 	import { api } from '../../api';
@@ -18,9 +19,11 @@
 		suppliers: Supplier[];
 		onsaved: (p: Product) => void;
 		ondeleted?: (id: number) => void;
+		/** "Créer un nouveau produit" instead of changing a locked unit. */
+		onnew?: (name: string) => void;
 		onclose: () => void;
 	};
-	let { product = null, initialName = '', suppliers, onsaved, ondeleted, onclose }: Props = $props();
+	let { product = null, initialName = '', suppliers, onsaved, ondeleted, onnew, onclose }: Props = $props();
 
 	const start = untrack(() => product);
 	let name = $state(start?.name ?? untrack(() => initialName));
@@ -32,6 +35,7 @@
 	let error = $state('');
 	let busy = $state(false);
 
+	const locked = !!start?.hasHistory;
 	const categories = $derived(categoriesFor(auth.user?.practice?.specialty));
 	const choosable = $derived(suppliers.filter((s) => s.active || String(s.id) === supplierId));
 
@@ -88,11 +92,19 @@
 			</label>
 			<label class="label"
 				>{t('stock.product.unit')}
-				<select class="input" bind:value={unit}>
+				<select class="input" bind:value={unit} disabled={locked} aria-describedby={locked ? 'product-unit-locked' : undefined}>
 					{#each UNITS as u (u)}<option value={u}>{unitLabel(u)}</option>{/each}
 				</select>
 			</label>
 		</div>
+		{#if locked}
+			<div class="flex flex-col items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
+				<p id="product-unit-locked" class="text-sm text-slate-700">{t('stock.product.unitLocked')}</p>
+				{#if onnew}
+					<button type="button" class="btn-secondary min-h-11 text-sm" onclick={() => onnew?.(name.trim())}>{t('stock.product.newInstead')}</button>
+				{/if}
+			</div>
+		{/if}
 		<label class="label"
 			>{t('stock.product.supplier')}
 			<select class="input" bind:value={supplierId}>

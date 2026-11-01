@@ -1,10 +1,10 @@
 import { fireEvent, render, screen, within } from '@testing-library/svelte';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from './+page.svelte';
 import { auth } from '#lib/auth.svelte';
 import { clock } from '#lib/clock';
 import { i18n } from '#lib/i18n.svelte';
-import { json, mockApi, problem, sentJson, type Handler } from '#lib/test-utils';
+import { calls, json, mockApi, problem, sentJson, type Handler } from '#lib/test-utils';
 import { assistant, NOW } from '#lib/agenda/fixtures';
 import { dentist } from '#lib/testing/fixtures';
 import type { Product, Supplier } from '#lib/types/stock';
@@ -20,6 +20,7 @@ const base: Omit<Product, 'id' | 'name'> = {
 	active: true,
 	quantity: 2,
 	status: 'low',
+	hasHistory: true,
 	expiresOn: null,
 	expiry: null,
 	averageCostMillimes: null,
@@ -123,5 +124,43 @@ describe('/app/stock/reception – a delivery in under a minute', () => {
 		receptionApi();
 		render(Page);
 		expect(screen.getByText('Vous n’avez pas accès à cette action.')).toBeInTheDocument();
+	});
+
+	it('reads every price back as dinars and asks about an unusual one before saving (review H2)', async () => {
+		receptionApi({
+			'POST /api/stock/receipts': () =>
+				json(201, { id: 9, receivedOn: '2026-10-30', supplierId: 7, supplierName: 'Dentalia Sfax', reference: '', note: '', createdBy: 'Salma', createdAt: NOW, lines: [{}], totalMillimes: 13500 })
+		});
+		render(Page);
+		await addLine('Gants d’examen', 'gan');
+		const price = screen.getByLabelText('Prix unitaire (DT)');
+		expect(price).toHaveAccessibleDescription('Soit 12,500 DT par boîte');
+		await fireEvent.input(price, { target: { value: '13500' } }); // meant 13,500
+		expect(price).toHaveAccessibleDescription('Soit 13 500 DT par boîte');
+		await fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la réception' }));
+		const dialog = within(screen.getByRole('dialog', { name: 'Prix inhabituel' }));
+		expect(dialog.getByText('Gants d’examen : 13 500 DT par boîte ?')).toBeInTheDocument();
+		expect(dialog.getByText('plus de 500 DT par boîte')).toBeInTheDocument();
+		expect(calls()).not.toContain('POST /api/stock/receipts');
+		await fireEvent.click(dialog.getByRole('button', { name: 'Corriger le prix' }));
+		expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+		await vi.waitFor(() => expect(document.activeElement).toBe(price));
+		await fireEvent.input(price, { target: { value: '40' } }); // 3 × more than 12,5 DT on average
+		await fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la réception' }));
+		const again = within(screen.getByRole('dialog', { name: 'Prix inhabituel' }));
+		expect(again.getByText('prix moyen actuel : 12,500 DT')).toBeInTheDocument();
+		await fireEvent.click(again.getByRole('button', { name: 'Oui, ce prix est juste' }));
+		await vi.waitFor(() => expect(calls()).toContain('POST /api/stock/receipts'));
+		expect((sentJson('POST /api/stock/receipts') as { lines: { unitPriceMillimes: number }[] }).lines[0].unitPriceMillimes).toBe(40000);
+	});
+
+	it('takes whole quantities only (review N2)', async () => {
+		receptionApi();
+		render(Page);
+		await addLine('Gants d’examen', 'gan');
+		await fireEvent.input(screen.getByLabelText('Quantité'), { target: { value: '2.5' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la réception' }));
+		expect(screen.getByRole('alert')).toHaveTextContent('Nombre entier seulement');
+		expect(calls()).not.toContain('POST /api/stock/receipts');
 	});
 });

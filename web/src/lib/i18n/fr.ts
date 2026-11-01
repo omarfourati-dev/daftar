@@ -6,6 +6,7 @@
  * A new page: add `fr/<page>.ts` + `ar/<page>.ts` and one line in this file and in ar.ts.
  */
 import { admin } from './fr/admin';
+import { audit } from './fr/audit';
 import { agenda } from './fr/agenda';
 import { auth } from './fr/auth';
 import { billing } from './fr/billing';
@@ -75,7 +76,8 @@ export const fr = {
 	installer,
 	importer,
 	stock,
-	hygiene
+	hygiene,
+	audit
 };
 
 export type Messages = typeof fr;

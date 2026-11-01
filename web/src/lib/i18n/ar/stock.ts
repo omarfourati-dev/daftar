@@ -57,7 +57,9 @@ export const stock: Messages['stock'] = {
 		ml: 'مل',
 		g: 'غ'
 	},
-	status: { ok: 'متوفّر', low: 'للطلب', empty: 'نفد' },
+	status: { ok: 'متوفّر', low: 'للطلب', empty: 'نفد', unreceived: 'لم يُستلم بعد' },
+	unreceivedHint: 'لم يُستلم بعد: سجّلوا أول استلام له لمتابعة مخزونه.',
+	wholeNumber: 'أعداد صحيحة فقط: للجزء، احسبوا بالقطعة أو بالمل.',
 	negative: 'المخزون بالسالب: يُرجى عدّ هذا المنتج.',
 	expiry: { soon: 'تنتهي صلاحيته يوم {date}', expired: 'منتهي الصلاحية منذ {date}' },
 	inactive: 'غير مفعّل',
@@ -88,7 +90,9 @@ export const stock: Messages['stock'] = {
 		reactivate: 'إعادة تفعيل المنتج',
 		delete: 'حذف المنتج',
 		saved: 'تم حفظ المنتج.',
-		deleted: 'تم حذف المنتج.'
+		deleted: 'تم حذف المنتج.',
+		unitLocked: 'لهذا المنتج حركات مسجّلة: لم تعد وحدته تتغيّر. للعدّ بطريقة أخرى، أنشئوا منتجًا جديدًا.',
+		newInstead: 'إنشاء منتج جديد'
 	},
 	sheet: {
 		stock: 'في المخزون',
@@ -99,6 +103,7 @@ export const stock: Messages['stock'] = {
 		expiresOn: 'أقرب تاريخ انتهاء صلاحية',
 		lastMovements: 'آخر الحركات',
 		noMovements: 'لا توجد حركات لهذا المنتج.',
+		movementsError: 'تعذّر تحميل الحركات.',
 		count: 'عدّ',
 		edit: 'تعديل'
 	},
@@ -152,7 +157,17 @@ export const stock: Messages['stock'] = {
 		save: 'تسجيل الاستلام',
 		saved: 'تم تسجيل الاستلام: {lines} منتج، {total}.',
 		another: 'استلام جديد',
-		back: 'العودة إلى المخزون'
+		back: 'العودة إلى المخزون',
+		reads: 'أي {price} لكل {unit}',
+		unusual: {
+			title: 'سعر غير معتاد',
+			text: 'تحقّقوا قبل الحفظ:',
+			line: '{product}: {price} لكل {unit}؟',
+			high: 'أكثر من 500 د.ت لكل {unit}',
+			average: 'متوسط السعر الحالي: {price}',
+			confirm: 'نعم، السعر صحيح',
+			fix: 'تصحيح السعر'
+		}
 	},
 	movements: {
 		label: 'آخر الحركات',
@@ -168,13 +183,20 @@ export const stock: Messages['stock'] = {
 		confirm: 'حذف',
 		deleted: 'تم الحذف. المخزون محدَّث.',
 		log: 'سجلّ التصحيحات',
-		logEmpty: 'لا توجد تصحيحات بعد.',
-		logEntry: '{date} – حذف {user}: {what}. السبب: {reason}',
-		logReceipt: 'استلام يوم {date} ({total})',
-		logMovement: '{kind} {quantity} {product}'
+		loadError: 'تعذّر تحميل الحركات.',
+		correct: 'تصحيح',
+		correctLabel: 'تصحيح الاستلام: {product}',
+		correctTitle: 'تصحيح استلام يوم {date}',
+		correctText: 'كمية أو سعر خاطئ؟ سيُعاد حساب المخزون وكلفة المستلزمات. يُسجَّل التصحيح في السجلّ مع اسمكم والسبب.',
+		quantity: 'الكمية المستلمة',
+		unitPrice: 'سعر الوحدة (د.ت)',
+		saveCorrection: 'حفظ التصحيح',
+		corrected: 'تم تصحيح الاستلام: المخزون والكلفة محدَّثان.'
 	},
 	toOrder: {
 		empty: 'لا شيء للطلب: كل المنتجات فوق حدّ الطلب.',
+		loadError: 'تعذّر تحميل قائمة الطلبات.',
+		demo: 'نسخة تجريبية: لا يُرسَل شيء. في عيادتكم يفتح هذا الزر واتساب بهذه الرسالة:',
 		noSupplier: 'دون مزوّد',
 		noSupplierHint: 'اختاروا مزوّدًا معتادًا في بطاقة هذه المنتجات للطلب بلمسة واحدة.',
 		stock: 'المتبقّي {quantity} – الحدّ {min}',
@@ -194,6 +216,7 @@ export const stock: Messages['stock'] = {
 		whatsapp: 'واتساب {name}',
 		edit: 'تعديل {name}',
 		inactive: 'غير مفعّل',
+		demo: 'نسخة تجريبية: الأرقام وهمية. في عيادتكم تفتح لمسة واحدة المكالمة أو واتساب.',
 		dialog: {
 			title: 'مزوّد جديد',
 			editTitle: 'تعديل المزوّد',
@@ -249,6 +272,8 @@ export const stock: Messages['stock'] = {
 		top: 'المستلزمات الأعلى كلفة',
 		none: 'لا مشتريات ولا صرف هذا الشهر.',
 		unpriced: '{count} سطر مستلم دون سعر غير محتسب.',
+		unpricedUses: '{count} عملية صرف دون سعر معروف تُحتسب صفرًا: سجّلوا السعر عند الاستلام.',
+		missingPrice: 'سعر غير متوفّر',
 		export: 'تصدير الشهر (CSV)',
 		noSupplier: 'دون مزوّد',
 		loadError: 'تعذّر تحميل أرقام المستلزمات.'
@@ -264,6 +289,7 @@ export const stock: Messages['stock'] = {
 		day_in_future: 'لا يمكن أن يكون تاريخ الاستلام في المستقبل.',
 		receipt_movement: 'هذه الحركة جزء من استلام: احذفوا الاستلام كاملًا.',
 		product_in_use: 'لهذا المنتج حركات مسجّلة: ألغوا تفعيله بدلًا من حذفه.',
-		supplier_in_use: 'هذا المزوّد مستعمل: ألغوا تفعيله بدلًا من حذفه.'
+		supplier_in_use: 'هذا المزوّد مستعمل: ألغوا تفعيله بدلًا من حذفه.',
+		unit_in_use: 'لهذا المنتج حركات مسجّلة: لم تعد وحدته تتغيّر. أنشئوا منتجًا جديدًا.'
 	}
 };

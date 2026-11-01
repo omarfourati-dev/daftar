@@ -6,7 +6,7 @@
 	 */
 	import { api } from '../../api';
 	import { t } from '../../i18n.svelte';
-	import { quantityText, sortForUse, stockError } from '../../stock';
+	import { quantityText, sortForUse, stockError, wholeQuantity } from '../../stock';
 	import type { Movement, MovementResult, Product } from '../../types/stock';
 	import Icon from '../daily/Icon.svelte';
 
@@ -42,8 +42,9 @@
 	}
 
 	async function add() {
-		const amount = Math.round(Number(quantity));
-		if (!productId || !Number.isFinite(amount) || amount < 1) return void (error = t('errors.validation'));
+		const amount = wholeQuantity(quantity);
+		if (!productId) return void (error = t('errors.validation'));
+		if (amount === null) return void (error = t('stock.wholeNumber'));
 		busy = true;
 		error = '';
 		notice = '';
@@ -99,7 +100,7 @@
 							</select>
 						</label>
 						<label class="label w-24"
-							>{t('stock.material.quantity')}<input class="input text-center tabular-nums" type="number" inputmode="numeric" min="1" bind:value={quantity} /></label
+							>{t('stock.material.quantity')}<input class="input text-center tabular-nums" type="number" inputmode="numeric" min="1" step="1" bind:value={quantity} /></label
 						>
 						<button type="button" class="btn-secondary min-h-11" disabled={busy} onclick={add}>{t('stock.material.add')}</button>
 					</div>

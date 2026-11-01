@@ -18,6 +18,7 @@ function product(overrides: Partial<Product> = {}): Product {
 		active: true,
 		quantity: 10,
 		status: 'ok',
+		hasHistory: true,
 		expiresOn: null,
 		expiry: null,
 		averageCostMillimes: 12000,

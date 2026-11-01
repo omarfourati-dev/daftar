@@ -55,7 +55,9 @@ export const stock = {
 		ml: 'ml',
 		g: 'g'
 	},
-	status: { ok: 'En stock', low: 'À commander', empty: 'Épuisé' },
+	status: { ok: 'En stock', low: 'À commander', empty: 'Épuisé', unreceived: 'Pas encore reçu' },
+	unreceivedHint: 'Pas encore reçu : notez sa première réception pour suivre son stock.',
+	wholeNumber: 'Nombre entier seulement : pour une partie, comptez en pièces ou en ml.',
 	negative: 'Stock négatif : comptez ce produit.',
 	expiry: { soon: 'Périme le {date}', expired: 'Périmé depuis le {date}' },
 	inactive: 'Désactivé',
@@ -86,7 +88,9 @@ export const stock = {
 		reactivate: 'Réactiver le produit',
 		delete: 'Supprimer le produit',
 		saved: 'Produit enregistré.',
-		deleted: 'Produit supprimé.'
+		deleted: 'Produit supprimé.',
+		unitLocked: 'Ce produit a déjà des mouvements : son unité ne change plus. Pour compter autrement, créez un nouveau produit.',
+		newInstead: 'Créer un nouveau produit'
 	},
 	sheet: {
 		stock: 'En stock',
@@ -97,6 +101,7 @@ export const stock = {
 		expiresOn: 'Péremption la plus proche',
 		lastMovements: 'Derniers mouvements',
 		noMovements: 'Aucun mouvement pour ce produit.',
+		movementsError: 'Les mouvements n’ont pas pu être chargés.',
 		count: 'Compter',
 		edit: 'Modifier'
 	},
@@ -150,7 +155,17 @@ export const stock = {
 		save: 'Enregistrer la réception',
 		saved: 'Réception enregistrée : {lines} produit(s), {total}.',
 		another: 'Nouvelle réception',
-		back: 'Retour au stock'
+		back: 'Retour au stock',
+		reads: 'Soit {price} par {unit}',
+		unusual: {
+			title: 'Prix inhabituel',
+			text: 'Vérifiez avant d’enregistrer :',
+			line: '{product} : {price} par {unit} ?',
+			high: 'plus de 500 DT par {unit}',
+			average: 'prix moyen actuel : {price}',
+			confirm: 'Oui, ce prix est juste',
+			fix: 'Corriger le prix'
+		}
 	},
 	movements: {
 		label: 'Derniers mouvements',
@@ -166,13 +181,20 @@ export const stock = {
 		confirm: 'Supprimer',
 		deleted: 'Supprimé. Le stock est à jour.',
 		log: 'Journal des corrections',
-		logEmpty: 'Aucune correction pour l’instant.',
-		logEntry: '{date} – {user} a supprimé : {what}. Motif : {reason}',
-		logReceipt: 'la réception du {date} ({total})',
-		logMovement: '{kind} de {quantity} {product}'
+		loadError: 'Les mouvements n’ont pas pu être chargés.',
+		correct: 'Corriger',
+		correctLabel: 'Corriger la réception : {product}',
+		correctTitle: 'Corriger la réception du {date}',
+		correctText: 'Quantité ou prix mal tapé ? Le stock et les coûts du matériel seront recalculés. La correction est notée dans le journal avec votre nom et le motif.',
+		quantity: 'Quantité reçue',
+		unitPrice: 'Prix unitaire (DT)',
+		saveCorrection: 'Enregistrer la correction',
+		corrected: 'Réception corrigée : le stock et les coûts sont à jour.'
 	},
 	toOrder: {
 		empty: 'Rien à commander : tous les produits sont au-dessus de leur seuil.',
+		loadError: 'La liste à commander n’a pas pu être chargée.',
+		demo: 'Démo : rien n’est envoyé. Dans votre cabinet, ce bouton ouvre WhatsApp avec ce message :',
 		noSupplier: 'Sans fournisseur',
 		noSupplierHint: 'Choisissez un fournisseur habituel dans la fiche de ces produits pour commander en un geste.',
 		stock: 'Reste {quantity} – seuil {min}',
@@ -192,6 +214,7 @@ export const stock = {
 		whatsapp: 'WhatsApp {name}',
 		edit: 'Modifier {name}',
 		inactive: 'Désactivé',
+		demo: 'Démo : numéros fictifs. Dans votre cabinet, un geste ouvre l’appel ou WhatsApp.',
 		dialog: {
 			title: 'Nouveau fournisseur',
 			editTitle: 'Modifier le fournisseur',
@@ -247,6 +270,8 @@ export const stock = {
 		top: 'Matériel le plus coûteux',
 		none: 'Aucun achat ni sortie ce mois-ci.',
 		unpriced: '{count} ligne(s) reçue(s) sans prix ne sont pas comptées.',
+		unpricedUses: '{count} sortie(s) sans prix connu comptent pour 0 : notez le prix à la réception.',
+		missingPrice: 'prix manquant',
 		export: 'Exporter le mois (CSV)',
 		noSupplier: 'Sans fournisseur',
 		loadError: 'Les chiffres du matériel n’ont pas pu être chargés.'
@@ -262,6 +287,7 @@ export const stock = {
 		day_in_future: 'La date de réception ne peut pas être dans le futur.',
 		receipt_movement: 'Ce mouvement vient d’une réception : supprimez la réception entière.',
 		product_in_use: 'Ce produit a déjà des mouvements : désactivez-le plutôt.',
-		supplier_in_use: 'Ce fournisseur est déjà utilisé : désactivez-le plutôt.'
+		supplier_in_use: 'Ce fournisseur est déjà utilisé : désactivez-le plutôt.',
+		unit_in_use: 'Ce produit a déjà des mouvements : son unité ne change plus. Créez un nouveau produit.'
 	}
 };

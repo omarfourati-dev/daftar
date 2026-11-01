@@ -2,14 +2,15 @@
 	/**
 	 * The material of the month for the owner (spec stock-hygiène 4.3), below the practice statistics: what was bought
 	 * (vs. last month, by supplier and category), what was used and lost, the material cost per act and per treatment,
-	 * the most expensive material, and the month as CSV.
+	 * the most expensive material, and the month as CSV. Uses without a known price still show their quantities per act
+	 * (review N5). On a phone the costs per act are cards, from a tablet on a table (no sideways scrolling).
 	 */
 	import { api, apiBlob } from '../../api';
-	import { money } from '../../agenda/format';
+	import { money, serviceLabel } from '../../agenda/format';
 	import { saveBlob } from '../../download';
 	import { i18n, t } from '../../i18n.svelte';
 	import { categoryLabel, quantityText, stockError } from '../../stock';
-	import type { StockStats } from '../../types/stock';
+	import type { StockStats, UsageItem } from '../../types/stock';
 
 	let { month, previousName }: { month: string; previousName: string } = $props();
 
@@ -53,7 +54,15 @@
 			: t(delta > 0 ? 'statistiques.up' : 'statistiques.down', { value: money(Math.abs(delta)), month: previousName })
 	);
 	const maxCategory = $derived(Math.max(1, ...(stats?.byCategory ?? []).map((c) => c.amountMillimes)));
-	const empty = $derived(!!stats && stats.spendingMillimes === 0 && stats.usageMillimes === 0 && stats.wasteMillimes === 0);
+	const empty = $derived(
+		!!stats && stats.spendingMillimes === 0 && stats.usageMillimes === 0 && stats.wasteMillimes === 0 && stats.byService.length === 0
+	);
+	type Usage = StockStats['byService'][number];
+	const actName = (s: Usage) => (s.name ? serviceLabel({ nameFr: s.name, nameAr: s.nameAr ?? '' }) : t('stock.stats.noService'));
+	const itemsText = (items: UsageItem[]) =>
+		items
+			.map((i) => `${quantityText(i.quantity, i.unit)} ${i.name}${i.costMillimes === 0 ? ` (${t('stock.stats.missingPrice')})` : ''}`)
+			.join(', ');
 	const number = (n: number) => new Intl.NumberFormat(i18n.locale === 'ar' ? 'ar-TN-u-nu-latn' : 'fr-TN').format(n);
 </script>
 
@@ -86,9 +95,37 @@
 			</li>
 		</ul>
 		{#if stats.unpricedLines}<p class="text-sm text-slate-600">{t('stock.stats.unpriced', { count: stats.unpricedLines })}</p>{/if}
+		{#if stats.unpricedUses}<p class="text-sm font-medium text-amber-900">{t('stock.stats.unpricedUses', { count: stats.unpricedUses })}</p>{/if}
 
 		{#if stats.byService.length}
-			<div class="card overflow-x-auto p-0" role="region" aria-label={t('stock.stats.byService')} tabindex="0">
+			<!-- phone: one card per act -->
+			<section class="flex flex-col gap-2 md:hidden" aria-labelledby="by-service-cards">
+				<h3 id="by-service-cards" class="text-lg font-bold">{t('stock.stats.byService')}</h3>
+				<ul class="flex flex-col gap-2" aria-labelledby="by-service-cards">
+					{#each stats.byService as s (s.serviceId ?? 0)}
+						<li class="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+							<p class="font-semibold" dir="auto">{actName(s)}</p>
+							{#if s.items.length}<p class="text-xs text-slate-600" dir="auto">{itemsText(s.items)}</p>{/if}
+							<dl class="grid grid-cols-3 gap-2 text-sm">
+								<div>
+									<dt class="text-slate-600">{t('stock.stats.treatments')}</dt>
+									<dd class="font-semibold tabular-nums">{s.serviceId === null ? '–' : number(s.treatments)}</dd>
+								</div>
+								<div>
+									<dt class="text-slate-600">{t('stock.stats.cost')}</dt>
+									<dd class="font-semibold whitespace-nowrap tabular-nums">{money(s.materialCostMillimes)}</dd>
+								</div>
+								<div>
+									<dt class="text-slate-600">{t('stock.stats.perTreatment')}</dt>
+									<dd class="font-semibold whitespace-nowrap tabular-nums">{s.perTreatmentMillimes === null ? '–' : money(s.perTreatmentMillimes)}</dd>
+								</div>
+							</dl>
+						</li>
+					{/each}
+				</ul>
+			</section>
+			<!-- tablet and wider: the table -->
+			<div class="card hidden p-0 md:block">
 				<table class="w-full text-sm">
 					<caption class="px-4 pt-4 text-start text-lg font-bold">{t('stock.stats.byService')}</caption>
 					<thead>
@@ -103,11 +140,9 @@
 						{#each stats.byService as s (s.serviceId ?? 0)}
 							<tr class="border-b border-slate-100 align-top last:border-0">
 								<th scope="row" class="px-4 py-2 text-start font-semibold">
-									<span dir="auto">{s.name ?? t('stock.stats.noService')}</span>
+									<span dir="auto">{actName(s)}</span>
 									{#if s.items.length}
-										<span class="block text-xs font-normal text-slate-600"
-											>{s.items.map((i) => `${quantityText(i.quantity, i.unit)} ${i.name}`).join(', ')}</span
-										>
+										<span class="block text-xs font-normal text-slate-600" dir="auto">{itemsText(s.items)}</span>
 									{/if}
 								</th>
 								<td class="px-2 py-2 text-end tabular-nums">{s.serviceId === null ? '–' : number(s.treatments)}</td>

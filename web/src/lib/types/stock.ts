@@ -13,7 +13,8 @@ export type StockCategory =
 	| 'bureau'
 	| 'autre';
 export type StockUnit = 'piece' | 'boite' | 'flacon' | 'carpule' | 'paquet' | 'sachet' | 'tube' | 'rouleau' | 'paire' | 'ml' | 'g';
-export type StockStatus = 'ok' | 'low' | 'empty';
+/** `unreceived`: nothing delivered, used or counted yet (grey, never "à commander"). */
+export type StockStatus = 'ok' | 'low' | 'empty' | 'unreceived';
 export type ExpiryState = 'expired' | 'soon';
 export type MovementKind = 'receipt' | 'use' | 'adjust' | 'waste';
 
@@ -31,9 +32,11 @@ export interface Product {
 	active: boolean;
 	quantity: number;
 	status: StockStatus;
+	/** Something was delivered, used or counted: the unit is locked (409 unit_in_use). */
+	hasHistory: boolean;
 	expiresOn: string | null;
 	expiry: ExpiryState | null;
-	/** Null for the dentist (prices are for assistant and owner) and without any priced delivery. */
+	/** Moving average of what is in stock; null for the dentist and without any priced delivery. */
 	averageCostMillimes: number | null;
 	lastUsedAt: string | null;
 }
@@ -90,9 +93,13 @@ export interface Movement {
 	quantity: number;
 	serviceId: number | null;
 	serviceName: string | null;
+	serviceNameAr: string | null;
 	appointmentId: number | null;
 	patientName: string | null;
 	receiptId: number | null;
+	receiptLineId: number | null;
+	/** Delivery day of a receipt (may be earlier than `createdAt`). */
+	receivedOn: string | null;
 	reason: string;
 	unitCostMillimes: number | null;
 	createdBy: string | null;
@@ -137,6 +144,8 @@ export interface StockStats {
 	spendingMillimes: number;
 	previousSpendingMillimes: number;
 	unpricedLines: number;
+	/** Uses of the month without any known price (cost 0). */
+	unpricedUses: number;
 	bySupplier: { name: string | null; amountMillimes: number }[];
 	byCategory: { category: StockCategory; amountMillimes: number }[];
 	usageMillimes: number;
@@ -144,6 +153,7 @@ export interface StockStats {
 	byService: {
 		serviceId: number | null;
 		name: string | null;
+		nameAr: string | null;
 		treatments: number;
 		materialCostMillimes: number;
 		perTreatmentMillimes: number | null;

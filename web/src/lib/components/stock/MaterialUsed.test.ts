@@ -9,13 +9,14 @@ import type { Movement, Product } from '../../types/stock';
 
 const carpules: Product = {
 	id: 2, name: 'Carpules d’articaïne', category: 'anesthesie', unit: 'carpule', supplierId: null, supplierName: null, minQuantity: 50,
-	note: '', ean: null, active: true, quantity: 40, status: 'low', expiresOn: null, expiry: null, averageCostMillimes: null,
+	note: '', ean: null, active: true, quantity: 40, status: 'low', hasHistory: true, expiresOn: null, expiry: null, averageCostMillimes: null,
 	lastUsedAt: '2026-10-30T08:00:00+01:00'
 };
 const composite: Product = { ...carpules, id: 3, name: 'Composite', unit: 'piece', lastUsedAt: null };
 const earlier: Movement = {
 	id: 70, productId: 3, productName: 'Composite', unit: 'piece', kind: 'use', quantity: -1, serviceId: 11, serviceName: 'Soin',
-	appointmentId: 30, patientName: 'Lina Zouari', receiptId: null, reason: '', unitCostMillimes: null, createdBy: 'Karim', createdAt: '2026-10-30T09:00:00+01:00'
+	appointmentId: 30, patientName: 'Lina Zouari', receiptId: null, reason: '', unitCostMillimes: null, createdBy: 'Karim', createdAt: '2026-10-30T09:00:00+01:00',
+	serviceNameAr: null, receiptLineId: null, receivedOn: null
 };
 
 describe('MaterialUsed – optional material of an appointment (spec stock-hygiène 4.2)', () => {

@@ -10,7 +10,7 @@
 	import { auth } from '../../auth.svelte';
 	import { serviceLabel } from '../../agenda/format';
 	import { t } from '../../i18n.svelte';
-	import { matches, quantityText, sortForUse, stockError, unitWord, STATUS_TONE } from '../../stock';
+	import { matches, quantityText, sortForUse, stockError, unitWord, STATUS_TONE, wholeQuantity } from '../../stock';
 	import type { Service } from '../../types/agenda';
 	import type { MovementResult, Product } from '../../types/stock';
 	import Icon from '../daily/Icon.svelte';
@@ -57,8 +57,8 @@
 
 	async function save() {
 		if (!chosen) return;
-		const amount = Math.round(Number(quantity));
-		if (!Number.isFinite(amount) || amount < 1) return void (error = t('errors.validation'));
+		const amount = wholeQuantity(quantity);
+		if (amount === null) return void (error = t('stock.wholeNumber'));
 		busy = true;
 		error = '';
 		try {
@@ -132,7 +132,7 @@
 					<button type="button" class="btn-secondary min-h-12 min-w-12 px-0 text-xl" aria-label={t('stock.useDialog.less')} disabled={quantity <= 1} onclick={() => step(-1)}
 						>−</button
 					>
-					<input id="use-quantity" class="input w-24 text-center text-lg font-bold tabular-nums" type="number" inputmode="numeric" min="1" bind:value={quantity} />
+					<input id="use-quantity" class="input w-24 text-center text-lg font-bold tabular-nums" type="number" inputmode="numeric" min="1" step="1" bind:value={quantity} />
 					<button type="button" class="btn-secondary min-h-12 min-w-12 px-0 text-xl" aria-label={t('stock.useDialog.more')} onclick={() => step(1)}>+</button>
 					<span class="text-slate-600">{unitWord(Number(quantity) || 0, chosen.unit)}</span>
 				</div>

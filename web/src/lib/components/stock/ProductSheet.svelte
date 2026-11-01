@@ -10,7 +10,17 @@
 	import { money } from '../../agenda/format';
 	import { clock } from '../../clock';
 	import { formatDateTime, formatDay, t, todayTunis } from '../../i18n.svelte';
-	import { categoryLabel, inventoryReason, KIND_KEY, quantityText, stockError, STATUS_TONE, unitLabel } from '../../stock';
+	import {
+		categoryLabel,
+		inventoryReason,
+		KIND_KEY,
+		movementService,
+		quantityText,
+		stockError,
+		STATUS_TONE,
+		unitLabel,
+		wholeQuantity
+	} from '../../stock';
 	import type { Movement, Product } from '../../types/stock';
 	import Icon from '../daily/Icon.svelte';
 	import Modal from '../daily/Modal.svelte';
@@ -27,6 +37,7 @@
 	const manager = $derived(auth.role === 'owner' || auth.role === 'assistant');
 	let p = $state(untrack(() => product));
 	let movements = $state<Movement[] | null>(null);
+	let movementsError = $state('');
 	let counting = $state(false);
 	let counted = $state<number>(untrack(() => Math.max(product.quantity, 0)));
 	let reason = $state(inventoryReason(todayTunis(clock.now())));
@@ -35,14 +46,20 @@
 	let busy = $state(false);
 
 	async function loadMovements() {
-		movements = await api<Movement[]>(`/api/stock/movements?productId=${p.id}&limit=10`).catch(() => []);
+		movementsError = '';
+		try {
+			movements = await api<Movement[]>(`/api/stock/movements?productId=${p.id}&limit=10`);
+		} catch {
+			movementsError = t('stock.sheet.movementsError');
+		}
 	}
 	onMount(loadMovements);
 
 	async function count(e: SubmitEvent) {
 		e.preventDefault();
-		const value = Math.round(Number(counted));
-		if (!Number.isFinite(value) || value < 0 || !reason.trim()) return void (error = t('errors.validation'));
+		const value = wholeQuantity(counted, 0);
+		if (value === null) return void (error = t('stock.wholeNumber'));
+		if (!reason.trim()) return void (error = t('errors.validation'));
 		busy = true;
 		error = '';
 		try {
@@ -72,6 +89,7 @@
 			<span class="text-3xl font-bold text-ink tabular-nums">{quantityText(p.quantity, p.unit)}</span>
 			<span class="rounded-full px-2.5 py-0.5 text-sm font-semibold ring-1 {STATUS_TONE[p.status]}">{p.active ? t(`stock.status.${p.status}`) : t('stock.inactive')}</span>
 		</div>
+		{#if p.status === 'unreceived' && p.active}<p class="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-200">{t('stock.unreceivedHint')}</p>{/if}
 		{#if p.quantity < 0}<p class="rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-950 ring-1 ring-amber-300">{t('stock.negative')}</p>{/if}
 		<dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
 			<dt class="text-slate-600">{t('stock.sheet.min')}</dt>
@@ -93,7 +111,7 @@
 		{#if counting}
 			<form class="flex flex-col gap-3 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200" onsubmit={count} novalidate>
 				<label class="label"
-					>{t('stock.count.counted')}<input class="input w-32 text-lg font-bold tabular-nums" type="number" inputmode="numeric" min="0" bind:value={counted} data-autofocus /></label
+					>{t('stock.count.counted')}<input class="input w-32 text-lg font-bold tabular-nums" type="number" inputmode="numeric" min="0" step="1" bind:value={counted} data-autofocus /></label
 				>
 				<label class="label">{t('stock.count.reason')}<input class="input" bind:value={reason} maxlength="300" autocomplete="off" /></label>
 				{#if error}<p role="alert" class="text-sm font-medium text-rose-800">{error}</p>{/if}
@@ -106,7 +124,12 @@
 
 		<section aria-labelledby="sheet-moves" class="flex flex-col gap-2">
 			<h3 id="sheet-moves" class="text-sm font-semibold text-slate-600">{t('stock.sheet.lastMovements')}</h3>
-			{#if movements === null}
+			{#if movementsError}
+				<div role="alert" class="flex flex-wrap items-center justify-between gap-2 text-sm text-rose-800">
+					<p>{movementsError}</p>
+					<button type="button" class="btn-secondary min-h-11 text-sm" onclick={loadMovements}>{t('common.retry')}</button>
+				</div>
+			{:else if movements === null}
 				<p class="text-sm text-slate-500" aria-busy="true">{t('common.loading')}</p>
 			{:else if movements.length}
 				<ul class="flex flex-col divide-y divide-slate-100 text-sm">
@@ -114,7 +137,7 @@
 						<li class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2">
 							<span class="w-14 shrink-0 font-bold tabular-nums {m.quantity > 0 ? 'text-emerald-800' : 'text-rose-800'}" dir="ltr">{sign(m.quantity)}</span>
 							<span class="font-medium">{t(KIND_KEY[m.kind])}</span>
-							{#if m.serviceName}<span class="text-slate-600" dir="auto">{m.serviceName}</span>{/if}
+							{#if m.serviceName}<span class="text-slate-600" dir="auto">{movementService(m)}</span>{/if}
 							<span class="ms-auto text-slate-500 tabular-nums">{formatDateTime(m.createdAt)}</span>
 						</li>
 					{/each}

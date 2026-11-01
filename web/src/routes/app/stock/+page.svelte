@@ -2,47 +2,47 @@
 	/**
 	 * /app/stock – the material of the practice (spec stock-hygiène 4.2): two big buttons on top ("Réception" for the
 	 * delivery, "Sortie" for what was used – three taps), then the products with their stock and traffic light, and the
-	 * parts "À commander" (by supplier, order by WhatsApp), "Mouvements" (owner: delete with a reason, change log),
-	 * "Fournisseurs" and "Inventaire" (count the shelves, only the differences are written). `?tab=commander|mouvements|
-	 * fournisseurs|inventaire` opens a part directly (card on "Aujourd'hui").
+	 * parts "À commander" (by supplier, order by WhatsApp), "Mouvements" (owner: correct a delivery line or delete with
+	 * a reason, the change log of the stock), "Fournisseurs" and "Inventaire" (count the shelves, only the differences
+	 * are written). `?tab=commander|mouvements|fournisseurs|inventaire` opens a part directly (card on "Aujourd'hui").
+	 * A product never received is grey ("Pas encore reçu"), never "à commander". A loading problem says so with
+	 * "Réessayer" – never an empty list. In a demo practice nothing opens WhatsApp or a call (fictitious numbers).
 	 */
 	import { onMount } from 'svelte';
 	import { api } from '#lib/api';
 	import { auth } from '#lib/auth.svelte';
 	import { badges } from '#lib/badges.svelte';
 	import { clock } from '#lib/clock';
-	import { money } from '#lib/agenda/format';
+	import { STOCK_ENTITIES, type AuditEntry } from '#lib/audit';
 	import { displayPhone, telUrl, whatsappUrl } from '#lib/agenda/links';
-	import { formatDate, formatDateTime, formatDay, t, todayTunis, translate } from '#lib/i18n.svelte';
+	import { formatDateTime, formatDay, t, todayTunis, translate } from '#lib/i18n.svelte';
 	import {
 		categoriesFor,
 		categoryLabel,
 		inventoryReason,
+		isToOrder,
 		KIND_KEY,
 		matches,
+		movementService,
+		orderMessage,
 		orderUrl,
 		quantityText,
+		STATUS_BAR,
 		stockError,
-		STATUS_TONE
+		STATUS_TONE,
+		wholeQuantity
 	} from '#lib/stock';
 	import type { Movement, MovementResult, Product, Supplier, ToOrder } from '#lib/types/stock';
+	import ChangeLog from '../../../lib/components/ChangeLog.svelte';
 	import Icon from '../../../lib/components/daily/Icon.svelte';
 	import Modal from '../../../lib/components/daily/Modal.svelte';
 	import ProductDialog from '../../../lib/components/stock/ProductDialog.svelte';
 	import ProductSheet from '../../../lib/components/stock/ProductSheet.svelte';
+	import ReceiptLineDialog from '../../../lib/components/stock/ReceiptLineDialog.svelte';
 	import SupplierDialog from '../../../lib/components/stock/SupplierDialog.svelte';
 	import UseDialog from '../../../lib/components/stock/UseDialog.svelte';
 
 	type Tab = 'produits' | 'commander' | 'mouvements' | 'fournisseurs' | 'inventaire';
-	type AuditEntry = {
-		id: number;
-		at: string;
-		userName: string;
-		entity: string;
-		action: string;
-		before: Record<string, unknown> | null;
-		reason: string;
-	};
 	const TABS: Tab[] = ['produits', 'commander', 'mouvements', 'fournisseurs', 'inventaire'];
 	const TAB_LABEL = {
 		produits: 'stock.tabs.products',
@@ -54,6 +54,7 @@
 
 	const manager = $derived(auth.role === 'owner' || auth.role === 'assistant');
 	const isOwner = $derived(auth.role === 'owner');
+	const isDemo = $derived(!!auth.user?.practice?.isDemo);
 	const tabs = $derived(TABS.filter((x) => x !== 'inventaire' || manager));
 	const today = todayTunis(clock.now());
 
@@ -74,13 +75,16 @@
 
 	let using = $state<{ product: Product | null } | null>(null);
 	let sheet = $state<Product | null>(null);
-	let editing = $state<{ product: Product | null } | null>(null);
+	let editing = $state<{ product: Product | null; name?: string } | null>(null);
 	let supplierEditing = $state<{ supplier: Supplier | null } | null>(null);
 
 	let toOrder = $state<ToOrder | null>(null);
 	let movements = $state<Movement[] | null>(null);
 	let log = $state<AuditEntry[] | null>(null);
+	let tabError = $state('');
+	let logError = $state('');
 	let deleting = $state<Movement | null>(null);
+	let correcting = $state<Movement | null>(null);
 	let deleteReason = $state('');
 	let deleteError = $state('');
 	let counts = $state<Record<number, string>>({});
@@ -96,11 +100,26 @@
 		}
 	}
 
+	async function loadLog() {
+		logError = '';
+		try {
+			log = await api<AuditEntry[]>(`/api/audit-log?entity=${STOCK_ENTITIES}&limit=30`);
+		} catch {
+			logError = t('audit.loadError');
+		}
+	}
+
+	/** A part that cannot load says so (review N3): no "Rien à commander" when the network is down. */
 	async function loadTab(which: Tab) {
-		if (which === 'commander') toOrder = await api<ToOrder>('/api/stock/to-order').catch(() => ({ count: 0, groups: [] }));
-		if (which === 'mouvements') {
-			movements = await api<Movement[]>('/api/stock/movements?limit=100').catch(() => []);
-			if (isOwner) log = await api<AuditEntry[]>('/api/audit-log?limit=20').catch(() => []);
+		tabError = '';
+		try {
+			if (which === 'commander') toOrder = await api<ToOrder>('/api/stock/to-order');
+			if (which === 'mouvements') {
+				if (isOwner) void loadLog();
+				movements = await api<Movement[]>('/api/stock/movements?limit=100');
+			}
+		} catch {
+			tabError = t(which === 'commander' ? 'stock.toOrder.loadError' : 'stock.movements.loadError');
 		}
 	}
 
@@ -126,7 +145,7 @@
 	const visible = $derived(
 		(products ?? []).filter((p) => (showInactive || p.active) && (!category || p.category === category) && matches(p, query))
 	);
-	const orderCount = $derived((products ?? []).filter((p) => p.active && p.minQuantity > 0 && p.quantity <= p.minQuantity).length);
+	const orderCount = $derived((products ?? []).filter(isToOrder).length);
 	const usedCategories = $derived(categoriesFor(auth.user?.practice?.specialty).filter((c) => (products ?? []).some((p) => p.category === c)));
 	const practiceName = $derived(auth.user?.practice?.name ?? '');
 
@@ -182,16 +201,21 @@
 		}
 	}
 
+	const typed = $derived(Object.entries(counts).filter(([, v]) => v.trim() !== ''));
+	/** Whole numbers only – "2,5" is refused with a hint, never rounded in silence (review N2). */
 	const countEntries = $derived(
-		Object.entries(counts)
-			.filter(([, v]) => v.trim() !== '' && Number.isFinite(Number(v)) && Number(v) >= 0)
-			.map(([id, v]) => ({ productId: Number(id), counted: Math.round(Number(v)) }))
+		typed.flatMap(([id, v]) => {
+			const counted = wholeQuantity(v, 0);
+			return counted === null ? [] : [{ productId: Number(id), counted }];
+		})
 	);
+	const notWhole = $derived(typed.length !== countEntries.length);
 	const differences = $derived(countEntries.filter((c) => c.counted !== products?.find((p) => p.id === c.productId)?.quantity).length);
 
 	async function saveInventory(e: SubmitEvent) {
 		e.preventDefault();
 		pageError = '';
+		if (notWhole) return void (pageError = t('stock.wholeNumber'));
 		if (!countEntries.length) return void (pageError = t('stock.inventory.none'));
 		if (!countReason.trim()) return void (pageError = t('errors.validation'));
 		busy = true;
@@ -216,18 +240,15 @@
 		supplierEditing = null;
 	}
 
-	function logText(entry: AuditEntry): string {
-		const b = entry.before ?? {};
-		const what =
-			entry.entity === 'stock_receipt'
-				? t('stock.movements.logReceipt', { date: formatDay(String(b.receivedOn ?? '')), total: money(Number(b.totalMillimes ?? 0)) })
-				: t('stock.movements.logMovement', {
-						kind: translate(`stock.movements.kinds.${String(b.kind)}`) ?? String(b.kind ?? ''),
-						quantity: Math.abs(Number(b.quantity ?? 0)),
-						product: String(b.product ?? '')
-					});
-		return t('stock.movements.logEntry', { date: formatDateTime(entry.at), user: entry.userName, what, reason: entry.reason });
+	async function corrected() {
+		correcting = null;
+		notice = t('stock.movements.corrected');
+		await Promise.all([load(), loadTab('mouvements')]);
+		void badges.refresh();
 	}
+
+	/** The day a movement stands for: a delivery by its delivery day (review N9). */
+	const movementDay = (m: Movement) => m.receivedOn ?? m.createdAt.slice(0, 10);
 
 	const sign = (n: number) => (n > 0 ? `+${n}` : String(n));
 </script>
@@ -314,15 +335,15 @@
 								class="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-start shadow-sm hover:border-brand-300 hover:bg-brand-50/40 {p.active ? '' : 'opacity-70'}"
 								onclick={() => (sheet = p)}
 							>
-								<span
-									class="h-10 w-1.5 shrink-0 rounded-full {p.status === 'ok' ? 'bg-emerald-500' : p.status === 'low' ? 'bg-amber-500' : 'bg-rose-500'}"
-									aria-hidden="true"
-								></span>
+								<span class="h-10 w-1.5 shrink-0 rounded-full {STATUS_BAR[p.status]}" aria-hidden="true"></span>
 								<span class="min-w-0 flex-1">
 									<span class="block font-semibold text-ink" dir="auto">{p.name}</span>
 									<span class="block text-sm text-slate-600"
 										>{categoryLabel(p.category)}{#if p.supplierName}{' – '}<span dir="auto">{p.supplierName}</span>{/if}</span
 									>
+									{#if p.status === 'unreceived' && p.active}
+										<span class="block text-xs text-slate-600">{t('stock.unreceivedHint')}</span>
+									{/if}
 									{#if p.expiry && p.expiresOn}
 										<span class="mt-1 inline-block rounded px-1.5 text-xs font-semibold {p.expiry === 'expired' ? 'bg-rose-100 text-rose-900' : 'bg-amber-100 text-amber-950'}"
 											>{t(p.expiry === 'expired' ? 'stock.expiry.expired' : 'stock.expiry.soon', { date: formatDay(p.expiresOn) })}</span
@@ -346,6 +367,11 @@
 				<label class="inline-flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" class="h-5 w-5 accent-brand-700" bind:checked={showInactive} />{t('stock.showInactive')}</label>
 			{/if}
 		{/if}
+	{:else if tabError && (tab === 'commander' || tab === 'mouvements')}
+		<div role="alert" class="card flex flex-wrap items-center justify-between gap-3 border-rose-200 bg-rose-50 text-rose-900">
+			<p>{tabError}</p>
+			<button type="button" class="btn-secondary" onclick={() => loadTab(tab)}>{t('common.retry')}</button>
+		</div>
 	{:else if tab === 'commander'}
 		{#if toOrder === null}
 			<p class="card text-slate-600" aria-busy="true">{t('common.loading')}</p>
@@ -366,7 +392,10 @@
 								</li>
 							{/each}
 						</ul>
-						{#if group.supplier}
+						{#if group.supplier && isDemo}
+							<p class="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200">{t('stock.toOrder.demo')}</p>
+							<p class="rounded-lg bg-slate-50 px-3 py-2 text-sm whitespace-pre-line text-slate-800" dir="auto">{orderMessage(group, practiceName)}</p>
+						{:else if group.supplier}
 							<div class="flex flex-wrap gap-2">
 								{#if url}
 									<a class="btn min-h-12 bg-[#25d366] text-ink hover:bg-[#1ebe5b]" href={url} target="_blank" rel="noopener noreferrer"
@@ -397,7 +426,7 @@
 						<span class="min-w-0 flex-1">
 							<span class="block font-semibold" dir="auto">{m.productName}</span>
 							<span class="block text-sm text-slate-600"
-								>{t(KIND_KEY[m.kind])}{#if m.serviceName}{' – '}<span dir="auto">{m.serviceName}</span>{/if}{#if m.patientName}{' – '}<span dir="auto">{m.patientName}</span
+								>{t(KIND_KEY[m.kind])}{#if m.receivedOn}{' – '}{formatDay(m.receivedOn)}{/if}{#if m.serviceName}{' – '}<span dir="auto">{movementService(m)}</span>{/if}{#if m.patientName}{' – '}<span dir="auto">{m.patientName}</span
 									>{/if}{#if m.reason}{' – '}<span dir="auto">{m.reason}</span>{/if}</span
 							>
 							<span class="block text-xs text-slate-500"
@@ -405,27 +434,31 @@
 							>
 						</span>
 						{#if isOwner}
-							<button
-								type="button"
-								class="btn-secondary min-h-11 px-3 text-sm text-rose-800"
-								onclick={() => ((deleting = m), (deleteReason = ''), (deleteError = ''))}
-								>{m.kind === 'receipt' ? t('stock.movements.deleteReceipt') : t('stock.movements.delete')}</button
-							>
+							<span class="flex flex-wrap gap-2">
+								{#if m.kind === 'receipt' && m.receiptLineId}
+									<button
+										type="button"
+										class="btn-secondary min-h-11 px-3 text-sm"
+										aria-label={t('stock.movements.correctLabel', { product: m.productName })}
+										onclick={() => (correcting = m)}>{t('stock.movements.correct')}</button
+									>
+								{/if}
+								<button
+									type="button"
+									class="btn-secondary min-h-11 px-3 text-sm text-rose-800"
+									onclick={() => ((deleting = m), (deleteReason = ''), (deleteError = ''))}
+									>{m.kind === 'receipt' ? t('stock.movements.deleteReceipt') : t('stock.movements.delete')}</button
+								>
+							</span>
 						{/if}
 					</li>
 				{/each}
 			</ul>
 		{/if}
-		{#if isOwner && log}
+		{#if isOwner}
 			<section aria-labelledby="stock-log" class="flex flex-col gap-2">
 				<h2 id="stock-log" class="text-lg font-bold">{t('stock.movements.log')}</h2>
-				{#if log.length}
-					<ul class="flex flex-col gap-1 text-sm text-slate-700">
-						{#each log as entry (entry.id)}<li dir="auto">{logText(entry)}</li>{/each}
-					</ul>
-				{:else}
-					<p class="text-sm text-slate-600">{t('stock.movements.logEmpty')}</p>
-				{/if}
+				<ChangeLog entries={log} error={logError} label={t('stock.movements.log')} onretry={loadLog} />
 			</section>
 		{/if}
 	{:else if tab === 'fournisseurs'}
@@ -455,6 +488,9 @@
 								>
 							{/if}
 						</div>
+						{#if isDemo && (s.phone || s.whatsapp)}
+							<p class="text-sm text-slate-600"><span dir="ltr">{displayPhone(s.phone ?? s.whatsapp)}</span> – {t('stock.suppliers.demo')}</p>
+						{:else}
 						<div class="flex flex-wrap gap-2">
 							{#if s.phone}
 								<a class="btn-secondary min-h-11 text-sm" href={telUrl(s.phone)} aria-label={t('stock.suppliers.call', { name: s.name })}
@@ -467,6 +503,7 @@
 								>
 							{/if}
 						</div>
+						{/if}
 					</li>
 				{/each}
 			</ul>
@@ -488,6 +525,7 @@
 							type="number"
 							inputmode="numeric"
 							min="0"
+							step="1"
 							placeholder={String(Math.max(p.quantity, 0))}
 							value={counts[p.id] ?? ''}
 							oninput={(e) => (counts = { ...counts, [p.id]: (e.currentTarget as HTMLInputElement).value })}
@@ -518,7 +556,9 @@
 {#if editing}
 	<ProductDialog
 		product={editing.product}
+		initialName={editing.name ?? ''}
 		{suppliers}
+		onnew={(name) => (editing = { product: null, name })}
 		onsaved={(p) => {
 			replace(p);
 			editing = null;
@@ -540,9 +580,12 @@
 		onclose={() => (supplierEditing = null)}
 	/>
 {/if}
+{#if correcting}
+	<ReceiptLineDialog movement={correcting} onsaved={corrected} onclose={() => (correcting = null)} />
+{/if}
 {#if deleting}
 	<Modal
-		title={deleting.kind === 'receipt' ? t('stock.movements.deleteReceiptTitle', { date: formatDate(deleting.createdAt) }) : t('stock.movements.deleteTitle')}
+		title={deleting.kind === 'receipt' ? t('stock.movements.deleteReceiptTitle', { date: formatDay(movementDay(deleting)) }) : t('stock.movements.deleteTitle')}
 		subtitle={`${deleting.productName} ${sign(deleting.quantity)}`}
 		onclose={() => (deleting = null)}
 	>
