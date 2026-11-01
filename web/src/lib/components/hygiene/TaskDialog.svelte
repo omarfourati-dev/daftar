@@ -1,8 +1,9 @@
 <script lang="ts">
 	/**
 	 * Create or change a hygiene task (assistant, owner): title, equipment, rhythm (daily on opening days, weekly on a
-	 * day, monthly, yearly, every N days), first date, instructions. Deleting works only without proofs (409 task_in_use);
-	 * otherwise the task is deactivated so the register stays complete.
+	 * day, monthly, yearly, every N days), first date, instructions. A change counts from today – the register already
+	 * written never changes (review H1). Deleting works only while nothing of the task is in the register (409
+	 * task_in_use); otherwise the task is deactivated.
 	 */
 	import { untrack } from 'svelte';
 	import { api } from '../../api';
@@ -106,7 +107,11 @@
 				>
 			{/if}
 		</div>
-		<label class="label">{t('hygiene.task.startsOn')}<input class="input" type="date" bind:value={startsOn} /></label>
+		<div class="flex flex-col gap-1">
+			<label class="text-sm font-medium text-slate-700" for="task-starts-on">{t('hygiene.task.startsOn')}</label>
+			<input id="task-starts-on" class="input" type="date" bind:value={startsOn} aria-describedby="task-starts-hint" />
+			<p id="task-starts-hint" class="text-sm text-slate-600">{t('hygiene.task.startsOnHint')}</p>
+		</div>
 		<label class="label">{t('hygiene.task.instructions')}<textarea class="input min-h-20" bind:value={instructions} maxlength="1000" dir="auto"></textarea></label>
 		{#if start}
 			<label class="inline-flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" class="h-5 w-5 accent-brand-700" bind:checked={active} />{t('hygiene.task.active')}</label>

@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import HygieneToday from './HygieneToday.svelte';
 import { auth } from '../../auth.svelte';
 import { i18n } from '../../i18n.svelte';
-import { json, labelInNameProblems, mockApi, noContent, problem, sentJson } from '../../test-utils';
-import { assistant } from '../../agenda/fixtures';
+import { calls, json, labelInNameProblems, mockApi, noContent, problem, sentJson } from '../../test-utils';
+import { assistant, owner } from '../../agenda/fixtures';
 import type { HygieneItem, HygieneToday as Today } from '../../types/hygiene';
 
 const overdue: HygieneItem = {
@@ -79,5 +79,46 @@ describe('HygieneToday – big rows to tick (spec stock-hygiène 5.2)', () => {
 		unmount();
 		render(HygieneToday, { props: { data: { ...data, open: 0, items: [] } } });
 		expect(screen.getByText('Aucune tâche prévue. Créez votre plan d’hygiène dans « Équipements et tâches ».')).toBeInTheDocument();
+	});
+
+	it('loads the list again when a colleague was quicker (review N4)', async () => {
+		const ticked: HygieneItem = { ...due, state: 'done', done: { id: 44, doneBy: 'Karim', doneAt: '2026-10-30T09:01:00+01:00', result: 'ok', note: '', undoable: false } };
+		const onchange = vi.fn();
+		mockApi({
+			'POST /api/hygiene/tasks/2/done': () => problem(409, 'already_done'),
+			'GET /api/hygiene/today': () => json(200, { day: '2026-10-30', open: 0, items: [ticked] }),
+			'GET /api/badges': () => json(200, { onlineRequests: 0, overdue: 0, hygiene: 0 })
+		});
+		render(HygieneToday, { props: { data: { ...data, open: 1, items: [due] }, onchange } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Fait – Purge des conduits' }));
+		expect(await screen.findByRole('alert')).toHaveTextContent('Quelqu’un l’a déjà marquée comme faite.');
+		expect(await screen.findByText(/Fait par Karim à 09:01/)).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Fait – Purge des conduits' })).not.toBeInTheDocument();
+		expect(onchange).toHaveBeenLastCalledWith(expect.objectContaining({ open: 0 }));
+	});
+
+	it('asks the owner for a reason to undo somebody else’s proof', async () => {
+		auth.set('tok', owner);
+		const ticked: HygieneItem = { ...due, state: 'done', done: { id: 45, doneBy: 'Karim', doneAt: '2026-10-30T08:01:00+01:00', result: 'ok', note: '', undoable: true } };
+		let asked = false;
+		mockApi({
+			'DELETE /api/hygiene/done/45': (init) => {
+				if (!init?.body) {
+					asked = true;
+					return problem(422, 'reason_required');
+				}
+				return noContent();
+			},
+			'GET /api/hygiene/today': () => json(200, { day: '2026-10-30', open: 1, items: [due] }),
+			'GET /api/badges': () => json(200, { onlineRequests: 0, overdue: 0, hygiene: 1 })
+		});
+		render(HygieneToday, { props: { data: { ...data, open: 0, items: [ticked] } } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Annuler – Purge des conduits' }));
+		const reason = await screen.findByLabelText('Motif de l’annulation');
+		expect(asked).toBe(true);
+		await fireEvent.input(reason, { target: { value: 'Pas fait en réalité' } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Confirmer l’annulation' }));
+		await vi.waitFor(() => expect(calls().filter((c) => c === 'DELETE /api/hygiene/done/45')).toHaveLength(2));
+		expect(await screen.findByText('Annulé : « Purge des conduits » est de nouveau à faire.')).toBeInTheDocument();
 	});
 });

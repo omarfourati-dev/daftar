@@ -2,19 +2,25 @@
 	/**
 	 * /app/hygiene (spec stock-hygiène 5.2): "Aujourd'hui" (the tasks to tick, overdue first), "Équipements et tâches"
 	 * (the plan – a typical plan of the specialty in one tap; set up by assistant and owner) and "Historique" (every due
-	 * date with its proof or gap, filter by period and equipment, printable as an A4 register for an inspection).
-	 * `?tab=taches|historique` opens a part directly. The sterilisation tab comes with the labels (phase 3).
+	 * date with its proof or gap, filter by period and equipment, printable as an A4 register for an inspection; the
+	 * owner corrects a proof with a reason and reads the change log there). The register is written down day by day
+	 * (review H1): a change of the plan never rewrites it. On a phone it is a list of cards, from a tablet on and on
+	 * paper a table. `?tab=taches|historique` opens a part directly. The sterilisation tab comes with the labels
+	 * (phase 3).
 	 */
 	import { onMount } from 'svelte';
 	import { api } from '#lib/api';
 	import { auth } from '#lib/auth.svelte';
 	import { clock } from '#lib/clock';
+	import { HYGIENE_ENTITIES, type AuditEntry } from '#lib/audit';
 	import { frequencyText, hygieneError, kindLabel } from '#lib/hygiene';
 	import { addDays, formatDateTime, formatDay, t, todayTunis } from '#lib/i18n.svelte';
-	import type { Equipment, HygieneHistory, HygieneTask, HygieneToday } from '#lib/types/hygiene';
+	import type { Equipment, HistoryRow, HygieneHistory, HygieneTask, HygieneToday } from '#lib/types/hygiene';
+	import ChangeLog from '../../../lib/components/ChangeLog.svelte';
 	import Icon from '../../../lib/components/daily/Icon.svelte';
 	import EquipmentDialog from '../../../lib/components/hygiene/EquipmentDialog.svelte';
 	import HygieneTodayList from '../../../lib/components/hygiene/HygieneToday.svelte';
+	import ProofDialog from '../../../lib/components/hygiene/ProofDialog.svelte';
 	import TaskDialog from '../../../lib/components/hygiene/TaskDialog.svelte';
 
 	type Tab = 'aujourdhui' | 'taches' | 'historique';
@@ -25,6 +31,7 @@
 	];
 	const today = todayTunis(clock.now());
 	const manager = $derived(auth.role === 'owner' || auth.role === 'assistant');
+	const isOwner = $derived(auth.role === 'owner');
 
 	function initialTab(): Tab {
 		const wanted = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('tab');
@@ -44,15 +51,34 @@
 	let busy = $state(false);
 	let editingTask = $state<{ task: HygieneTask | null } | null>(null);
 	let editingEquipment = $state<{ item: Equipment | null } | null>(null);
+	let correcting = $state<HistoryRow | null>(null);
+	let log = $state<AuditEntry[] | null>(null);
+	let logError = $state('');
 
 	async function loadPlan() {
 		[equipment, tasks] = await Promise.all([api<Equipment[]>('/api/hygiene/equipment'), api<HygieneTask[]>('/api/hygiene/tasks')]);
 	}
 
+	async function loadLog() {
+		logError = '';
+		try {
+			log = await api<AuditEntry[]>(`/api/audit-log?entity=${HYGIENE_ENTITIES}&limit=50`);
+		} catch {
+			logError = t('audit.loadError');
+		}
+	}
+
 	async function loadHistory() {
 		const params = new URLSearchParams({ from, to });
 		if (equipmentFilter) params.set('equipmentId', equipmentFilter);
+		if (isOwner) void loadLog();
 		historyData = await api<HygieneHistory>(`/api/hygiene/history?${params}`);
+	}
+
+	async function proofChanged(message: string) {
+		correcting = null;
+		notice = message;
+		await load('historique');
 	}
 
 	async function load(which: Tab) {
@@ -112,10 +138,20 @@
 
 	const counts = $derived({
 		done: historyData?.rows.filter((r) => r.status === 'done').length ?? 0,
-		missed: historyData?.rows.filter((r) => r.status === 'missed').length ?? 0
+		missed: historyData?.rows.filter((r) => r.status === 'missed').length ?? 0,
+		overdue: historyData?.rows.filter((r) => r.status === 'overdue').length ?? 0
 	});
 	const practiceName = $derived(auth.user?.practice?.name ?? '');
-	const STATUS_TONE = { done: 'text-emerald-800', missed: 'font-semibold text-rose-800', due: 'text-slate-700' } as const;
+	const STATUS_TONE = {
+		done: 'text-emerald-800',
+		missed: 'font-semibold text-rose-800',
+		overdue: 'font-semibold text-amber-900',
+		due: 'text-slate-700'
+	} as const;
+	const ROW_TINT = { done: '', missed: 'bg-rose-50/60', overdue: 'bg-amber-50/60', due: '' } as const;
+	const rowKey = (row: HistoryRow) => `${row.taskId}-${row.dueOn}`;
+	const doneWhen = (row: HistoryRow) =>
+		row.done ? (row.late ? t('hygiene.history.late', { date: formatDay(row.done.doneAt.slice(0, 10)) }) : formatDateTime(row.done.doneAt)) : '';
 </script>
 
 <svelte:head><title>{t('hygiene.title')} · Daftar</title></svelte:head>
@@ -262,13 +298,36 @@
 			</div>
 			<p class="text-sm font-semibold text-slate-700">{t('hygiene.history.summary', counts)}</p>
 			{#if historyData.rows.length}
-				<!-- on a phone the register scrolls sideways inside its card: focusable, so keyboards can scroll it too -->
-				<div
-					class="card overflow-x-auto p-0 print:overflow-visible print:border-0 print:shadow-none"
-					role="region"
-					aria-label={t('hygiene.history.label')}
-					tabindex="0"
-				>
+				<!-- phone: one card per due date -->
+				<ul class="flex flex-col gap-2 md:hidden print:hidden" aria-label={t('hygiene.history.cards')}>
+					{#each historyData.rows as row (rowKey(row))}
+						<li class="flex flex-col gap-1 rounded-xl border border-slate-200 bg-white p-3 {ROW_TINT[row.status]}">
+							<div class="flex items-start justify-between gap-2">
+								<p class="min-w-0 font-semibold">
+									<span dir="auto">{row.title}</span>{#if row.equipmentName}<span class="block text-xs font-normal text-slate-600" dir="auto">{row.equipmentName}</span>{/if}
+								</p>
+								<span class="shrink-0 text-sm tabular-nums">{formatDay(row.dueOn)}</span>
+							</div>
+							<p class="text-sm {STATUS_TONE[row.status]}">
+								{t(`hygiene.history.statuses.${row.status}`)}{#if row.done?.result === 'not_ok'}<span class="ms-1 rounded bg-rose-100 px-1 text-xs font-bold text-rose-900">{t('hygiene.today.notOk')}</span>{/if}
+							</p>
+							{#if row.done}
+								<p class="text-sm text-slate-700"><span dir="auto">{row.done.doneBy}</span> – <span class="tabular-nums">{doneWhen(row)}</span></p>
+								{#if row.done.note}<p class="text-sm text-slate-700" dir="auto">{row.done.note}</p>{/if}
+								{#if isOwner}
+									<button
+										type="button"
+										class="btn-secondary min-h-11 self-start px-3 text-sm"
+										aria-label={t('hygiene.history.correctLabel', { task: row.title, date: formatDay(row.dueOn) })}
+										onclick={() => (correcting = row)}>{t('hygiene.history.correct')}</button
+									>
+								{/if}
+							{/if}
+						</li>
+					{/each}
+				</ul>
+				<!-- tablet, desktop and paper: the table of the register -->
+				<div class="card hidden p-0 md:block print:block print:border-0 print:shadow-none">
 					<table class="w-full text-sm">
 						<caption class="sr-only">{t('hygiene.history.label')}</caption>
 						<thead>
@@ -278,11 +337,12 @@
 								<th scope="col" class="px-3 py-2 text-start font-semibold">{t('hygiene.history.status')}</th>
 								<th scope="col" class="px-3 py-2 text-start font-semibold">{t('hygiene.history.by')}</th>
 								<th scope="col" class="px-3 py-2 text-start font-semibold">{t('hygiene.history.note')}</th>
+								{#if isOwner}<th scope="col" class="px-3 py-2 print:hidden"><span class="sr-only">{t('hygiene.history.correct')}</span></th>{/if}
 							</tr>
 						</thead>
 						<tbody>
-							{#each historyData.rows as row (`${row.taskId}-${row.dueOn}`)}
-								<tr class="border-b border-slate-100 align-top break-inside-avoid last:border-0 {row.status === 'missed' ? 'bg-rose-50/60' : ''}">
+							{#each historyData.rows as row (rowKey(row))}
+								<tr class="border-b border-slate-100 align-top break-inside-avoid last:border-0 {ROW_TINT[row.status]}">
 									<td class="px-3 py-2 whitespace-nowrap tabular-nums">{formatDay(row.dueOn)}</td>
 									<th scope="row" class="px-3 py-2 text-start font-medium">
 										<span dir="auto">{row.title}</span>{#if row.equipmentName}<span class="block text-xs font-normal text-slate-600" dir="auto">{row.equipmentName}</span>{/if}
@@ -292,11 +352,21 @@
 									</td>
 									<td class="px-3 py-2">
 										{#if row.done}<span dir="auto">{row.done.doneBy}</span>
-											<span class="block text-xs text-slate-600 tabular-nums"
-												>{row.late ? t('hygiene.history.late', { date: formatDay(row.done.doneAt.slice(0, 10)) }) : formatDateTime(row.done.doneAt)}</span
-											>{/if}
+											<span class="block text-xs text-slate-600 tabular-nums">{doneWhen(row)}</span>{/if}
 									</td>
 									<td class="px-3 py-2" dir="auto">{row.done?.note ?? ''}</td>
+									{#if isOwner}
+										<td class="px-3 py-2 print:hidden">
+											{#if row.done}
+												<button
+													type="button"
+													class="btn-secondary min-h-11 px-3 text-sm"
+													aria-label={t('hygiene.history.correctLabel', { task: row.title, date: formatDay(row.dueOn) })}
+													onclick={() => (correcting = row)}>{t('hygiene.history.correct')}</button
+												>
+											{/if}
+										</td>
+									{/if}
 								</tr>
 							{/each}
 						</tbody>
@@ -307,6 +377,12 @@
 			{/if}
 		{:else if !error}
 			<p class="card text-slate-600" aria-busy="true">{t('common.loading')}</p>
+		{/if}
+		{#if isOwner}
+			<section aria-labelledby="hygiene-log" class="flex flex-col gap-2">
+				<h2 id="hygiene-log" class="text-lg font-bold">{t('hygiene.history.log')}</h2>
+				<ChangeLog entries={log} error={logError} label={t('hygiene.history.log')} onretry={loadLog} />
+			</section>
 		{/if}
 	{/if}
 </div>
@@ -319,6 +395,9 @@
 		ondeleted={(id) => ((tasks = (tasks ?? []).filter((x) => x.id !== id)), (editingTask = null))}
 		onclose={() => (editingTask = null)}
 	/>
+{/if}
+{#if correcting}
+	<ProofDialog row={correcting} onsaved={proofChanged} onclose={() => (correcting = null)} />
 {/if}
 {#if editingEquipment}
 	<EquipmentDialog

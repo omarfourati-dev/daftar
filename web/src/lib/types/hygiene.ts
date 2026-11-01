@@ -57,12 +57,13 @@ export interface HygieneToday {
 	items: HygieneItem[];
 }
 
+/** A due date of the register: `overdue` is still to do, `missed` is a gap for good. */
 export interface HistoryRow {
 	dueOn: string;
 	taskId: number;
 	title: string;
 	equipmentName: string | null;
-	status: 'done' | 'missed' | 'due';
+	status: 'done' | 'missed' | 'overdue' | 'due';
 	late: boolean;
 	done: HygieneDone | null;
 }
