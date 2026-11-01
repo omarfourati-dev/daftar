@@ -108,6 +108,7 @@ practice = Table(
     Column("booking_block_no_shows", Integer, nullable=False),
     Column("onboarding", JSONB, nullable=False),  # "Erste Schritte" state (migration 0002)
     _ts("created_at"),
+    Column("label_settings", JSONB, nullable=False),  # label formats and shelf lives (migration 0012)
 )
 
 app_user = Table(
@@ -196,6 +197,7 @@ patient = Table(
     Column("notes", Text, nullable=False),
     Column("alerts", Text, nullable=False),  # medical warnings (allergy, anticoagulant) shown in red
     _ts("created_at"),
+    Column("birth_date", Date, nullable=True),  # optional; birth_year is then its year (CHECK, migration 0012)
 )
 
 appointment = Table(
@@ -476,6 +478,7 @@ equipment = Table(
     Column("note", Text, nullable=False),
     Column("active", Boolean, nullable=False),
     _ts("created_at"),
+    Column("label_code", Text, nullable=True),  # "A1" on the labels of an autoclave (migration 0012)
 )
 
 #: A recurring hygiene / maintenance task (rhythm rules: daftar/hygiene_rules.py).
@@ -526,8 +529,73 @@ hygiene_task_done = Table(
     Column("note", Text, nullable=False),
 )
 
+#: One run of an autoclave (spec stock-hygiène 5.3, migration 0012); its packs carry labels only when it is "ok".
+sterilization_cycle = Table(
+    "sterilization_cycle",
+    metadata,
+    _id(),
+    _practice_id(),
+    Column("equipment_id", BigInteger, nullable=False),  # composite FK (equipment_id, practice_id)
+    Column("number", Integer, nullable=False),  # unique per autoclave
+    _ts("run_at"),
+    Column("program", Text, nullable=False),
+    Column("result", Text, nullable=False),  # ok | not_ok
+    Column("pack_count", Integer, nullable=False),
+    Column("note", Text, nullable=False),
+    Column("performed_by", BigInteger, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),
+    Column("performed_by_name", Text, nullable=False),
+    Column("initials", Text, nullable=False),  # as printed on the labels
+    _ts("created_at"),
+)
+
+#: One pack of a cycle with its label code (``A1-0412-07``), unique in the practice.
+sterile_pack = Table(
+    "sterile_pack",
+    metadata,
+    _id(),
+    _practice_id(),
+    Column("cycle_id", BigInteger, nullable=False),  # composite FK (cycle_id, practice_id), CASCADE
+    Column("seq", Integer, nullable=False),
+    Column("code", Text, nullable=False),
+    Column("content", Text, nullable=False),
+    Column("packaging", Text, nullable=False),  # sachet | double_sachet | conteneur | champ
+    Column("expires_on", Date, nullable=False),  # "à utiliser avant" – not usable from this day on
+)
+
+#: The pack was opened for this patient (traceability) – once per pack.
+sterile_pack_use = Table(
+    "sterile_pack_use",
+    metadata,
+    _id(),
+    _practice_id(),
+    Column("pack_id", BigInteger, nullable=False, unique=True),  # composite FK (pack_id, practice_id)
+    Column("patient_id", BigInteger, nullable=False),  # composite FK (patient_id, practice_id), CASCADE
+    Column("appointment_id", BigInteger, ForeignKey("appointment.id", ondelete="SET NULL"), nullable=True),
+    _ts("used_at"),
+    Column("used_by", BigInteger, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),
+    Column("used_by_name", Text, nullable=False),
+)
+
+#: Who printed specimen labels for whom, when, which tubes (spec stock-hygiène 6) – never results.
+specimen_label_log = Table(
+    "specimen_label_log",
+    metadata,
+    _id(),
+    _practice_id(),
+    Column("patient_id", BigInteger, nullable=False),  # composite FK (patient_id, practice_id), CASCADE
+    Column("appointment_id", BigInteger, ForeignKey("appointment.id", ondelete="SET NULL"), nullable=True),
+    Column("items", JSONB, nullable=False),  # [{"kind": "edta", "count": 2, "label": ""}]
+    Column("label_count", Integer, nullable=False),
+    _ts("collected_at"),
+    Column("collected_by", Text, nullable=False),
+    Column("printed_by", BigInteger, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),
+    Column("printed_by_name", Text, nullable=False),
+    _ts("printed_at"),
+)
+
 #: Child tables first – the order for TRUNCATE/DELETE in tests and tools (reference data not included).
 ALL_TABLES = (
+    specimen_label_log, sterile_pack_use, sterile_pack, sterilization_cycle,
     hygiene_task_done, hygiene_task_due, hygiene_task, equipment,
     audit_log, stock_movement, stock_receipt_line, stock_receipt, stock_product, supplier,
     feedback, password_reset, import_template, import_job, cash_closing,

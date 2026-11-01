@@ -42,6 +42,10 @@ from daftar.tables import (
     stock_receipt,
     stock_receipt_line,
     supplier,
+    specimen_label_log,
+    sterile_pack,
+    sterile_pack_use,
+    sterilization_cycle,
 )
 
 REFLECTED = {"BigInteger": "BIGINT", "Integer": "INTEGER", "Text": "TEXT", "DateTime": "TIMESTAMP",
@@ -310,6 +314,19 @@ def test_deleting_a_practice_deletes_everything_of_it(
             conn.execute(insert(hygiene_task_due).values(practice_id=p.id, task_id=task, due_on=date(2026, 10, 26),
                                                          title="Bowie-Dick", equipment_id=gear, equipment_name="Autoclave",
                                                          status="done"))
+            cycle = conn.execute(insert(sterilization_cycle).values(
+                practice_id=p.id, equipment_id=gear, number=1, run_at=clock.now(), result="ok", pack_count=1,
+                performed_by=user.id, performed_by_name="X", initials="X", created_at=clock.now(),
+            ).returning(sterilization_cycle.c.id)).scalar_one()
+            pack = conn.execute(insert(sterile_pack).values(
+                practice_id=p.id, cycle_id=cycle, seq=1, code="A1-0001-01", content="Kit", packaging="sachet",
+                expires_on=date(2027, 1, 28)).returning(sterile_pack.c.id)).scalar_one()
+            conn.execute(insert(sterile_pack_use).values(practice_id=p.id, pack_id=pack, patient_id=pat.id,
+                                                         appointment_id=appt.id, used_at=clock.now(), used_by=user.id,
+                                                         used_by_name="X"))
+            conn.execute(insert(specimen_label_log).values(
+                practice_id=p.id, patient_id=pat.id, appointment_id=appt.id, items=[{"kind": "edta", "count": 1}],
+                label_count=1, collected_at=clock.now(), printed_by=user.id, printed_by_name="X", printed_at=clock.now()))
     with db.begin() as conn:
         conn.execute(delete(practice).where(practice.c.id == doomed.id))
         for table in ALL_TABLES:
