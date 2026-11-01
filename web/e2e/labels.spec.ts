@@ -5,6 +5,7 @@ import { expect, test, type Page } from '@playwright/test';
 import jsQR from 'jsqr';
 import { PNG } from 'pngjs';
 import { APP, axe, currentQuarter, newPatient, newPractice, signIn, type Practice } from './daily';
+import { APP_HOST, BASE } from './hosts';
 
 /**
  * Spec stock-hygiène 5.3, 6, 7: a cycle and its labels on the phone, labels that come out right on real printers –
@@ -362,6 +363,62 @@ test('a cycle entered twice is cancelled, not deleted: its number stays taken, i
 	await expect(page.getByRole('list', { name: 'Journal des corrections' })).toContainText('a annulé le cycle A1 n° 1');
 });
 
+test('a cycle number far from the proposal is asked about; a mistyped one cancelled lets the numbers go on; an A4 print not answered is asked again', async ({
+	page,
+	request
+}) => {
+	const p = await newPractice(request);
+	const autoclave = await p.api.post('/api/hygiene/equipment', { name: 'Autoclave Melag', kind: 'autoclave' });
+	await p.api.post('/api/hygiene/cycles', { equipmentId: autoclave.id, number: 413, result: 'ok', packs: [] });
+	await signIn(page, p);
+	await page.setViewportSize({ width: 360, height: 780 });
+	await page.goto(APP + '/app/hygiene?tab=sterilisation');
+	await page.getByRole('button', { name: 'Nouveau cycle' }).first().click();
+	const dialog = page.getByRole('dialog', { name: 'Nouveau cycle de stérilisation' });
+	const field = dialog.getByLabel('N° de cycle');
+	await expect(field).toHaveValue('414');
+	await field.fill('4140'); // 414 typed from the autoclave's display, one 0 too many (review Mi2)
+	await dialog.getByText('Conforme', { exact: true }).click();
+	await dialog.getByRole('button', { name: 'Enregistrer le cycle' }).click();
+	const question = dialog.getByRole('group', { name: 'N° 4140 – le prochain attendu est 414. Confirmer ?' });
+	await expect(question.getByRole('button', { name: 'Oui, n° 4140' })).toBeFocused();
+	await axe(page);
+	await noHorizontalScroll(page, 'number question 360');
+	await question.getByRole('button', { name: 'Corriger le n°' }).click();
+	await expect(field).toBeFocused();
+	await expect(question).toHaveCount(0);
+	// confirmed by mistake after all – the owner cancels it, and the numbers go on where the autoclave is
+	await field.fill('4140');
+	await dialog.getByRole('button', { name: 'Enregistrer le cycle' }).click();
+	await dialog.getByRole('button', { name: 'Oui, n° 4140' }).click();
+	await expect(page.getByText('Cycle enregistré.')).toBeVisible();
+	const typo = (await p.api.get('/api/hygiene/cycles')).cycles.find((c: { number: number }) => c.number === 4140);
+	await p.api.post(`/api/hygiene/cycles/${typo.id}/cancel`, { reason: 'N° mal saisi' });
+	await page.reload();
+	await page.getByRole('button', { name: 'Nouveau cycle' }).first().click();
+	await expect(field).toHaveValue('414');
+	await dialog.getByText('Conforme', { exact: true }).click();
+	await dialog.getByRole('group', { name: 'Ajouter un paquet type' }).getByRole('button').first().click();
+	await dialog.getByRole('button', { name: 'Enregistrer et imprimer 1 étiquette(s)' }).click();
+	await expect(page).toHaveURL(/\/app\/etiquettes\?cycle=\d+$/);
+	await expect(page.getByRole('list', { name: 'Aperçu des étiquettes' }).getByRole('article', { name: 'Étiquette A1-0414-01' })).toBeVisible();
+
+	// A4: printed, then "Retour" without answering – the next preview asks again and starts after it (review Ni2)
+	const labels = page.url();
+	await page.getByText('Planche A4 de 24').click();
+	await page.evaluate(() => (window.print = () => undefined));
+	await page.getByRole('button', { name: 'Imprimer 1 étiquette(s)' }).click();
+	await expect(page.getByText('Les 1 étiquette(s) sont-elles bien sorties de l’imprimante ?')).toBeVisible();
+	await page.getByRole('link', { name: 'Retour' }).click();
+	await expect(page.getByRole('list', { name: 'Cycles de stérilisation' })).toBeVisible();
+	await page.goto(`${labels}&format=a4_3x8`);
+	await expect(page.getByText('Impression précédente : 1 étiquette(s) à partir de la position 1. Sont-elles bien sorties de l’imprimante ?')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Commencer à la position 2', exact: true })).toHaveAttribute('aria-pressed', 'true');
+	await axe(page);
+	await page.getByRole('button', { name: 'Oui, bien sorties' }).click();
+	await expect(page.getByText('La prochaine impression sur planche commencera à la position 2 (modifiable).')).toBeVisible();
+});
+
 test('traceability: the desk notes packs in the appointment, refused ones say why; the owner searches both ways', async ({ page, request }) => {
 	const p = await newPractice(request);
 	await p.api.patch('/api/labels/settings', { shelfLifeDays: { conteneur: 1 } });
@@ -439,6 +496,13 @@ test('traceability: the desk notes packs in the appointment, refused ones say wh
 	await expect(journal).toContainText('a corrigé le cycle A1 n° 8');
 	await expect(journal).toContainText('a retiré le paquet A1-0009-01 noté pour Hela Tracee');
 	await expect(journal).toContainText('Motif : Mauvais paquet');
+	// the patient erased on his request: the journal keeps the pack and his number, no longer his name (review Mi1)
+	const erased = await request.delete(`${BASE}/api/patients/${patient.id}`, { headers: { Authorization: `Bearer ${p.token}`, host: APP_HOST } });
+	expect(erased.status(), await erased.text()).toBe(204);
+	await page.reload();
+	await page.getByRole('button', { name: 'Historique' }).click();
+	await expect(journal).toContainText(`a retiré le paquet A1-0009-01 noté pour Patient supprimé (n° ${patient.id})`);
+	await expect(journal).not.toContainText('Hela Tracee');
 });
 
 test('specimen labels from the patient file with the full birth date; Arabic file', async ({ page, request }) => {
