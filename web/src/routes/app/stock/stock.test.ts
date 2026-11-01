@@ -354,4 +354,18 @@ describe('/app/stock – the material of the practice', () => {
 		expect(moves.getByText('علاج تسوس')).toBeInTheDocument();
 		expect(moves.queryByText('Soin carie')).not.toBeInTheDocument();
 	});
+
+	it('offers a new product instead of changing the unit of a product with history (review M2)', async () => {
+		stockApi({ 'GET /api/stock/movements?productId=1&limit=10': () => json(200, []) });
+		render(Page);
+		const list = within(await screen.findByRole('list', { name: 'Produits en stock' }));
+		await fireEvent.click(list.getByText('Gants d’examen').closest('button') as HTMLElement);
+		await fireEvent.click(screen.getByRole('button', { name: 'Modifier' }));
+		const edit = within(screen.getByRole('dialog', { name: 'Modifier le produit' }));
+		expect(edit.getByLabelText('Unité')).toBeDisabled();
+		await fireEvent.click(edit.getByRole('button', { name: 'Créer un nouveau produit' }));
+		const fresh = within(await screen.findByRole('dialog', { name: 'Nouveau produit' }));
+		expect(fresh.getByLabelText('Nom')).toHaveValue('Gants d’examen');
+		expect(fresh.getByLabelText('Unité')).toBeEnabled();
+	});
 });

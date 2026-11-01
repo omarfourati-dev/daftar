@@ -554,6 +554,7 @@
 	/>
 {/if}
 {#if editing}
+	{#key editing}
 	<ProductDialog
 		product={editing.product}
 		initialName={editing.name ?? ''}
@@ -571,6 +572,7 @@
 		}}
 		onclose={() => (editing = null)}
 	/>
+	{/key}
 {/if}
 {#if supplierEditing}
 	<SupplierDialog
