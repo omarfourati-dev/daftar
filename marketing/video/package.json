@@ -2,12 +2,17 @@
   "name": "video-daftar",
   "private": true,
   "type": "module",
-  "description": "Daftar-Werbevideo (FR/AR, 1080x1920 und 1920x1080): HTML/CSS-Szenen -> MP4 (H.264) über Chromium/WebCodecs, ohne ffmpeg. Nutzt Playwright, qrcode, jsQR, pngjs aus ../flyer/node_modules bzw. ../../web/node_modules.",
+  "description": "Daftar-Videos mit Stimme (FR/AR): Werbevideo „Vorher → mit Daftar“ (1080x1920 ≤ 60 s und 1920x1080) und Tutorial-Gesamtvideo (1920x1080). HTML/CSS-Szenen → MP4 (H.264 + AAC) über Chromium/WebCodecs, ohne ffmpeg; Stimme über ../voice/tts.py (Azure Neural TTS). Nutzt Playwright, qrcode, jsQR, pngjs aus ../flyer/node_modules bzw. ../../web/node_modules.",
   "scripts": {
-    "capture": "node capture.mjs",
+    "check-voice": "node render.mjs --check-voice",
     "render": "node render.mjs",
-    "probe": "node render.mjs --probe --lang fr",
+    "pub": "node render.mjs --film pub",
+    "tutoriel": "node render.mjs --film tutoriel",
+    "probe": "node render.mjs --film pub --probe --lang fr",
+    "test-tone": "node render.mjs --test-tone",
     "stills": "node render.mjs --stills",
-    "storyboard": "node render.mjs --storyboard"
+    "sprechtexte": "node render.mjs --sprechtexte",
+    "storyboard": "node render.mjs --storyboard",
+    "capture": "node capture.mjs"
   }
 }
