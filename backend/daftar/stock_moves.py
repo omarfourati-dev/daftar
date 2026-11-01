@@ -6,12 +6,16 @@
 - ``GET /receipts?limit=&offset=`` · ``GET /receipts/{id}`` (assistant, owner – receipts carry prices).
 - ``DELETE /receipts/{id} {reason}`` (owner) → 204: the receipt, its lines and their movements go; the change log
   keeps a copy (:mod:`daftar.audit`).
+- ``PATCH /receipts/{id}/lines/{lineId} {quantity?, unitPriceMillimes?, reason}`` (owner) → the corrected ``Receipt``
+  (a mistyped price or quantity – no need to delete and type the delivery again); logged old → new with the reason.
 - ``POST /movements {productId, kind: use|waste, quantity, serviceId?, appointmentId?, reason?}`` → 201
   ``{movement, product}``. Every staff role records a use (3 taps at the desk or from an appointment – the
   appointment's act is taken over when none is given); waste is for assistant and owner. A use may take the stock
   below zero (the material was used); the product then shows ``empty`` with its negative quantity, so the practice
-  counts it. The movement keeps the average purchase price of the moment as its unit cost.
-- ``GET /movements?productId=&appointmentId=&limit=`` → ``[Movement]`` newest first (costs only for assistant/owner).
+  counts it. The movement's unit cost is the moving average of that moment (:func:`daftar.stock.recost` – computed
+  again whenever an earlier receipt or movement of the product changes, so the material cost follows corrections).
+- ``GET /movements?productId=&appointmentId=&limit=`` → ``[Movement]`` newest first (costs only for assistant/owner),
+  with the act in both languages and, for a receipt, its line and delivery day.
 - ``DELETE /movements/{id} {reason}`` (owner) → 204, logged; a receipt movement goes with its receipt only (409
   ``receipt_movement``).
 - ``POST /inventory {reason, counts:[{productId, counted}]}`` (assistant, owner) → ``{adjusted, products}``: one
@@ -39,9 +43,9 @@ from .stock import (
     ProductOut,
     StockManager,
     StockManagerReader,
-    average_costs,
     check_supplier,
     load_products,
+    recost,
     sees_prices,
     stock_levels,
 )
@@ -210,6 +214,7 @@ def create_receipt(body: ReceiptIn, user: StockManager, ctx: Ctx, conn: Conn) ->
                    stock_product.c.supplier_id.is_(None))
             .values(supplier_id=body.supplier_id)
         )
+    recost(conn, user.pid, sorted(product_ids))
     return _receipt(conn, user.pid, receipt_id)
 
 
@@ -241,7 +246,42 @@ def delete_receipt(receipt_id: int, body: ReasonIn, user: OwnerWriter, ctx: Ctx,
     audit.record(conn, user, entity="stock_receipt", entity_id=receipt_id, action="delete", now=ctx.clock.now(),
                  before=snapshot, reason=body.reason)
     conn.execute(delete(stock_receipt).where(stock_receipt.c.id == receipt_id, stock_receipt.c.practice_id == user.pid))
+    recost(conn, user.pid, sorted({line.product_id for line in receipt.lines}))
     return Response(status_code=204)
+
+
+class LineCorrection(ApiModel):
+    quantity: Count | None = None
+    unit_price_millimes: Millimes | None = None
+    reason: RequiredReason
+
+    @model_validator(mode="after")
+    def _quantity_stays(self) -> LineCorrection:
+        if "quantity" in self.model_fields_set and self.quantity is None:
+            raise ValueError("validation: La quantité ne peut pas être vide.")
+        return self
+
+
+@router.patch("/receipts/{receipt_id}/lines/{line_id}")
+def correct_line(receipt_id: int, line_id: int, body: LineCorrection, user: OwnerWriter, ctx: Ctx, conn: Conn) -> ReceiptOut:
+    receipt = _receipt(conn, user.pid, receipt_id)
+    line = next((x for x in receipt.lines if x.id == line_id), None)
+    if line is None:
+        raise not_found()
+    values = body.model_dump(exclude_unset=True, by_alias=False, include={"quantity", "unit_price_millimes"})
+    names = {"quantity": "quantity", "unit_price_millimes": "unitPriceMillimes"}
+    before, after = audit.diff(line.model_dump(by_alias=False), values, names)
+    if after:
+        conn.execute(update(stock_receipt_line).where(stock_receipt_line.c.id == line_id).values(**values))
+        if "quantity" in values:
+            conn.execute(update(stock_movement).where(stock_movement.c.receipt_line_id == line_id)
+                         .values(quantity=values["quantity"]))
+        recost(conn, user.pid, [line.product_id])
+        audit.record(conn, user, entity="stock_receipt_line", entity_id=line_id, action="update", now=ctx.clock.now(),
+                     before={"product": line.product_name, "unit": line.unit, "receivedOn": receipt.received_on,
+                             "supplier": receipt.supplier_name, "receiptId": receipt_id, **before},
+                     after=after, reason=body.reason.strip())
+    return _receipt(conn, user.pid, receipt_id)
 
 
 # --- movements --------------------------------------------------------------------------------------------------
@@ -256,9 +296,13 @@ class MovementOut(ApiModel):
     quantity: int
     service_id: int | None
     service_name: str | None
+    service_name_ar: str | None
     appointment_id: int | None
     patient_name: str | None
     receipt_id: int | None
+    receipt_line_id: int | None
+    #: The delivery day of a receipt (it may be earlier than ``createdAt``).
+    received_on: date | None
     reason: str
     unit_cost_millimes: int | None
     created_by: str | None
@@ -286,10 +330,12 @@ def load_movements(conn: Connection, practice_id: int, *conditions: Any, prices:
             stock_product.c.name.label("product_name"),
             stock_product.c.unit,
             service.c.name_fr.label("service_name"),
+            service.c.name_ar.label("service_name_ar"),
             patient.c.first_name,
             patient.c.last_name,
             app_user.c.name.label("created_by_name"),
             stock_receipt_line.c.receipt_id,
+            stock_receipt.c.received_on,
         )
         .select_from(
             stock_movement.join(stock_product, stock_product.c.id == stock_movement.c.product_id)
@@ -298,6 +344,7 @@ def load_movements(conn: Connection, practice_id: int, *conditions: Any, prices:
             .outerjoin(patient, patient.c.id == appointment.c.patient_id)
             .outerjoin(app_user, app_user.c.id == stock_movement.c.created_by)
             .outerjoin(stock_receipt_line, stock_receipt_line.c.id == stock_movement.c.receipt_line_id)
+            .outerjoin(stock_receipt, stock_receipt.c.id == stock_receipt_line.c.receipt_id)
         )
         .where(stock_movement.c.practice_id == practice_id, *conditions)
         .order_by(stock_movement.c.created_at.desc(), stock_movement.c.id.desc())
@@ -306,9 +353,10 @@ def load_movements(conn: Connection, practice_id: int, *conditions: Any, prices:
     return [
         MovementOut(
             id=r.id, product_id=r.product_id, product_name=r.product_name, unit=r.unit, kind=r.kind, quantity=r.quantity,
-            service_id=r.service_id, service_name=r.service_name, appointment_id=r.appointment_id,
+            service_id=r.service_id, service_name=r.service_name, service_name_ar=r.service_name_ar or None,
+            appointment_id=r.appointment_id,
             patient_name=f"{r.first_name} {r.last_name}" if r.first_name is not None else None,
-            receipt_id=r.receipt_id, reason=r.reason, unit_cost_millimes=r.unit_cost_millimes if prices else None,
+            receipt_id=r.receipt_id, receipt_line_id=r.receipt_line_id, received_on=r.received_on, reason=r.reason, unit_cost_millimes=r.unit_cost_millimes if prices else None,
             created_by=r.created_by_name, created_at=r.created_at,
         )
         for r in rows
@@ -337,11 +385,11 @@ def create_movement(body: MovementIn, user: StaffWriter, ctx: Ctx, conn: Conn) -
     movement_id = conn.execute(
         insert(stock_movement)
         .values(practice_id=user.pid, product_id=body.product_id, kind=body.kind, quantity=-body.quantity,
-                service_id=service_id, appointment_id=body.appointment_id,
-                unit_cost_millimes=average_costs(conn, user.pid, [body.product_id]).get(body.product_id),
-                reason=body.reason, created_by=user.user_id, created_at=ctx.clock.now())
+                service_id=service_id, appointment_id=body.appointment_id, reason=body.reason, created_by=user.user_id,
+                created_at=ctx.clock.now())
         .returning(stock_movement.c.id)
     ).scalar_one()
+    recost(conn, user.pid, [body.product_id])
     prices = sees_prices(user)
     (movement,) = load_movements(conn, user.pid, stock_movement.c.id == movement_id, prices=prices, limit=1)
     (product,) = load_products(conn, user.pid, today_tunis(ctx.clock), prices=prices, product_ids=[body.product_id])
@@ -378,6 +426,7 @@ def delete_movement(movement_id: int, body: ReasonIn, user: OwnerWriter, ctx: Ct
     audit.record(conn, user, entity="stock_movement", entity_id=movement_id, action="delete", now=ctx.clock.now(),
                  before=snapshot, reason=body.reason)
     conn.execute(delete(stock_movement).where(stock_movement.c.id == movement_id))
+    recost(conn, user.pid, [m.product_id])
     return Response(status_code=204)
 
 
@@ -410,15 +459,15 @@ def inventory(body: InventoryIn, user: StockManager, ctx: Ctx, conn: Conn) -> In
     ids = [c.product_id for c in body.counts]
     _products(conn, user.pid, set(ids), active_only=False)
     levels = stock_levels(conn, user.pid, ids)
-    costs = average_costs(conn, user.pid, ids)
     now = ctx.clock.now()
     rows = [
         {"practice_id": user.pid, "product_id": c.product_id, "kind": "adjust", "quantity": c.counted - levels.get(c.product_id, 0),
-         "unit_cost_millimes": costs.get(c.product_id), "reason": body.reason, "created_by": user.user_id, "created_at": now}
+         "reason": body.reason, "created_by": user.user_id, "created_at": now}
         for c in body.counts
         if c.counted != levels.get(c.product_id, 0)
     ]
     if rows:
         conn.execute(insert(stock_movement), rows)
+        recost(conn, user.pid, sorted({row["product_id"] for row in rows}))
     products = load_products(conn, user.pid, today_tunis(ctx.clock), prices=sees_prices(user), product_ids=ids)
     return InventoryOut(adjusted=len(rows), products=products)

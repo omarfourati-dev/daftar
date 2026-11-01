@@ -4,6 +4,8 @@ deleted what, when, old → new, and why.
 - :func:`record` writes one entry inside the request's transaction (the change and its entry commit together);
   ``before``/``after`` are small JSON snapshots (dates as ISO text, no secrets, no patient data beyond a name).
   :func:`diff` keeps only what changed, under the names the web shows (codes, not translations – the web words them).
+  An ``update`` names its object in ``before`` (``product``, ``supplier``, ``task``, ``equipment``; a corrected receipt
+  line or proof also its day and author); ``after`` holds only the new values.
 - Entities: ``stock_receipt``, ``stock_receipt_line``, ``stock_movement``, ``stock_product``, ``supplier`` (stock) and
   ``hygiene_task``, ``equipment``, ``hygiene_task_done`` (hygiene).
 - ``GET /api/audit-log?entity=a,b&limit=`` (owner) → ``[{id, at, userName, entity, entityId, action, before, after,

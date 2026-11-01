@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, func, select
 
-from daftar.tables import audit_log, stock_movement
+from daftar.tables import audit_log, service, stock_movement
 from tests.conftest import T0
 from tests.helpers import assert_problem
 
@@ -59,8 +59,8 @@ def test_the_assistant_creates_a_product_that_starts_empty(client: TestClient, c
     assert created == {
         "id": created["id"], "name": "Gants d’examen", "category": "hygiene", "unit": "boite", "supplierId": sup["id"],
         "supplierName": "Dentalia Sfax", "minQuantity": 4, "note": "Taille M", "ean": None, "active": True,
-        "quantity": 0, "status": "empty", "expiresOn": None, "expiry": None, "averageCostMillimes": None,
-        "lastUsedAt": None,
+        "quantity": 0, "status": "unreceived", "hasHistory": False, "expiresOn": None, "expiry": None,
+        "averageCostMillimes": None, "lastUsedAt": None,
     }
     assert_problem(client.post("/api/stock/products", json={"name": " gants D’EXAMEN "}, headers=cab.owner), 409,
                    "product_exists")
@@ -334,7 +334,9 @@ def test_the_owner_deletes_a_receipt_with_its_lines_and_the_log_keeps_them(clien
 
 def test_to_order_groups_low_products_by_supplier(client: TestClient, cab: Any, stocked: Any) -> None:
     use(client, cab.assistant, stocked.gloves["id"], 7)  # 3 left, minimum 4
-    loose = product(client, cab.assistant, "Gobelets", minQuantity=2)  # no supplier, empty
+    loose = product(client, cab.assistant, "Gobelets", minQuantity=2)  # no supplier
+    receive(client, cab.assistant, [{"productId": loose["id"], "quantity": 1}])
+    product(client, cab.assistant, "Jamais reçu", minQuantity=2)  # never delivered: not an order yet
     product(client, cab.assistant, "Sans seuil")  # no minimum: never proposed
     res = client.get("/api/stock/to-order", headers=cab.dentist)
     assert res.status_code == 200, res.text
@@ -361,7 +363,8 @@ def test_stats_show_spending_and_material_cost_per_act(client: TestClient, cab: 
     use(client, cab.dentist, stocked.composite["id"], appointmentId=stocked.appt.id)
     use(client, cab.dentist, stocked.gloves["id"], 2, appointmentId=stocked.appt.id)
     use(client, cab.dentist, stocked.gloves["id"], 1)  # not for an act
-    receive(client, cab.assistant, [{"productId": stocked.gloves["id"], "quantity": 5, "unitPriceMillimes": 10_000}],
+    masks = product(client, cab.assistant, "Masques chirurgicaux")
+    receive(client, cab.assistant, [{"productId": masks["id"], "quantity": 5, "unitPriceMillimes": 10_000}],
             receivedOn="2026-09-15")
     assert_problem(client.get("/api/stock/stats?month=2026-10", headers=cab.assistant), 403, "forbidden")
     res = client.get("/api/stock/stats?month=2026-10", headers=cab.owner)
@@ -408,3 +411,245 @@ def test_the_practice_export_contains_the_stock_and_the_change_log(client: TestC
     assert len(data["stockReceipts"]) == 1 and len(data["stockReceiptLines"]) == 2
     assert [m["kind"] for m in data["stockMovements"]] == ["receipt", "receipt"]
     assert [(e["entity"], e["reason"]) for e in data["auditLog"]] == [("stock_movement", "Erreur")]
+
+
+# --- material costs follow corrections (review H2, M1) ---------------------------------------------------------------
+
+
+def usage(client: TestClient, cab: Any, month: str = "2026-10") -> int:
+    res = client.get(f"/api/stock/stats?month={month}", headers=cab.owner)
+    assert res.status_code == 200, res.text
+    return int(res.json()["usageMillimes"])
+
+
+def test_deleting_a_mistyped_receipt_corrects_the_material_cost(client: TestClient, cab: Any) -> None:
+    gloves = product(client, cab.assistant)
+    wrong = receive(client, cab.assistant, [{"productId": gloves["id"], "quantity": 10, "unitPriceMillimes": 13_500_000}]).json()
+    use(client, cab.dentist, gloves["id"])
+    assert usage(client, cab) == 13_500_000
+    client.request("DELETE", f"/api/stock/receipts/{wrong['id']}", json={"reason": "13500 au lieu de 13,500"}, headers=cab.owner)
+    receive(client, cab.assistant, [{"productId": gloves["id"], "quantity": 10, "unitPriceMillimes": 13_500}])
+    assert usage(client, cab) == 13_500
+
+
+def test_the_owner_corrects_a_receipt_line_and_every_cost_follows(client: TestClient, cab: Any) -> None:
+    gloves = product(client, cab.assistant)
+    receipt = receive(client, cab.assistant, [{"productId": gloves["id"], "quantity": 10, "unitPriceMillimes": 13_500_000}],
+                      receivedOn="2026-10-28").json()
+    use(client, cab.dentist, gloves["id"], 2)
+    line = receipt["lines"][0]
+    path = f"/api/stock/receipts/{receipt['id']}/lines/{line['id']}"
+    correction = {"unitPriceMillimes": 13_500, "quantity": 12, "reason": "Virgule oubliée"}
+    assert_problem(client.patch(path, json=correction, headers=cab.assistant), 403, "forbidden")
+    assert_problem(client.patch(path, json={**correction, "reason": ""}, headers=cab.owner), 422, "validation")
+    res = client.patch(path, json=correction, headers=cab.owner)
+    assert res.status_code == 200, res.text
+    assert (res.json()["lines"][0]["unitPriceMillimes"], res.json()["lines"][0]["quantity"], res.json()["totalMillimes"]) == (
+        13_500, 12, 162_000)
+    names = products_by_name(client, cab.owner)
+    assert (names["Gants d’examen"]["quantity"], names["Gants d’examen"]["averageCostMillimes"]) == (10, 13_500)
+    assert usage(client, cab) == 27_000
+    entry = client.get("/api/audit-log?entity=stock_receipt_line", headers=cab.owner).json()[0]
+    assert (entry["action"], entry["reason"], entry["before"]["product"], entry["before"]["receivedOn"]) == (
+        "update", "Virgule oubliée", "Gants d’examen", "2026-10-28")
+    assert (entry["before"]["unitPriceMillimes"], entry["after"]) == (13_500_000, {"quantity": 12, "unitPriceMillimes": 13_500})
+    assert_problem(client.patch(path, json={"quantity": None, "reason": "x"}, headers=cab.owner), 422, "validation")
+    assert_problem(client.patch(f"/api/stock/receipts/{receipt['id']}/lines/999999", json=correction, headers=cab.owner),
+                   404, "not_found")
+
+
+def test_the_average_follows_what_is_left_in_stock(client: TestClient, cab: Any) -> None:
+    """Review M1: two years at 12 DT, all used up; the 10 boxes at 18 DT left cost 18 DT each."""
+    gloves = product(client, cab.assistant)
+    receive(client, cab.assistant, [{"productId": gloves["id"], "quantity": 100, "unitPriceMillimes": 12_000}])
+    use(client, cab.assistant, gloves["id"], 100)
+    receive(client, cab.assistant, [{"productId": gloves["id"], "quantity": 10, "unitPriceMillimes": 18_000}])
+    assert products_by_name(client, cab.owner)["Gants d’examen"]["averageCostMillimes"] == 18_000
+    assert use(client, cab.assistant, gloves["id"]).json()["movement"]["unitCostMillimes"] == 18_000
+
+
+def test_a_delivery_entered_days_later_counts_from_its_delivery_day(client: TestClient, cab: Any, clock: Any) -> None:
+    gloves = product(client, cab.assistant)
+    clock.set(clock.now() - timedelta(days=4))  # Monday
+    receive(client, cab.assistant, [{"productId": gloves["id"], "quantity": 10, "unitPriceMillimes": 12_000}])
+    clock.advance(days=2)  # Wednesday: two boxes from the shelf
+    wednesday = use(client, cab.assistant, gloves["id"], 2).json()["movement"]
+    assert wednesday["unitCostMillimes"] == 12_000
+    clock.advance(days=2)  # Friday: the delivery note of Tuesday is typed in
+    receive(client, cab.assistant, [{"productId": gloves["id"], "quantity": 10, "unitPriceMillimes": 18_000}],
+            receivedOn="2026-10-27")
+    moves = {m["id"]: m for m in client.get("/api/stock/movements", headers=cab.owner).json()}
+    assert moves[wednesday["id"]]["unitCostMillimes"] == 15_000  # (10 × 12 + 10 × 18) / 20 – on the shelf since Tuesday
+    assert products_by_name(client, cab.owner)["Gants d’examen"]["averageCostMillimes"] == 15_000
+
+
+def test_a_use_before_any_price_takes_the_first_price_and_unpriced_uses_are_counted(client: TestClient, cab: Any) -> None:
+    gloves = product(client, cab.assistant)
+    use(client, cab.dentist, gloves["id"])  # used before anything was received: stock −1
+    stats = client.get("/api/stock/stats?month=2026-10", headers=cab.owner).json()
+    assert (stats["usageMillimes"], stats["unpricedUses"]) == (0, 1)
+    receive(client, cab.assistant, [{"productId": gloves["id"], "quantity": 10, "unitPriceMillimes": 12_000}])
+    stats = client.get("/api/stock/stats?month=2026-10", headers=cab.owner).json()
+    assert (stats["usageMillimes"], stats["unpricedUses"]) == (12_000, 0)
+
+
+# --- the unit of a product with history is locked (review M2) --------------------------------------------------------
+
+
+def test_the_unit_of_a_product_with_history_is_locked(client: TestClient, cab: Any) -> None:
+    needles = product(client, cab.assistant, "Aiguilles", unit="boite")
+    assert needles["hasHistory"] is False
+    res = client.patch(f"/api/stock/products/{needles['id']}", json={"unit": "piece"}, headers=cab.assistant)
+    assert (res.status_code, res.json()["unit"]) == (200, "piece")  # nothing recorded yet: free to change
+    client.patch(f"/api/stock/products/{needles['id']}", json={"unit": "boite"}, headers=cab.assistant)
+    receive(client, cab.assistant, [{"productId": needles["id"], "quantity": 2, "unitPriceMillimes": 35_000}])
+    assert products_by_name(client, cab.assistant)["Aiguilles"]["hasHistory"] is True
+    assert_problem(client.patch(f"/api/stock/products/{needles['id']}", json={"unit": "piece"}, headers=cab.assistant), 409,
+                   "unit_in_use")
+    same = client.patch(f"/api/stock/products/{needles['id']}", json={"unit": "boite", "minQuantity": 1}, headers=cab.assistant)
+    assert same.status_code == 200, same.text  # the dialog sends the unit unchanged
+
+
+# --- master data changes are logged (brief: who, when, old → new) ----------------------------------------------------
+
+
+def test_changes_of_products_and_suppliers_are_logged(client: TestClient, cab: Any) -> None:
+    sup = supplier(client, cab.assistant, phone="74 000 000")
+    other = supplier(client, cab.assistant, "Médical Sud")
+    gloves = product(client, cab.assistant, minQuantity=4, supplierId=sup["id"])
+    client.patch(f"/api/stock/products/{gloves['id']}", json={"minQuantity": 6, "supplierId": other["id"], "note": ""},
+                 headers=cab.assistant)
+    client.patch(f"/api/stock/suppliers/{sup['id']}", json={"phone": "74 111 111", "active": False}, headers=cab.owner)
+    spare = product(client, cab.assistant, "Erreur")
+    client.delete(f"/api/stock/products/{spare['id']}", headers=cab.assistant)
+    log = client.get("/api/audit-log?entity=stock_product,supplier", headers=cab.owner).json()
+    assert [(e["entity"], e["action"], e["userName"], e["before"], e["after"]) for e in log] == [
+        ("stock_product", "delete", "Nisrine", {"name": "Erreur", "category": "hygiene", "unit": "boite"}, None),
+        ("supplier", "update", "Dr. Fadoua", {"supplier": "Dentalia Sfax", "phone": "+21674000000", "active": True},
+         {"phone": "+21674111111", "active": False}),
+        ("stock_product", "update", "Nisrine", {"product": "Gants d’examen", "supplier": "Dentalia Sfax", "minQuantity": 4},
+         {"supplier": "Médical Sud", "minQuantity": 6}),
+    ]
+
+
+# --- what was never delivered is not "à commander" (brief: after the start list) ------------------------------------
+
+
+def test_products_never_received_are_not_to_order(client: TestClient, cab: Any) -> None:
+    assert client.post("/api/stock/products/starter", headers=cab.assistant).json()["created"] >= 10
+    names = products_by_name(client, cab.dentist)
+    assert {p["status"] for p in names.values()} == {"unreceived"}
+    assert client.get("/api/stock/to-order", headers=cab.dentist).json() == {"count": 0, "groups": []}
+    assert client.get("/api/badges", headers=cab.dentist).json()["stockToOrder"] == 0
+    assert client.get("/api/dashboard", headers=cab.dentist).json()["stockToOrder"] == 0
+    gloves = names["Gants d’examen"]
+    receive(client, cab.assistant, [{"productId": gloves["id"], "quantity": 1}])
+    assert products_by_name(client, cab.dentist)["Gants d’examen"]["status"] == "low"
+    assert client.get("/api/badges", headers=cab.dentist).json()["stockToOrder"] == 1
+    composite = names["Composite"]
+    use(client, cab.dentist, composite["id"])  # used without any delivery: negative, to count and to order
+    assert products_by_name(client, cab.dentist)["Composite"]["status"] == "empty"
+    assert client.get("/api/stock/to-order", headers=cab.dentist).json()["count"] == 2
+
+
+# --- acts in both languages, the delivery date of a receipt (review N6, N9) -----------------------------------------
+
+
+def test_movements_and_stats_name_the_act_in_both_languages(client: TestClient, cab: Any, stocked: Any, db: Engine) -> None:
+    with db.begin() as conn:
+        conn.execute(service.update().where(service.c.id == stocked.soin.id).values(name_ar="علاج تسوس"))
+    use(client, cab.dentist, stocked.composite["id"], appointmentId=stocked.appt.id)
+    moves = client.get(f"/api/stock/movements?appointmentId={stocked.appt.id}", headers=cab.dentist).json()
+    assert (moves[0]["serviceName"], moves[0]["serviceNameAr"]) == ("Soin carie / composite", "علاج تسوس")
+    soin = client.get("/api/stock/stats?month=2026-10", headers=cab.owner).json()["byService"][0]
+    assert (soin["name"], soin["nameAr"]) == ("Soin carie / composite", "علاج تسوس")
+
+
+def test_a_receipt_movement_tells_its_delivery_day_and_line(client: TestClient, cab: Any, clock: Any) -> None:
+    gloves = product(client, cab.assistant)
+    receipt = receive(client, cab.assistant, [{"productId": gloves["id"], "quantity": 5, "unitPriceMillimes": 9_000}],
+                      receivedOn="2026-10-28").json()
+    (move,) = client.get(f"/api/stock/movements?productId={gloves['id']}", headers=cab.owner).json()
+    assert (move["receiptId"], move["receiptLineId"], move["receivedOn"], move["createdAt"]) == (
+        receipt["id"], receipt["lines"][0]["id"], "2026-10-28", "2026-10-30T09:00:00+01:00")
+
+
+# --- every id stays in its practice, every role keeps to its rights (review M4, DoD 3) ------------------------------
+
+
+def test_every_id_of_another_practice_is_not_found(client: TestClient, cab: Any, stocked: Any, make_practice: Factory,
+                                                   make_user: Factory, auth_headers: Factory, make_service: Factory,
+                                                   make_patient: Factory, make_appointment: Factory) -> None:
+    elsewhere = make_practice(practitioners=1)
+    stranger = auth_headers(make_user(elsewhere, "owner"))
+    their_service = make_service(elsewhere, "Détartrage", 30)
+    their_appt = make_appointment(make_patient(elsewhere), starts_at=T0 - timedelta(hours=2), duration_min=30,
+                                  service_id=their_service.id, practitioner_id=elsewhere.practitioners[0].id)
+    receipt = client.get("/api/stock/receipts", headers=cab.owner).json()[0]
+    line = receipt["lines"][0]
+    used = use(client, cab.dentist, stocked.gloves["id"], appointmentId=stocked.appt.id).json()["movement"]
+    spare = supplier(client, cab.assistant, "Médical Sud")
+    for method, path, body in [
+        ("GET", f"/api/stock/receipts/{receipt['id']}", None),
+        ("DELETE", f"/api/stock/receipts/{receipt['id']}", {"reason": "x"}),
+        ("PATCH", f"/api/stock/receipts/{receipt['id']}/lines/{line['id']}", {"quantity": 1, "reason": "x"}),
+        ("DELETE", f"/api/stock/movements/{used['id']}", {"reason": "x"}),
+        ("PATCH", f"/api/stock/products/{stocked.gloves['id']}", {"name": "Y"}),
+        ("DELETE", f"/api/stock/products/{stocked.gloves['id']}", None),
+        ("PATCH", f"/api/stock/suppliers/{spare['id']}", {"name": "Y"}),
+        ("DELETE", f"/api/stock/suppliers/{spare['id']}", None),
+    ]:
+        assert_problem(client.request(method, path, json=body, headers=stranger), 404, "not_found")
+    mine = {"productId": stocked.gloves["id"], "kind": "use", "quantity": 1}
+    assert_problem(client.post("/api/stock/movements", json=mine, headers=stranger), 422, "invalid_product")
+    assert_problem(client.post("/api/stock/inventory", json={"reason": "x", "counts": [{"productId": stocked.gloves["id"],
+                                                                                          "counted": 1}]},
+                               headers=stranger), 422, "invalid_product")
+    assert_problem(receive(client, stranger, [{"productId": stocked.gloves["id"], "quantity": 1}]), 422, "invalid_product")
+    assert_problem(client.post("/api/stock/products", json={"name": "Z", "supplierId": spare["id"]}, headers=stranger),
+                   422, "invalid_supplier")
+    assert_problem(client.post("/api/stock/movements", json={**mine, "serviceId": their_service.id}, headers=cab.assistant),
+                   422, "invalid_service")
+    assert_problem(client.post("/api/stock/movements", json={**mine, "appointmentId": their_appt.id}, headers=cab.assistant),
+                   422, "invalid_appointment")
+    assert client.get(f"/api/stock/movements?appointmentId={stocked.appt.id}", headers=stranger).json() == []
+    assert client.get(f"/api/stock/movements?productId={stocked.gloves['id']}", headers=stranger).json() == []
+    for path in ("/api/stock/products", "/api/stock/suppliers", "/api/stock/receipts", "/api/audit-log"):
+        assert client.get(path, headers=stranger).json() == [], path
+    assert client.get("/api/stock/to-order", headers=stranger).json()["count"] == 0
+    assert client.get("/api/stock/stats?month=2026-10", headers=stranger).json()["usageMillimes"] == 0
+
+
+def test_every_endpoint_keeps_to_the_roles(client: TestClient, cab: Any, stocked: Any) -> None:
+    receipt = client.get("/api/stock/receipts", headers=cab.owner).json()[0]
+    line = receipt["lines"][0]
+    used = use(client, cab.dentist, stocked.gloves["id"]).json()["movement"]
+    gloves, sup = stocked.gloves["id"], stocked.supplier["id"]
+    owner_only = [
+        ("DELETE", f"/api/stock/receipts/{receipt['id']}", {"reason": "x"}),
+        ("PATCH", f"/api/stock/receipts/{receipt['id']}/lines/{line['id']}", {"quantity": 1, "reason": "x"}),
+        ("DELETE", f"/api/stock/movements/{used['id']}", {"reason": "x"}),
+        ("GET", "/api/stock/stats", None),
+        ("GET", "/api/stock/export.csv", None),
+        ("GET", "/api/audit-log?entity=stock_receipt", None),
+    ]
+    managers = [
+        ("GET", "/api/stock/receipts", None),
+        ("GET", f"/api/stock/receipts/{receipt['id']}", None),
+        ("POST", "/api/stock/receipts", {"lines": [{"productId": gloves, "quantity": 1}]}),
+        ("POST", "/api/stock/movements", {"productId": gloves, "kind": "waste", "quantity": 1, "reason": "x"}),
+        ("POST", "/api/stock/inventory", {"reason": "x", "counts": [{"productId": gloves, "counted": 1}]}),
+        ("POST", "/api/stock/products", {"name": "X"}),
+        ("PATCH", f"/api/stock/products/{gloves}", {"minQuantity": 1}),
+        ("DELETE", f"/api/stock/products/{gloves}", None),
+        ("POST", "/api/stock/products/starter", None),
+        ("POST", "/api/stock/suppliers", {"name": "X"}),
+        ("PATCH", f"/api/stock/suppliers/{sup}", {"note": "x"}),
+        ("DELETE", f"/api/stock/suppliers/{sup}", None),
+    ]
+    for method, path, body in owner_only + managers:
+        assert_problem(client.request(method, path, json=body, headers=cab.dentist), 403, "forbidden")
+    for method, path, body in owner_only:
+        assert_problem(client.request(method, path, json=body, headers=cab.assistant), 403, "forbidden")
+    for method, path, _ in owner_only + managers:
+        assert_problem(client.request(method, path), 401, "unauthorized")

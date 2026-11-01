@@ -5,8 +5,10 @@
   byService:[{serviceId, name, treatments, materialCostMillimes, perTreatmentMillimes, items:[…]}],
   topMaterials:[{productId, name, unit, quantity, costMillimes}]}``.
   Spending = Σ quantity × unit price of the receipts dated in the month (lines without a price count 0 and are counted
-  in ``unpricedLines``). Material cost of a use = quantity × the average purchase price kept with it (for a use
-  recorded before any price was known: today's average). ``treatments`` = appointments of that act done in the month;
+  in ``unpricedLines``). Material cost of a use = quantity × its unit cost, the moving average of that moment
+  (:func:`daftar.stock.recost` – it follows every correction of a receipt); uses of a product that never had a price
+  count 0 and are counted in ``unpricedUses`` (their quantities still show per act). ``treatments`` = appointments of
+  that act done in the month; acts carry ``nameAr`` too;
   ``perTreatmentMillimes`` = material cost / treatments (null without treatments). Uses without act come last
   (``serviceId`` null).
 - ``GET /api/stock/export.csv?month=`` (owner) → every movement of the month (receipts by their delivery date),
@@ -29,7 +31,6 @@ from .clock import TUNIS, now_tunis
 from .deps import Conn, Ctx, OwnerUser
 from .imports import defuse
 from .schemas import ApiModel
-from .stock import average_costs
 from .stock_rules import Category, Unit
 from .tables import app_user, appointment, service, stock_movement, stock_product, stock_receipt, stock_receipt_line, supplier
 
@@ -68,6 +69,7 @@ class UsageItem(ApiModel):
 class ServiceUsage(ApiModel):
     service_id: int | None
     name: str | None
+    name_ar: str | None
     treatments: int
     material_cost_millimes: int
     per_treatment_millimes: int | None
@@ -79,6 +81,8 @@ class StockStatsOut(ApiModel):
     spending_millimes: int
     previous_spending_millimes: int
     unpriced_lines: int
+    #: Uses of the month without any known price (cost 0).
+    unpriced_uses: int
     by_supplier: list[Amount]
     by_category: list[CategoryAmount]
     usage_millimes: int
@@ -131,7 +135,8 @@ def _movements(conn: Connection, practice_id: int, start: datetime, end: datetim
             stock_movement.c.id, stock_movement.c.product_id, stock_movement.c.kind, stock_movement.c.quantity,
             stock_movement.c.unit_cost_millimes, stock_movement.c.service_id, stock_movement.c.reason,
             stock_movement.c.created_at, stock_product.c.name.label("product_name"), stock_product.c.category,
-            stock_product.c.unit, service.c.name_fr.label("service_name"), app_user.c.name.label("created_by_name"),
+            stock_product.c.unit, service.c.name_fr.label("service_name"), service.c.name_ar.label("service_name_ar"),
+            app_user.c.name.label("created_by_name"),
         )
         .select_from(
             stock_movement.join(stock_product, stock_product.c.id == stock_movement.c.product_id)
@@ -144,19 +149,15 @@ def _movements(conn: Connection, practice_id: int, start: datetime, end: datetim
     ).all()
 
 
-def _costs(conn: Connection, practice_id: int, rows: list[Any]) -> dict[int, int]:
-    """Movement id → material cost in millimes (positive for what left the stock)."""
-    missing = sorted({r.product_id for r in rows if r.unit_cost_millimes is None})
-    today_average = average_costs(conn, practice_id, missing) if missing else {}
-    return {
-        r.id: -r.quantity * (r.unit_cost_millimes if r.unit_cost_millimes is not None else today_average.get(r.product_id) or 0)
-        for r in rows
-    }
+def _costs(rows: list[Any]) -> dict[int, int]:
+    """Movement id → material cost in millimes (positive for what left the stock; 0 without any known price)."""
+    return {r.id: -r.quantity * (r.unit_cost_millimes or 0) for r in rows}
 
 
 @dataclass
 class _Usage:
     name: str | None
+    name_ar: str | None = None
     cost: int = 0
     items: dict[int, UsageItem] = field(default_factory=dict)
 
@@ -199,12 +200,12 @@ def stats(user: OwnerUser, ctx: Ctx, conn: Conn, month: Month = None) -> StockSt
 
     start, end = _instants(year, mon)
     moved = _movements(conn, user.pid, start, end, ("use", "waste"))
-    costs = _costs(conn, user.pid, moved)
+    costs = _costs(moved)
     uses = [m for m in moved if m.kind == "use"]
     per_service: dict[int | None, _Usage] = {}
     materials = _Usage(name=None)
     for m in uses:
-        per_service.setdefault(m.service_id, _Usage(name=m.service_name)).add(m, costs[m.id])
+        per_service.setdefault(m.service_id, _Usage(name=m.service_name, name_ar=m.service_name_ar or None)).add(m, costs[m.id])
         materials.add(m, costs[m.id])
     treated = [sid for sid in per_service if sid is not None]
     treatments = dict(
@@ -218,7 +219,8 @@ def stats(user: OwnerUser, ctx: Ctx, conn: Conn, month: Month = None) -> StockSt
     by_service = sorted(
         (
             ServiceUsage(
-                service_id=sid, name=usage.name, treatments=treatments.get(sid, 0), material_cost_millimes=usage.cost,
+                service_id=sid, name=usage.name, name_ar=usage.name_ar, treatments=treatments.get(sid, 0),
+                material_cost_millimes=usage.cost,
                 per_treatment_millimes=_per(usage.cost, treatments.get(sid, 0)),
                 items=_by_cost(usage.items.values()),
             )
@@ -231,6 +233,7 @@ def stats(user: OwnerUser, ctx: Ctx, conn: Conn, month: Month = None) -> StockSt
         spending_millimes=_spending(lines),
         previous_spending_millimes=_spending(previous),
         unpriced_lines=sum(1 for line in lines if line.unit_price_millimes is None),
+        unpriced_uses=sum(1 for m in uses if m.unit_cost_millimes is None),
         by_supplier=[Amount(name=name, amount_millimes=amount)
                      for name, amount in sorted(suppliers.items(), key=lambda kv: (-kv[1], kv[0] is None, kv[0] or ""))],
         by_category=[CategoryAmount(category=c, amount_millimes=amount)  # type: ignore[arg-type]
@@ -262,7 +265,7 @@ def export_csv(user: OwnerUser, ctx: Ctx, conn: Conn, month: Month = None) -> Re
             defuse(line.supplier_name or ""), defuse(line.reference), "", defuse(line.lot), defuse(line.created_by_name or ""),
         ]))
     moved = _movements(conn, user.pid, *_instants(year, mon), ("use", "adjust", "waste"))
-    costs = _costs(conn, user.pid, moved)
+    costs = _costs(moved)
     for m in moved:
         day = m.created_at.astimezone(TUNIS).date()
         unit_cost = m.unit_cost_millimes

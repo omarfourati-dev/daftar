@@ -247,8 +247,9 @@ def test_changing_or_deactivating_a_task_keeps_the_register(client: TestClient, 
     assert register(client, cab.dentist, "2026-10-26", "2026-11-02") == past
     log = client.get("/api/audit-log?entity=hygiene_task", headers=cab.owner).json()
     assert [(e["action"], e["userName"], e["before"], e["after"]) for e in log] == [
-        ("update", "Nisrine", {"active": True}, {"active": False}),
-        ("update", "Nisrine", {"frequency": "daily", "weekday": None}, {"frequency": "weekly", "weekday": 1}),
+        ("update", "Nisrine", {"task": "Purge des conduits", "active": True}, {"active": False}),
+        ("update", "Nisrine", {"task": "Purge des conduits", "frequency": "daily", "weekday": None},
+         {"frequency": "weekly", "weekday": 1}),
     ]
 
 
@@ -263,7 +264,8 @@ def test_a_more_frequent_rhythm_does_not_rewrite_the_past(client: TestClient, ca
     assert register(client, cab.dentist, "2026-10-26", "2026-10-30") == [
         ("2026-10-30", "Bowie-Dick", "due"), ("2026-10-26", "Bowie-Dick", "done")]
     log = client.get("/api/audit-log?entity=hygiene_task", headers=cab.owner).json()
-    assert [(e["before"], e["after"]) for e in log] == [({"frequency": "weekly", "weekday": 1}, {"frequency": "daily", "weekday": None})]
+    assert [(e["before"], e["after"]) for e in log] == [
+        ({"task": "Bowie-Dick", "frequency": "weekly", "weekday": 1}, {"frequency": "daily", "weekday": None})]
 
 
 def test_occurrences_never_start_before_the_task_was_created(client: TestClient, cab: Any) -> None:
@@ -350,8 +352,9 @@ def test_renaming_keeps_the_names_of_the_register(client: TestClient, cab: Any, 
     assert [(r["title"], r["equipmentName"]) for r in rows] == [("Purge des conduits", "Fauteuil bleu"), ("Purge", "Fauteuil 1")]
     log = client.get("/api/audit-log?entity=equipment,hygiene_task", headers=cab.owner).json()
     assert [(e["entity"], e["entityId"], e["before"], e["after"]) for e in log] == [
-        ("equipment", gear["id"], {"name": "Fauteuil 1", "serialNumber": ""}, {"name": "Fauteuil bleu", "serialNumber": "SN-9"}),
-        ("hygiene_task", daily["id"], {"title": "Purge"}, {"title": "Purge des conduits"}),
+        ("equipment", gear["id"], {"equipment": "Fauteuil 1", "name": "Fauteuil 1", "serialNumber": ""},
+         {"name": "Fauteuil bleu", "serialNumber": "SN-9"}),
+        ("hygiene_task", daily["id"], {"task": "Purge", "title": "Purge"}, {"title": "Purge des conduits"}),
     ]
 
 

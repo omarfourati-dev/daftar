@@ -186,7 +186,7 @@ def patch_equipment(equipment_id: int, body: EquipmentPatch, user: HygieneManage
                          .where(hygiene_task_due.c.equipment_id == equipment_id, hygiene_task_due.c.status == "open")
                          .values(equipment_name=values["name"]))
         audit.record(conn, user, entity="equipment", entity_id=equipment_id, action="update", now=ctx.clock.now(),
-                     before=before, after=after)
+                     before={"equipment": current.name, **before}, after=after)
     return _one_equipment(conn, user.pid, equipment_id)
 
 
@@ -370,7 +370,7 @@ def patch_task(task_id: int, body: TaskPatch, user: HygieneManager, ctx: Ctx, co
     before, after = audit.diff(old, new, TASK_LOG)
     if after:
         audit.record(conn, user, entity="hygiene_task", entity_id=task_id, action="update", now=ctx.clock.now(),
-                     before=before, after=after)
+                     before={"task": row.title, **before}, after=after)
     return _one_task(conn, user.pid, task_id, today)
 
 

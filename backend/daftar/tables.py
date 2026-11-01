@@ -399,6 +399,7 @@ stock_product = Table(
     Column("ean", Text, nullable=True),  # for a later barcode scan
     Column("active", Boolean, nullable=False),
     _ts("created_at"),
+    Column("average_cost_millimes", BigInteger, nullable=True),  # moving average today (migration 0011)
 )
 
 #: A delivery (header); its lines are in stock_receipt_line, each with one ``receipt`` movement.
@@ -440,7 +441,7 @@ stock_movement = Table(
     Column("receipt_line_id", BigInteger, nullable=True, unique=True),
     Column("service_id", BigInteger, ForeignKey("service.id", ondelete="SET NULL"), nullable=True),
     Column("appointment_id", BigInteger, ForeignKey("appointment.id", ondelete="SET NULL"), nullable=True),
-    Column("unit_cost_millimes", BigInteger, nullable=True),  # average purchase price when it was used
+    Column("unit_cost_millimes", BigInteger, nullable=True),  # line price (receipt) / moving average then (others)
     Column("reason", Text, nullable=False),
     Column("created_by", BigInteger, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),
     _ts("created_at"),

@@ -20,6 +20,7 @@ from typing import Any
 from sqlalchemy import Connection, insert
 
 from .clock import TUNIS, at_tunis
+from .stock import recost
 from .stock_rules import StarterItem, starter_items
 from .tables import stock_movement, stock_product, stock_receipt, stock_receipt_line, supplier
 
@@ -171,7 +172,7 @@ def seed_stock(
     conn.execute(insert(stock_movement), [
         {"practice_id": practice_id, "product_id": out["product"].id, "kind": out["kind"], "quantity": -out["quantity"],
          "service_id": out["service_id"], "appointment_id": out["appointment_id"],
-         "unit_cost_millimes": out["product"].price,  # the price of the deliveries before it
          "reason": out.get("reason", ""), "created_by": user_id, "created_at": min(out["at"], now)}
         for out in outflows
     ])
+    recost(conn, practice_id, [p.id for p in products])  # the moving average, as for every real movement

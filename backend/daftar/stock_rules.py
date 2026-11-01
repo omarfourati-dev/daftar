@@ -1,10 +1,15 @@
 """Rules of the stock module that need no database (spec stock-hygiène, section 4).
 
-- **Traffic light** (:func:`stock_status`): ``empty`` at 0 or below, ``low`` when the stock has reached the minimum
-  quantity (the alarm threshold the practice set), else ``ok``. A product without a minimum is never ``low``.
-- **Average price** (:func:`average_cost`): the purchase prices of the receipts weighted by quantity (lines without a
-  price do not count), rounded half up to the millime. A use keeps the average of the moment it was recorded
-  (``stock_movement.unit_cost_millimes``) – the material cost of a past treatment never changes afterwards.
+- **Traffic light** (:func:`stock_status`): ``unreceived`` (grey "pas encore reçu") while nothing was ever delivered
+  or counted, ``empty`` at 0 or below, ``low`` when the stock has reached the minimum quantity (the alarm threshold the
+  practice set), else ``ok``. A product without a minimum is never ``low``.
+- **Material cost** (:func:`moving_costs`, spec 4.1 "gleitender Durchschnittspreis", review H2/M1): the moving average
+  of what is in stock. A delivery mixes with the stock left – ``(max(stock, 0) × average + quantity × price) /
+  (max(stock, 0) + quantity)``, half up to the millime; a use, a loss or an inventory count leaves at the average of
+  that moment. Lines without a price keep the average; what was used before any price was known takes the first one.
+  The movements are taken in the order they happened (:func:`cost_order`): a delivery entered days later counts from
+  the end of its delivery day. The costs are kept with the movements and computed again from the start whenever a
+  movement or a receipt line changes, so a corrected price corrects every cost that depended on it.
 - **Expiry** (:func:`soonest_expiry`): a practice uses the lots that expire first (FEFO), so what is left lies in the
   lots that expire last; lots without a date count as never expiring. ``expired`` before today, ``soon`` within the
   next :data:`EXPIRY_SOON_DAYS` days.
@@ -18,9 +23,11 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import dataclass
-from datetime import date, timedelta
+from dataclasses import dataclass, field
+from datetime import date, datetime, time, timedelta
 from typing import Literal
+
+from .clock import TUNIS
 
 Category = Literal[
     "hygiene", "anesthesie", "restauration", "endodontie", "prothese", "chirurgie", "prelevements", "injection",
@@ -32,14 +39,16 @@ CATEGORIES: tuple[Category, ...] = (
 )
 Unit = Literal["piece", "boite", "flacon", "carpule", "paquet", "sachet", "tube", "rouleau", "paire", "ml", "g"]
 UNITS: tuple[Unit, ...] = ("piece", "boite", "flacon", "carpule", "paquet", "sachet", "tube", "rouleau", "paire", "ml", "g")
-StockStatus = Literal["ok", "low", "empty"]
+StockStatus = Literal["ok", "low", "empty", "unreceived"]
 ExpiryState = Literal["expired", "soon"]
 
 EXPIRY_SOON_DAYS = 30
 MAX_QUANTITY = 100_000
 
 
-def stock_status(quantity: int, min_quantity: int) -> StockStatus:
+def stock_status(quantity: int, min_quantity: int, *, received: bool = True) -> StockStatus:
+    if not received:
+        return "unreceived"
     if quantity <= 0:
         return "empty"
     if min_quantity > 0 and quantity <= min_quantity:
@@ -47,17 +56,59 @@ def stock_status(quantity: int, min_quantity: int) -> StockStatus:
     return "ok"
 
 
-def average_cost(lines: Iterable[tuple[int, int | None]]) -> int | None:
-    """``[(quantity, unit price in millimes or None), …]`` → weighted average in millimes, None without any price."""
-    total_quantity = total_price = 0
-    for quantity, price in lines:
-        if price is None or quantity <= 0:
-            continue
-        total_quantity += quantity
-        total_price += quantity * price
-    if total_quantity == 0:
-        return None
-    return (2 * total_price + total_quantity) // (2 * total_quantity)  # half up, integers only
+def _half_up(numerator: int, denominator: int) -> int:
+    return (2 * numerator + denominator) // (2 * denominator)  # integers only
+
+
+@dataclass(frozen=True)
+class CostMove:
+    """One movement of a product for :func:`moving_costs`: id, kind, signed quantity, unit price (receipts only)."""
+
+    id: int
+    kind: str
+    quantity: int
+    price: int | None = None
+
+
+@dataclass
+class Costs:
+    #: Movement id → unit cost in millimes (a receipt: its line's price; others: the average of that moment).
+    unit_costs: dict[int, int | None] = field(default_factory=dict)
+    #: The average after the last movement – the product's price today (None without any price).
+    average: int | None = None
+
+
+def moving_costs(moves: Iterable[CostMove]) -> Costs:
+    """The moving average through ``moves`` (in the order of :func:`cost_order`)."""
+    costs = Costs()
+    stock = 0
+    waiting: list[int] = []  # left the stock before any price was known
+    for move in moves:
+        if move.kind == "receipt":
+            costs.unit_costs[move.id] = move.price
+            if move.price is not None:
+                base = max(stock, 0)
+                first = costs.average is None
+                costs.average = move.price if first else _half_up(base * costs.average + move.quantity * move.price,
+                                                                  base + move.quantity)
+                if first:
+                    costs.unit_costs.update(dict.fromkeys(waiting, costs.average))
+                    waiting.clear()
+        else:
+            costs.unit_costs[move.id] = costs.average
+            if costs.average is None:
+                waiting.append(move.id)
+        stock += move.quantity
+    return costs
+
+
+def cost_order(move_id: int, kind: str, created_at: datetime, received_on: date | None) -> tuple[datetime, int]:
+    """Sort key of a movement for the costs: when it happened (then in the order it was recorded). A receipt entered
+    after its delivery day counts from the end of that day – the material was on the shelf."""
+    at = created_at
+    if kind == "receipt" and received_on is not None and received_on < created_at.astimezone(TUNIS).date():
+        at = datetime.combine(received_on + timedelta(days=1), time(0), tzinfo=TUNIS)
+    return (at, move_id)
 
 
 def soonest_expiry(stock: int, lots: Iterable[tuple[date | None, int]]) -> date | None:
@@ -85,8 +136,9 @@ def expiry_state(expires_on: date | None, today: date) -> ExpiryState | None:
     return None
 
 
-def needs_order(*, stock: int, min_quantity: int, active: bool) -> bool:
-    return active and min_quantity > 0 and stock <= min_quantity
+def needs_order(*, stock: int, min_quantity: int, active: bool, received: bool = True) -> bool:
+    """Active, with a threshold, at or below it – and delivered or counted once (a start list is not an order)."""
+    return active and received and min_quantity > 0 and stock <= min_quantity
 
 
 def reorder_quantity(*, stock: int, min_quantity: int) -> int:

@@ -4,16 +4,20 @@ Roles (section 3): every staff role reads products, suppliers and "à commander"
 prices are shown to assistant and owner only (``averageCostMillimes`` is null for a dentist).
 
 - ``GET /products`` → ``[Product]`` by name: the product with its stock (sum of its movements), traffic light
-  ``status`` (ok / low / empty – :func:`daftar.stock_rules.stock_status`), soonest expiry date in stock and its
-  state (expired / soon), average purchase price and the last time it was used (the "Sortie" list puts those first).
-- ``POST /products`` · ``PATCH /products/{id}`` · ``DELETE /products/{id}`` (only without history, else 409
-  ``product_in_use`` – deactivate it instead) · ``POST /products/starter`` → ``{created}``: the start list of the
-  practice's specialty in the user's language, never twice the same name.
+  ``status`` (unreceived / ok / low / empty – :func:`daftar.stock_rules.stock_status`), ``hasHistory``, soonest expiry
+  date in stock and its state (expired / soon), the moving average price (:func:`recost`) and the last time it was
+  used (the "Sortie" list puts those first).
+- ``POST /products`` · ``PATCH /products/{id}`` (the unit is locked once something was recorded: 409 ``unit_in_use``
+  – a new product is the way) · ``DELETE /products/{id}`` (only without history, else 409 ``product_in_use`` –
+  deactivate it instead) · ``POST /products/starter`` → ``{created}``: the start list of the practice's specialty in
+  the user's language, never twice the same name.
 - ``GET /suppliers`` → ``[Supplier]`` with the number of products · ``POST`` · ``PATCH /{id}`` · ``DELETE /{id}``
   (only when no product or receipt refers to it, else 409 ``supplier_in_use``).
 - ``GET /to-order`` → ``{count, groups:[{supplier|null, items:[{productId, name, unit, quantity, minQuantity,
-  suggested}]}]}``: active products whose stock reached their minimum, by supplier (without supplier last).
+  suggested}]}]}``: active products whose stock reached their minimum, by supplier (without supplier last); a product
+  never delivered, used nor counted is not an order yet.
 
+Changes and deletions of products and suppliers are in the change log (who, when, old → new – :mod:`daftar.audit`).
 Names are unique per practice without case (409 ``product_exists`` / ``supplier_exists``).
 """
 
@@ -26,9 +30,10 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Response
 from pydantic import Field, StrictBool, model_validator
-from sqlalchemy import Connection, delete, exists, func, insert, or_, select, update
+from sqlalchemy import Connection, bindparam, delete, exists, func, insert, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
+from . import audit
 from .clock import today_tunis
 from .db import constraint_name
 from .deps import Conn, Ctx, Principal, StaffUser, StaffWriter
@@ -39,10 +44,12 @@ from .stock_rules import (
     MAX_QUANTITY,
     Category,
     ExpiryState,
+    CostMove,
     StockStatus,
     Unit,
-    average_cost,
+    cost_order,
     expiry_state,
+    moving_costs,
     needs_order,
     reorder_quantity,
     soonest_expiry,
@@ -99,6 +106,8 @@ class ProductOut(ApiModel):
     active: bool
     quantity: int
     status: StockStatus
+    #: Something was delivered, used or counted: the unit is locked, deleting means deactivating.
+    has_history: bool
     expires_on: date | None
     expiry: ExpiryState | None
     average_cost_millimes: int | None
@@ -147,10 +156,37 @@ def stock_levels(conn: Connection, practice_id: int, product_ids: Sequence[int] 
     return {product_id: int(total) for product_id, total in rows}
 
 
-def average_costs(conn: Connection, practice_id: int, product_ids: Sequence[int] | None = None) -> dict[int, int | None]:
-    """Product id → average purchase price of its receipt lines (millimes), None without any price."""
-    lines = _receipt_lines(conn, practice_id, product_ids)
-    return {pid: average_cost((q, price) for q, price, _ in rows) for pid, rows in lines.items()}
+def recost(conn: Connection, practice_id: int, product_ids: Sequence[int]) -> None:
+    """Computes the costs of these products again from their first movement (review H2/M1): every unit cost of a use,
+    loss or count and the product's average today. Called after every change of their movements or receipt lines."""
+    if not product_ids:
+        return
+    rows = conn.execute(
+        select(stock_movement.c.id, stock_movement.c.product_id, stock_movement.c.kind, stock_movement.c.quantity,
+               stock_movement.c.created_at, stock_movement.c.unit_cost_millimes, stock_receipt_line.c.unit_price_millimes,
+               stock_receipt.c.received_on)
+        .select_from(
+            stock_movement.outerjoin(stock_receipt_line, stock_receipt_line.c.id == stock_movement.c.receipt_line_id)
+            .outerjoin(stock_receipt, stock_receipt.c.id == stock_receipt_line.c.receipt_id)
+        )
+        .where(stock_movement.c.practice_id == practice_id, stock_movement.c.product_id.in_(product_ids))
+    ).all()
+    by_product: dict[int, list[Any]] = defaultdict(list)
+    for row in rows:
+        by_product[row.product_id].append(row)
+    changed: list[dict[str, Any]] = []
+    averages: list[dict[str, Any]] = []
+    for product_id in sorted(set(product_ids)):
+        moves = sorted(by_product.get(product_id, []), key=lambda r: cost_order(r.id, r.kind, r.created_at, r.received_on))
+        costs = moving_costs(CostMove(r.id, r.kind, r.quantity, r.unit_price_millimes) for r in moves)
+        changed += [{"mid": r.id, "cost": costs.unit_costs[r.id]} for r in moves
+                    if costs.unit_costs[r.id] != r.unit_cost_millimes]
+        averages.append({"pid": product_id, "average": costs.average})
+    if changed:
+        conn.execute(update(stock_movement).where(stock_movement.c.id == bindparam("mid"))
+                     .values(unit_cost_millimes=bindparam("cost")), changed)
+    conn.execute(update(stock_product).where(stock_product.c.id == bindparam("pid"))
+                 .values(average_cost_millimes=bindparam("average")), averages)
 
 
 def _receipt_lines(
@@ -195,14 +231,15 @@ def load_products(
     result = []
     for row in rows:
         quantity = levels.get(row.id, 0)
+        received = row.id in levels  # delivered, used or counted at least once
         own = lines.get(row.id, [])
         expires_on = soonest_expiry(quantity, ((expires, q) for q, _, expires in own))
         result.append(ProductOut(
             id=row.id, name=row.name, category=row.category, unit=row.unit, supplier_id=row.supplier_id,
             supplier_name=row.supplier_name, min_quantity=row.min_quantity, note=row.note, ean=row.ean,
-            active=row.active, quantity=quantity, status=stock_status(quantity, row.min_quantity),
-            expires_on=expires_on, expiry=expiry_state(expires_on, today),
-            average_cost_millimes=average_cost((q, price) for q, price, _ in own) if prices else None,
+            active=row.active, quantity=quantity, status=stock_status(quantity, row.min_quantity, received=received),
+            has_history=received, expires_on=expires_on, expiry=expiry_state(expires_on, today),
+            average_cost_millimes=row.average_cost_millimes if prices else None,
             last_used_at=last_used.get(row.id),
         ))
     return result
@@ -270,31 +307,51 @@ def create_product(body: ProductIn, user: StockManager, ctx: Ctx, conn: Conn) ->
     return _one_product(conn, user, ctx, new_id)
 
 
+#: Field → key in the change log (the supplier by its name).
+PRODUCT_LOG = {"name": "name", "category": "category", "unit": "unit", "supplier": "supplier",
+               "min_quantity": "minQuantity", "note": "note", "ean": "ean", "active": "active"}
+
+
+def _has_history(conn: Connection, product_id: int) -> bool:
+    return bool(conn.execute(
+        select(or_(exists().where(stock_movement.c.product_id == product_id),
+                   exists().where(stock_receipt_line.c.product_id == product_id)))
+    ).scalar_one())
+
+
+def _supplier_name(conn: Connection, supplier_id: int | None) -> str | None:
+    if supplier_id is None:
+        return None
+    return conn.execute(select(supplier.c.name).where(supplier.c.id == supplier_id)).scalar_one_or_none()
+
+
 @router.patch("/products/{product_id}")
 def patch_product(product_id: int, body: ProductPatch, user: StockManager, ctx: Ctx, conn: Conn) -> ProductOut:
-    product_row(conn, user.pid, product_id)
+    row = product_row(conn, user.pid, product_id)
     values = body.model_dump(exclude_unset=True, by_alias=False)
     if "supplier_id" in values:
         check_supplier(conn, user.pid, values["supplier_id"])
-    if values:
+    if values.get("unit", row.unit) != row.unit and _has_history(conn, product_id):
+        raise conflict("Ce produit a déjà des mouvements : son unité ne change plus. Créez un nouveau produit.",
+                       code="unit_in_use")
+    old = {k: getattr(row, k) for k in PRODUCT_LOG if k != "supplier"} | {"supplier": _supplier_name(conn, row.supplier_id)}
+    new = values | ({"supplier": _supplier_name(conn, values["supplier_id"])} if "supplier_id" in values else {})
+    before, after = audit.diff(old, new, PRODUCT_LOG)
+    if after:
         _write_unique(conn, update(stock_product).where(stock_product.c.id == product_id).values(**values),
                       "stock_product_name_key", PRODUCT_EXISTS)
+        audit.record(conn, user, entity="stock_product", entity_id=product_id, action="update", now=ctx.clock.now(),
+                     before={"product": row.name, **before}, after=after)
     return _one_product(conn, user, ctx, product_id)
 
 
 @router.delete("/products/{product_id}", status_code=204)
-def delete_product(product_id: int, user: StockManager, conn: Conn) -> Response:
-    product_row(conn, user.pid, product_id)
-    used = conn.execute(
-        select(
-            or_(
-                exists().where(stock_movement.c.product_id == product_id),
-                exists().where(stock_receipt_line.c.product_id == product_id),
-            )
-        )
-    ).scalar_one()
-    if used:
+def delete_product(product_id: int, user: StockManager, ctx: Ctx, conn: Conn) -> Response:
+    row = product_row(conn, user.pid, product_id)
+    if _has_history(conn, product_id):
         raise conflict("Ce produit a un historique : désactivez-le plutôt.", code="product_in_use")
+    audit.record(conn, user, entity="stock_product", entity_id=product_id, action="delete", now=ctx.clock.now(),
+                 before={"name": row.name, "category": row.category, "unit": row.unit})
     conn.execute(delete(stock_product).where(stock_product.c.id == product_id))
     return Response(status_code=204)
 
@@ -398,19 +455,25 @@ def create_supplier(body: SupplierIn, user: StockManager, ctx: Ctx, conn: Conn) 
     return _supplier(conn, user.pid, new_id)
 
 
+SUPPLIER_LOG = {"name": "name", "phone": "phone", "whatsapp": "whatsapp", "note": "note", "active": "active"}
+
+
 @router.patch("/suppliers/{supplier_id}")
-def patch_supplier(supplier_id: int, body: SupplierPatch, user: StockManager, conn: Conn) -> SupplierOut:
-    _supplier(conn, user.pid, supplier_id)
+def patch_supplier(supplier_id: int, body: SupplierPatch, user: StockManager, ctx: Ctx, conn: Conn) -> SupplierOut:
+    current = _supplier(conn, user.pid, supplier_id)
     values = body.model_dump(exclude_unset=True, by_alias=False)
-    if values:
+    before, after = audit.diff(current.model_dump(by_alias=False), values, SUPPLIER_LOG)
+    if after:
         _write_unique(conn, update(supplier).where(supplier.c.id == supplier_id).values(**values), "supplier_name_key",
                       SUPPLIER_EXISTS)
+        audit.record(conn, user, entity="supplier", entity_id=supplier_id, action="update", now=ctx.clock.now(),
+                     before={"supplier": current.name, **before}, after=after)
     return _supplier(conn, user.pid, supplier_id)
 
 
 @router.delete("/suppliers/{supplier_id}", status_code=204)
-def delete_supplier(supplier_id: int, user: StockManager, conn: Conn) -> Response:
-    _supplier(conn, user.pid, supplier_id)
+def delete_supplier(supplier_id: int, user: StockManager, ctx: Ctx, conn: Conn) -> Response:
+    current = _supplier(conn, user.pid, supplier_id)
     used = conn.execute(
         select(
             or_(
@@ -421,6 +484,8 @@ def delete_supplier(supplier_id: int, user: StockManager, conn: Conn) -> Respons
     ).scalar_one()
     if used:
         raise conflict("Ce fournisseur est utilisé : désactivez-le plutôt.", code="supplier_in_use")
+    audit.record(conn, user, entity="supplier", entity_id=supplier_id, action="delete", now=ctx.clock.now(),
+                 before={"name": current.name, "phone": current.phone, "whatsapp": current.whatsapp})
     conn.execute(delete(supplier).where(supplier.c.id == supplier_id))
     return Response(status_code=204)
 
@@ -470,7 +535,8 @@ def to_order_count(conn: Connection, practice_id: int) -> int:
     if not candidates:
         return 0
     levels = stock_levels(conn, practice_id, [c.id for c in candidates])
-    return sum(1 for c in candidates if needs_order(stock=levels.get(c.id, 0), min_quantity=c.min_quantity, active=True))
+    return sum(1 for c in candidates
+               if needs_order(stock=levels.get(c.id, 0), min_quantity=c.min_quantity, active=True, received=c.id in levels))
 
 
 @router.get("/to-order")
@@ -480,7 +546,7 @@ def to_order(user: StaffUser, conn: Conn) -> ToOrderOut:
     by_supplier: dict[int | None, list[OrderItem]] = defaultdict(list)
     for c in candidates:
         stock = levels.get(c.id, 0)
-        if needs_order(stock=stock, min_quantity=c.min_quantity, active=True):
+        if needs_order(stock=stock, min_quantity=c.min_quantity, active=True, received=c.id in levels):
             by_supplier[c.supplier_id].append(OrderItem(
                 product_id=c.id, name=c.name, unit=c.unit, quantity=stock, min_quantity=c.min_quantity,
                 suggested=reorder_quantity(stock=stock, min_quantity=c.min_quantity),
