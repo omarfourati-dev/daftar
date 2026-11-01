@@ -49,7 +49,7 @@
     <p class="lead">Accord sur le traitement de données à caractère personnel pour le compte d'un responsable du traitement, conformément à l'article 28 du règlement (UE) 2016/679 (RGPD).</p>
     <div class="notice" role="note">
       <p><strong>Modèle.</strong> Ce document est un modèle mis à disposition des cabinets qui utilisent Daftar. Il ne produit d'effet qu'une fois complété et signé par les deux parties. Les passages surlignés sont à compléter.</p>
-      <p>Version du 30 octobre 2026.</p>
+      <p>Version du 1er novembre 2026.</p>
     </div>
 
     <nav class="toc" aria-labelledby="toc-title">
@@ -154,17 +154,21 @@
     <h2 id="annexe1">Annexe 1 – Description du traitement</h2>
     <table>
       <tbody>
-        <tr><th scope="row">Personnes concernées</th><td>Patients du Cabinet&nbsp;; personnes qui demandent un rendez-vous sur la page de réservation en ligne du Cabinet&nbsp;; membres de l'équipe du Cabinet qui utilisent Daftar&nbsp;; praticiens du Cabinet&nbsp;; personnes inscrites dans la file d'attente sans dossier patient.</td></tr>
-        <tr><th scope="row">Données d'identification et de contact</th><td>Prénom, nom, numéro de téléphone, année de naissance (facultative), langue, accord pour recevoir des rappels.</td></tr>
+        <tr><th scope="row">Personnes concernées</th><td>Patients du Cabinet&nbsp;; personnes qui demandent un rendez-vous sur la page de réservation en ligne du Cabinet&nbsp;; membres de l'équipe du Cabinet qui utilisent Daftar&nbsp;; praticiens du Cabinet&nbsp;; personnes inscrites dans la file d'attente sans dossier patient&nbsp;; fournisseurs du Cabinet et leurs interlocuteurs.</td></tr>
+        <tr><th scope="row">Données d'identification et de contact</th><td>Prénom, nom, numéro de téléphone, date ou année de naissance (facultatives), langue, accord pour recevoir des rappels.</td></tr>
         <tr><th scope="row">Rendez-vous</th><td>Date et heure, durée, acte, praticien, statut, origine (accueil ou en ligne), notes, acompte demandé, date d'envoi du rappel, personne ayant créé le rendez-vous.</td></tr>
         <tr><th scope="row">Réservation en ligne</th><td>Prénom, nom, numéro de téléphone, acte et praticien choisis, horaire souhaité, note facultative du patient, accord pour recevoir des rappels, langue&nbsp;; empreinte (SHA-256) du lien de gestion remis au patient.</td></tr>
         <tr><th scope="row">Salle d'attente</th><td>Numéro de ticket, nom, téléphone, heures d'arrivée, d'appel et de fin, statut.</td></tr>
         <tr><th scope="row">Actes et paiements</th><td>Libellé de l'acte, dent (cabinets dentaires), prix, date&nbsp;; montant, mode de paiement, date, acompte, note, personne ayant encaissé.</td></tr>
+        <tr><th scope="row">Matériel et hygiène</th><td>Fournisseurs (nom, téléphone, WhatsApp, note), produits, réceptions (quantités, prix), mouvements de stock, dont la consommation notée pour un rendez-vous&nbsp;; équipements, tâches d'hygiène et d'entretien, preuves de réalisation (date, personne, résultat, note).</td></tr>
+        <tr><th scope="row">Stérilisation et traçabilité</th><td>Cycles de stérilisation (autoclave, numéro, date et heure, programme, résultat, personne qui a réalisé et personne qui a saisi le cycle, annulation et motif)&nbsp;; paquets stérilisés (code, contenu, emballage, date limite d'utilisation)&nbsp;; attribution d'un paquet utilisé à un patient et à un rendez-vous (date, personne)&nbsp;; après la suppression du patient, l'attribution est conservée avec son seul numéro.</td></tr>
+        <tr><th scope="row">Étiquettes de prélèvement</th><td>Preuve des étiquettes imprimées pour un patient&nbsp;: types et nombre de tubes, date et heure du prélèvement, personne qui a prélevé, personne qui a imprimé&nbsp;; aucun résultat d'analyse.</td></tr>
+        <tr><th scope="row">Journal des corrections</th><td>Personne, date, ancienne et nouvelle valeur et motif des corrections et suppressions du stock, de l'hygiène et de la stérilisation.</td></tr>
         <tr><th scope="row">Praticiens</th><td>Nom, titre, spécialité.</td></tr>
         <tr><th scope="row">Comptes de l'équipe</th><td>Nom, adresse e-mail, rôle, langue, mot de passe sous forme d'empreinte (Argon2).</td></tr>
-        <tr><th scope="row">Catégories particulières</th><td>Données concernant la santé (article 9 du RGPD)&nbsp;: actes, motifs de rendez-vous, notes.</td></tr>
+        <tr><th scope="row">Catégories particulières</th><td>Données concernant la santé (article 9 du RGPD)&nbsp;: actes, motifs de rendez-vous, notes, prélèvements notés pour un patient (sans résultat), paquets stérilisés utilisés pour un patient.</td></tr>
         <tr><th scope="row">Opérations</th><td>Enregistrement, organisation, consultation, modification, affichage, export, suppression.</td></tr>
-        <tr><th scope="row">Finalités</th><td>Gestion des rendez-vous, de la réservation en ligne, de la salle d'attente, des dossiers patients, des actes et des paiements du Cabinet&nbsp;; préparation des messages de rappel envoyés par le Cabinet.</td></tr>
+        <tr><th scope="row">Finalités</th><td>Gestion des rendez-vous, de la réservation en ligne, de la salle d'attente, des dossiers patients, des actes et des paiements du Cabinet&nbsp;; préparation des messages de rappel envoyés par le Cabinet&nbsp;; gestion du matériel, de l'hygiène et de la stérilisation avec la traçabilité des paquets stérilisés&nbsp;; impression des étiquettes de stérilisation et de prélèvement.</td></tr>
       </tbody>
     </table>
 
