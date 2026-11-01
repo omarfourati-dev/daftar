@@ -30,6 +30,10 @@ def test_a_dentist_demo_has_cycles_packs_and_their_patients(client: TestClient, 
     assert used["code"] in [u["code"] for u in patient["uses"]]
     usable = client.get("/api/hygiene/packs", headers=headers).json()
     assert usable and all(p["state"] == "usable" for p in usable)
+    # a second autoclave of the demo gets the next code
+    second = client.post("/api/hygiene/equipment", json={"name": "Autoclave 2", "kind": "autoclave"}, headers=headers).json()
+    made = client.post("/api/hygiene/cycles", json={"equipmentId": second["id"], "result": "ok"}, headers=headers).json()
+    assert (made["labelCode"], made["number"]) == ("A2", 1)
 
 
 def test_a_generalist_demo_has_birth_dates_and_specimen_prints(client: TestClient) -> None:

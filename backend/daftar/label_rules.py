@@ -2,11 +2,15 @@
 
 - A **pack code** names autoclave, cycle and pack: ``A3-0412-07`` (the autoclave's label code, the cycle number with at
   least four digits, the pack with two). Codes use capitals, digits and ``-`` only – the QR code stays in the small
-  alphanumeric mode and a desk scanner (keyboard wedge) types it as printed.
+  alphanumeric mode and a desk scanner (keyboard wedge) types it as printed. A code is **never given twice**: the
+  autoclave codes of a practice and the cycle numbers of an autoclave only count up (a cancelled cycle keeps its
+  number), so an old label never names a new pack.
+- A scanner set to the US layout on a French (AZERTY) keyboard types ``Q&)à'&é)àè`` for ``A1-0412-07``, on an Arabic
+  keyboard a shin (or a kasra) for the A; :func:`pack_query` reads such a code back.
 - A **specimen code** names one tube of one print: ``E1042-03`` (the print's number, the tube).
 - A pack is **sterile until** the day before its "à utiliser avant" date: ``expires_on`` = sterilised + shelf life,
   and from that day on it is ``expired``. A cycle found "non conforme" (also later, by a correction) makes every one of
-  its packs ``not_sterile``.
+  its packs ``not_sterile``; a cycle cancelled by the owner (entered by mistake) makes them ``cancelled``.
 - **Settings** of a practice (``practice.label_settings``): the format per kind of label and the shelf life per
   packaging. Daftar proposes 90 days everywhere; the practice sets its own protocol (Daftar documents, it does not
   prescribe – spec 2, anti-goals).
@@ -23,7 +27,7 @@ LabelFormat = Literal["roll62", "label57x32", "a4_3x8"]
 LabelKind = Literal["sterile", "specimen"]
 Packaging = Literal["sachet", "double_sachet", "conteneur", "champ"]
 SpecimenKind = Literal["edta", "sec", "citrate", "heparine", "urine", "selles", "frottis", "autre"]
-PackState = Literal["usable", "expired", "used", "not_sterile"]
+PackState = Literal["usable", "expired", "used", "not_sterile", "cancelled"]
 
 #: Brother QL roll 62 mm (cut at 29 mm), Dymo/Zebra 57 × 32 mm, A4 sheet of 3 × 8 labels of 70 × 37 mm.
 LABEL_FORMATS: tuple[LabelFormat, ...] = ("roll62", "label57x32", "a4_3x8")
@@ -51,13 +55,12 @@ def specimen_code(print_id: int, tube: int) -> str:
     return f"E{print_id}-{tube:02d}"
 
 
-def next_label_code(taken: list[str]) -> str:
-    """The first free ``A<n>`` of a practice (``A1`` for its first autoclave)."""
-    used = set(taken)
-    for n in range(1, MAX_LABEL_CODES + 1):
-        if f"A{n}" not in used:
-            return f"A{n}"
-    raise ValueError("no free autoclave code")
+def next_label_code(given: int) -> str:
+    """The code of the next autoclave of a practice that has given ``given`` codes (``A1`` for its first one) – never
+    a code given before, even when its autoclave is gone."""
+    if given >= MAX_LABEL_CODES:
+        raise ValueError("no autoclave code left")
+    return f"A{given + 1}"
 
 
 def initials(name: str) -> str:
@@ -71,7 +74,9 @@ def sterile_until(sterilised_on: date, shelf_life_days: int) -> date:
     return sterilised_on + timedelta(days=shelf_life_days)
 
 
-def pack_state(*, result: str, used: bool, expires_on: date, today: date) -> PackState:
+def pack_state(*, result: str, used: bool, expires_on: date, today: date, cancelled: bool = False) -> PackState:
+    if cancelled:
+        return "cancelled"
     if result != "ok":
         return "not_sterile"
     if used:
@@ -92,10 +97,34 @@ class PackQuery:
 
 
 _QUERY = re.compile(r"^(?:([A-Z]\d{1,2})-)?(\d{1,6})(?:-(\d{1,2}))?$")
+#: What the keys of a US scanner type on a French (AZERTY) keyboard: the digit row unshifted, ``-`` and the key of A.
+_AZERTY = str.maketrans({"&": "1", "é": "2", '"': "3", "'": "4", "(": "5", "-": "6", "è": "7", "_": "8", "ç": "9",
+                         "à": "0", ")": "-", "q": "A", "Q": "A"})
+#: On an Arabic keyboard the digits and ``-`` stay; the key of A writes ش, shifted a kasra.
+_ARABIC_A = re.compile(r"^[\u0634\u0650](?=\d)")
+
+
+def _wrong_layout(text: str) -> str | None:
+    """The code a scanner meant when it typed in another keyboard layout – None unless it reads as a full code."""
+    stripped = text.strip()
+    if _ARABIC_A.match(stripped):
+        meant = _ARABIC_A.sub("A", stripped)
+    elif not re.search(r"\d", stripped) and re.search(r"[&é\"'(è_çà]", stripped):
+        meant = stripped.translate(_AZERTY)
+    else:
+        return None
+    found = _parse(meant)
+    return meant if found is not None and found.code is not None else None
 
 
 def pack_query(text: str) -> PackQuery | None:
-    """``a3 0412 07`` → the code ``A3-0412-07``; ``412-7`` → cycle 412, pack 7 of any autoclave; else None (free text)."""
+    """``a3 0412 07`` → the code ``A3-0412-07``; ``412-7`` → cycle 412, pack 7 of any autoclave; a code typed by a
+    scanner in another keyboard layout → that code; else None (free text)."""
+    meant = _wrong_layout(text)
+    return _parse(meant if meant is not None else text)
+
+
+def _parse(text: str) -> PackQuery | None:
     normalized = re.sub(r"[\s\-./_]+", "-", text.strip().upper()).strip("-")
     match = _QUERY.fullmatch(normalized)
     if match is None:

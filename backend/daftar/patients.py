@@ -30,6 +30,7 @@ from .finance import PaymentOut, TreatmentOut, load_payments, load_treatments, p
 from .phone import Phone
 from .problems import not_found, unprocessable
 from .schemas import ApiModel, Lang, Name, TunisDateTime
+from .sterilization import release_patient
 from .tables import appointment, patient, payment
 
 router = APIRouter(prefix="/api/patients", tags=["patients"])
@@ -306,8 +307,10 @@ def patch_patient(patient_id: int, body: PatientPatch, user: StaffWriter, ctx: C
 
 @router.delete("/{patient_id}", status_code=204)
 def delete_patient(patient_id: int, user: OwnerWriter, conn: Conn) -> Response:
-    """Deletes the patient and – through the composite foreign keys – appointments, queue tickets, treatments and
-    payments of the patient."""
+    """Deletes the patient and – through the composite foreign keys – appointments, queue tickets, treatments,
+    payments and specimen label prints of the patient. The sterile packs he got stay used (traceability): their use
+    keeps his number only."""
+    release_patient(conn, user.pid, patient_id)
     result = conn.execute(delete(patient).where(patient.c.id == patient_id, patient.c.practice_id == user.pid))
     if not result.rowcount:
         raise not_found()

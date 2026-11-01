@@ -33,13 +33,12 @@ def test_specimen_codes_are_short_and_unique_per_print() -> None:
     assert specimen_code(7, 12) == "E7-12"
 
 
-def test_the_next_autoclave_code_is_the_first_free_one() -> None:
-    assert next_label_code([]) == "A1"
-    assert next_label_code(["A1", "A2"]) == "A3"
-    assert next_label_code(["A2"]) == "A1"
-    assert next_label_code([f"A{n}" for n in range(1, 99)]) == "A99"
+def test_the_next_autoclave_code_follows_the_codes_given_and_never_comes_back() -> None:
+    assert next_label_code(0) == "A1"
+    assert next_label_code(2) == "A3"  # A1 and A2 were given – even if A1's autoclave is gone, A1 stays its code
+    assert next_label_code(98) == "A99"
     with pytest.raises(ValueError):
-        next_label_code([f"A{n}" for n in range(1, 100)])
+        next_label_code(99)
 
 
 @pytest.mark.parametrize(
@@ -61,6 +60,9 @@ def test_a_pack_is_sterile_before_its_date_only() -> None:
     # a cycle found "non conforme" later recalls every pack, used or not
     assert pack_state(result="not_ok", used=True, expires_on=until, today=sterilised) == "not_sterile"
     assert pack_state(result="not_ok", used=False, expires_on=until, today=sterilised) == "not_sterile"
+    # a cancelled cycle (entered by mistake) keeps its codes, none of its labels is valid
+    assert pack_state(result="ok", used=False, expires_on=until, today=sterilised, cancelled=True) == "cancelled"
+    assert pack_state(result="not_ok", used=False, expires_on=until, today=until, cancelled=True) == "cancelled"
 
 
 @pytest.mark.parametrize(
@@ -74,6 +76,24 @@ def test_a_pack_is_sterile_before_its_date_only() -> None:
 )
 def test_what_the_desk_types_finds_the_pack(text: str, expected: PackQuery | None) -> None:
     assert pack_query(text) == expected
+
+
+@pytest.mark.parametrize(
+    ("typed", "code"),
+    [("Q&)à'&é)àè", "A1-0412-07"),  # a scanner in its US layout on a French (AZERTY) keyboard
+     ("Qé)àààç)&à", "A2-0009-10"),
+     ("q&)à\"(-)àà", "A1-0356-00"),
+     ("\u06341-0412-07", "A1-0412-07"),  # … on an Arabic keyboard: the key of A writes a shin (shifted: a kasra)
+     ("\u06501-0412-07", "A1-0412-07")],
+)
+def test_a_scanner_typing_in_the_wrong_keyboard_layout_still_finds_the_pack(typed: str, code: str) -> None:
+    found = pack_query(typed)
+    assert found is not None and found.code == code
+
+
+def test_ordinary_text_is_not_mistaken_for_a_scanned_code() -> None:
+    assert pack_query("Kit d'extraction") is None
+    assert pack_query("(é)") is None
 
 
 def test_settings_have_defaults_and_keep_what_the_practice_chose() -> None:

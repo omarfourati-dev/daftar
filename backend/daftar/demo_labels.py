@@ -22,7 +22,15 @@ from sqlalchemy import Connection, insert, select, update
 from .clock import TUNIS, at_tunis
 from .hours import DEFAULT_WEEKLY_HOURS, windows_for
 from .label_rules import DEFAULT_SHELF_LIFE_DAYS, initials, pack_code, pack_contents, sterile_until
-from .tables import equipment, patient, specimen_label_log, sterile_pack, sterile_pack_use, sterilization_cycle
+from .tables import (
+    equipment,
+    patient,
+    practice,
+    specimen_label_log,
+    sterile_pack,
+    sterile_pack_use,
+    sterilization_cycle,
+)
 
 NO_SPECIMENS = ("dentiste", "kinesitherapeute", "psychologue")
 SPECIMENS: dict[str, list[list[tuple[str, int]]]] = {
@@ -54,7 +62,8 @@ def _sterilisation(
                         .order_by(equipment.c.id).limit(1)).scalar_one_or_none()
     if gear is None:
         return
-    conn.execute(update(equipment).where(equipment.c.id == gear).values(label_code="A1"))
+    conn.execute(update(equipment).where(equipment.c.id == gear).values(label_code="A1", last_cycle_number=412))
+    conn.execute(update(practice).where(practice.c.id == practice_id).values(autoclave_codes_given=1))
     today = now.astimezone(TUNIS).date()
     before = [today - timedelta(days=n) for n in range(1, 30) if _open(today - timedelta(days=n))]
     contents = pack_contents(specialty, "ar" if arabic else "fr")
@@ -73,7 +82,8 @@ def _sterilisation(
         cycle_id = conn.execute(insert(sterilization_cycle).values(
             practice_id=practice_id, equipment_id=gear, number=number, run_at=run_at, program="134 °C – 18 min",
             result=result, pack_count=sum(q for _, _, q in lines) or load, note=note, performed_by=user_id,
-            performed_by_name=user_name, initials=initials(user_name), created_at=run_at,
+            performed_by_name=user_name, initials=initials(user_name), recorded_by=user_id, recorded_by_name=user_name,
+            created_at=run_at,
         ).returning(sterilization_cycle.c.id)).scalar_one()
         seq = 0
         for content, packaging, quantity in lines:
@@ -96,8 +106,8 @@ def _sterilisation(
         pick = max(ready, key=lambda k: k["run_at"])
         pick["used"] = True
         uses.append({"practice_id": practice_id, "pack_id": pick["id"], "patient_id": patient_ids[plan.patient],
-                     "appointment_id": plan.id, "used_at": plan.start + timedelta(minutes=5), "used_by": user_id,
-                     "used_by_name": user_name})
+                     "patient_no": patient_ids[plan.patient], "appointment_id": plan.id,
+                     "used_at": plan.start + timedelta(minutes=5), "used_by": user_id, "used_by_name": user_name})
     if uses:
         conn.execute(insert(sterile_pack_use), uses)
 

@@ -2,35 +2,50 @@
 8). Codes, dates and states: :mod:`daftar.label_rules`; the label settings (formats, shelf lives): :mod:`daftar.labels`.
 
 Roles (section 3): every staff role records cycles, prints their labels and notes which pack was opened for which
-patient; the owner corrects or deletes a cycle (with a reason, in the change log) and searches the traceability
-("who got pack X?", "which packs did patient Y get?").
+patient; the owner corrects or cancels a cycle (with a reason, in the change log) and searches the traceability
+("who got pack X?", "which packs did patient Y get?") – the patient of a used pack is hers to see; the desk sees
+"used" (and, in the appointment, its own patient).
 
-- ``GET /cycles/setup`` → ``{autoclaves:[{id, name, labelCode, nextNumber, lastRunAt}], programs, contents}``: the
-  active autoclaves with the next cycle number, the practice's last programs and pack contents first, then the
-  usual ones of the specialty (in the user's language).
+A code is never given twice (review H1): the autoclave codes of a practice (``practice.autoclave_codes_given``) and the
+cycle numbers of an autoclave (``equipment.last_cycle_number``) only count up, under a lock of the practice and of
+the autoclave, so cycles entered at the same time get different numbers. A cycle is never deleted: the owner cancels
+it, it keeps its number and its pack codes, its packs can no longer be used.
+
+- ``GET /cycles/setup`` → ``{autoclaves:[{id, name, labelCode, nextNumber, lastRunAt}], programs, contents, team}``:
+  the active autoclaves with the next cycle number, the practice's last programs and pack contents first, then the
+  usual ones of the specialty (in the user's language), the team (who may have run the cycle: ``{id, name,
+  initials}``).
 - ``POST /cycles {equipmentId, number?, runAt?, program, result: ok|not_ok, packs:[{content, packaging, quantity}],
-  packCount?, note?}`` → 201 Cycle. The autoclave gets its label code (``A1`` …) at its first cycle; the number is
-  the next one unless given (409 ``cycle_number_taken``). "Conforme": one pack per unit of ``quantity`` (at most 99,
-  422 ``too_many_packs``), each with its code and "à utiliser avant" (sterilised day + shelf life of its packaging).
-  "Non conforme": no pack and no label (422 ``cycle_not_ok`` with packs) – only ``packCount``, the load to sterilise
-  again. 422 ``not_an_autoclave`` / ``equipment_inactive`` / ``invalid_equipment`` / ``run_in_future`` /
-  ``run_too_old`` (more than a year back).
+  packCount?, note?, performedById?}`` → 201 Cycle. The autoclave gets its label code (``A1`` …) at its first cycle;
+  the number is the next one of its counter unless given (a forgotten cycle entered afterwards; 409
+  ``cycle_number_taken``). "Conforme": one pack per unit of ``quantity`` (at most 99, 422 ``too_many_packs``), each
+  with its code and "à utiliser avant" (sterilised day + shelf life of its packaging). "Non conforme": no pack and no
+  label (422 ``cycle_not_ok`` with packs) – only ``packCount``, the load to sterilise again. ``performedById``: who ran
+  it (a member of the team, 422 ``invalid_member``; by default the signed-in person, who is kept as ``recordedBy``).
+  422 ``not_an_autoclave`` / ``equipment_inactive`` / ``invalid_equipment`` / ``run_in_future`` / ``run_too_old``
+  (more than a year back).
 - ``GET /cycles?from=&to=&equipmentId=`` (at most 366 days, default the last 30) → ``{from, to, cycles}``, newest
-  first; ``GET /cycles/{id}``. Each pack carries its state (usable, expired, used, not_sterile) and its use.
+  first; ``GET /cycles/{id}``. Each pack carries its state (usable, expired, used, not_sterile, cancelled) and its use.
 - ``PATCH /cycles/{id} {result?, program?, note?, reason}`` (owner): logged old → new. A cycle found "non conforme"
   afterwards (biological indicator) recalls its packs: they are refused from then on, the traceability names the
-  patients who already got one.
-- ``DELETE /cycles/{id} {reason}`` (owner): only while none of its packs was used (409 ``cycle_in_use``); logged.
+  patients who already got one. 409 ``cycle_cancelled``.
+- ``POST /cycles/{id}/cancel {reason}`` (owner) → Cycle: a cycle entered by mistake – only while none of its packs was
+  used (409 ``cycle_in_use``: correct it instead), once (409 ``cycle_cancelled``); logged.
 - ``GET /packs?q=&limit=`` → the packs the desk may mean: nothing typed – the usable packs, newest first; a code or a
-  part of it (``A1-0412-07``, ``412-7``, ``0412``) – those packs; other text – contents. Usable ones first.
+  part of it (``A1-0412-07``, ``412-7``, ``0412``, also as a scanner types it in another keyboard layout) – those
+  packs; other text – contents. Usable ones first.
 - ``POST /pack-uses {code, appointmentId?, patientId?}`` → 201 Use: the pack was opened for this patient (and
   appointment). Refused with a clear text: 422 ``pack_unknown``, ``pack_expired`` (+ ``expiresOn``),
-  ``pack_not_sterile`` (cycle non conforme); 409 ``pack_used`` (+ ``patientName``, ``usedAt``). Never required: the
-  appointment goes on without it.
+  ``pack_not_sterile`` (cycle non conforme), ``pack_cancelled`` (+ ``reason``); 409 ``pack_used`` (+ ``usedAt``,
+  ``samePatient``; for the owner ``patientName``, ``patientNo``, ``patientDeleted``). Never required: the appointment
+  goes on without it.
 - ``GET /pack-uses?appointmentId=`` (staff) or ``?patientId=`` (owner) → ``[Use]``, newest first.
-- ``DELETE /pack-uses/{id} {reason?}``: its author within 15 minutes (a wrong code), the owner always with a reason;
-  logged.
+- ``DELETE /pack-uses/{id} {reason}``: its author within 15 minutes (a wrong code), the owner always; always with a
+  reason (422 ``reason_required``); logged.
 - ``GET /trace?code=`` (owner) → ``{pack, use}`` · ``GET /trace?patientId=`` → ``{patient:{id, name}, uses}``.
+
+A patient erased by the owner leaves the use of a pack behind (:func:`release_patient`): the pack stays used, the use
+keeps the patient's number (``patientNo``, ``patientDeleted``) and no name.
 """
 
 from __future__ import annotations
@@ -40,7 +55,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Body, Query, Response
 from pydantic import Field, StrictInt, model_validator
-from sqlalchemy import Connection, delete, exists, func, insert, or_, select, update
+from sqlalchemy import Connection, delete, func, insert, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from . import audit
@@ -64,6 +79,7 @@ from .label_rules import (
 from .problems import ApiError, conflict, forbidden, not_found, unprocessable
 from .schemas import ApiModel, InstantIn, TunisDateTime
 from .tables import (
+    app_user,
     appointment,
     equipment,
     patient,
@@ -77,6 +93,7 @@ router = APIRouter(prefix="/api/hygiene", tags=["sterilization"])
 
 UNDO_WINDOW = timedelta(minutes=15)
 MAX_DAYS = 366
+MAX_CYCLE_NUMBER = 999_999
 #: First key of ``pg_advisory_xact_lock(key, practice_id)``: autoclave codes and cycle numbers, one after the other.
 CYCLE_LOCK = 0x57E21
 Result = Literal["ok", "not_ok"]
@@ -85,8 +102,9 @@ Program = Annotated[str, Field(max_length=60)]
 Note = Annotated[str, Field(max_length=500)]
 Reason = Annotated[str, Field(max_length=300)]
 RequiredReason = Annotated[str, Field(min_length=1, max_length=300)]
-CycleNumber = Annotated[StrictInt, Field(ge=1, le=999_999)]
-STATE_ORDER = {"usable": 0, "expired": 1, "used": 2, "not_sterile": 3}
+CycleNumber = Annotated[StrictInt, Field(ge=1, le=MAX_CYCLE_NUMBER)]
+STATE_ORDER = {"usable": 0, "expired": 1, "used": 2, "not_sterile": 3, "cancelled": 4}
+STAFF_ROLES = ("owner", "dentist", "assistant")
 
 
 # --- models -------------------------------------------------------------------------------------------------------
@@ -109,8 +127,11 @@ class UseOut(ApiModel):
     packaging: Packaging
     expires_on: date
     cycle: CycleRef
-    patient_id: int
-    patient_name: str
+    #: None once the patient was erased (``patientDeleted``); the number stays.
+    patient_id: int | None
+    patient_name: str | None
+    patient_no: int
+    patient_deleted: bool
     appointment_id: int | None
     used_at: TunisDateTime
     used_by: str
@@ -118,9 +139,13 @@ class UseOut(ApiModel):
 
 
 class PackUse(ApiModel):
+    """The use of a pack in a list of packs: whom it went to is the owner's to see (``patient*`` None for the desk)."""
+
     id: int
-    patient_id: int
-    patient_name: str
+    patient_id: int | None
+    patient_name: str | None
+    patient_no: int | None
+    patient_deleted: bool
     appointment_id: int | None
     used_at: TunisDateTime
     used_by: str
@@ -143,6 +168,8 @@ class PackFound(PackOut):
     number: int
     equipment_name: str
     run_at: TunisDateTime
+    #: Why its cycle was cancelled (the desk sees it before it taps the pack).
+    cancel_reason: str | None
 
 
 class CycleOut(ApiModel):
@@ -157,8 +184,13 @@ class CycleOut(ApiModel):
     pack_count: int
     note: str
     performed_by: str
+    performed_by_id: int | None
     initials: str
+    recorded_by: str
     created_at: TunisDateTime
+    cancelled_at: TunisDateTime | None
+    cancelled_by: str | None
+    cancel_reason: str | None
     packs: list[PackOut]
 
 
@@ -176,10 +208,17 @@ class AutoclaveOut(ApiModel):
     last_run_at: TunisDateTime | None
 
 
+class TeamMember(ApiModel):
+    id: int
+    name: str
+    initials: str
+
+
 class CycleSetup(ApiModel):
     autoclaves: list[AutoclaveOut]
     programs: list[str]
     contents: list[str]
+    team: list[TeamMember]
 
 
 class PackLineIn(ApiModel):
@@ -197,6 +236,7 @@ class CycleIn(ApiModel):
     packs: Annotated[list[PackLineIn], Field(max_length=20)] = []
     pack_count: Annotated[StrictInt, Field(ge=0, le=MAX_PACKS)] | None = None
     note: Note = ""
+    performed_by_id: int | None = None
 
 
 class CycleCorrection(ApiModel):
@@ -206,7 +246,7 @@ class CycleCorrection(ApiModel):
     reason: RequiredReason
 
 
-class ReasonIn(ApiModel):
+class CancelIn(ApiModel):
     reason: RequiredReason
 
 
@@ -248,15 +288,21 @@ def _name(first: str, last: str) -> str:
     return f"{first} {last}".strip()
 
 
+def _patient_name(row: Any) -> str | None:
+    """The name of the patient a pack went to – None once the patient was erased."""
+    return None if row.patient_id is None else _name(row.first_name, row.last_name)
+
+
 def _pack_rows(conn: Connection, practice_id: int, *conditions: Any, limit: int | None = None) -> list[Any]:
     """Packs with their cycle, autoclave and use (patient name) – every reading of packs goes through here."""
     query = (
         select(
             sterile_pack, sterilization_cycle.c.number, sterilization_cycle.c.run_at, sterilization_cycle.c.result,
+            sterilization_cycle.c.cancelled_at, sterilization_cycle.c.cancel_reason,
             equipment.c.name.label("equipment_name"), equipment.c.label_code,
-            sterile_pack_use.c.id.label("use_id"), sterile_pack_use.c.patient_id, sterile_pack_use.c.appointment_id,
-            sterile_pack_use.c.used_at, sterile_pack_use.c.used_by.label("used_by_id"), sterile_pack_use.c.used_by_name,
-            patient.c.first_name, patient.c.last_name,
+            sterile_pack_use.c.id.label("use_id"), sterile_pack_use.c.patient_id, sterile_pack_use.c.patient_no,
+            sterile_pack_use.c.appointment_id, sterile_pack_use.c.used_at, sterile_pack_use.c.used_by.label("used_by_id"),
+            sterile_pack_use.c.used_by_name, patient.c.first_name, patient.c.last_name,
         )
         .select_from(
             sterile_pack.join(sterilization_cycle, sterilization_cycle.c.id == sterile_pack.c.cycle_id)
@@ -273,27 +319,31 @@ def _pack_rows(conn: Connection, practice_id: int, *conditions: Any, limit: int 
 
 
 def _state(row: Any, today: date) -> PackState:
-    return pack_state(result=row.result, used=row.use_id is not None, expires_on=row.expires_on, today=today)
+    return pack_state(result=row.result, used=row.use_id is not None, expires_on=row.expires_on, today=today,
+                      cancelled=row.cancelled_at is not None)
 
 
-def _pack_use(row: Any) -> PackUse | None:
+def _pack_use(row: Any, owner: bool) -> PackUse | None:
     if row.use_id is None:
         return None
-    return PackUse(id=row.use_id, patient_id=row.patient_id, patient_name=_name(row.first_name, row.last_name),
-                   appointment_id=row.appointment_id, used_at=row.used_at, used_by=row.used_by_name)
+    return PackUse(id=row.use_id, patient_id=row.patient_id if owner else None,
+                   patient_name=_patient_name(row) if owner else None, patient_no=row.patient_no if owner else None,
+                   patient_deleted=row.patient_id is None, appointment_id=row.appointment_id if owner else None,
+                   used_at=row.used_at, used_by=row.used_by_name)
 
 
-def _pack(row: Any, today: date) -> PackOut:
+def _pack(row: Any, today: date, owner: bool) -> PackOut:
     return PackOut(id=row.id, seq=row.seq, code=row.code, content=row.content, packaging=row.packaging,
-                   expires_on=row.expires_on, state=_state(row, today), use=_pack_use(row))
+                   expires_on=row.expires_on, state=_state(row, today), use=_pack_use(row, owner))
 
 
-def _found(row: Any, today: date) -> PackFound:
-    return PackFound(**_pack(row, today).model_dump(), cycle_id=row.cycle_id, label_code=row.label_code,
-                     number=row.number, equipment_name=row.equipment_name, run_at=row.run_at)
+def _found(row: Any, today: date, owner: bool) -> PackFound:
+    return PackFound(**_pack(row, today, owner).model_dump(), cycle_id=row.cycle_id, label_code=row.label_code,
+                     number=row.number, equipment_name=row.equipment_name, run_at=row.run_at,
+                     cancel_reason=row.cancel_reason)
 
 
-def load_cycles(conn: Connection, practice_id: int, today: date, *conditions: Any) -> list[CycleOut]:
+def load_cycles(conn: Connection, practice_id: int, today: date, *conditions: Any, owner: bool) -> list[CycleOut]:
     rows = conn.execute(
         select(sterilization_cycle, equipment.c.name.label("equipment_name"), equipment.c.label_code)
         .select_from(sterilization_cycle.join(equipment, equipment.c.id == sterilization_cycle.c.equipment_id))
@@ -304,18 +354,19 @@ def load_cycles(conn: Connection, practice_id: int, today: date, *conditions: An
         return []
     packs: dict[int, list[PackOut]] = {r.id: [] for r in rows}
     for p in _pack_rows(conn, practice_id, sterile_pack.c.cycle_id.in_(list(packs))):
-        packs[p.cycle_id].append(_pack(p, today))
+        packs[p.cycle_id].append(_pack(p, today, owner))
     return [
         CycleOut(id=r.id, equipment_id=r.equipment_id, equipment_name=r.equipment_name, label_code=r.label_code,
                  number=r.number, run_at=r.run_at, program=r.program, result=r.result, pack_count=r.pack_count,
-                 note=r.note, performed_by=r.performed_by_name, initials=r.initials, created_at=r.created_at,
-                 packs=packs[r.id])
+                 note=r.note, performed_by=r.performed_by_name, performed_by_id=r.performed_by, initials=r.initials,
+                 recorded_by=r.recorded_by_name, created_at=r.created_at, cancelled_at=r.cancelled_at,
+                 cancelled_by=r.cancelled_by_name, cancel_reason=r.cancel_reason, packs=packs[r.id])
         for r in rows
     ]
 
 
-def _cycle(conn: Connection, practice_id: int, cycle_id: int, today: date) -> CycleOut:
-    found = load_cycles(conn, practice_id, today, sterilization_cycle.c.id == cycle_id)
+def _cycle(conn: Connection, user: Principal, cycle_id: int, today: date) -> CycleOut:
+    found = load_cycles(conn, user.pid, today, sterilization_cycle.c.id == cycle_id, owner=user.is_owner)
     if not found:
         raise not_found()
     return found[0]
@@ -335,8 +386,9 @@ def _use(user: Principal, row: Any, now: datetime) -> UseOut:
         expires_on=row.expires_on,
         cycle=CycleRef(id=row.cycle_id, label_code=row.label_code, number=row.number, equipment_name=row.equipment_name,
                        run_at=row.run_at, result=row.result),
-        patient_id=row.patient_id, patient_name=_name(row.first_name, row.last_name), appointment_id=row.appointment_id,
-        used_at=row.used_at, used_by=row.used_by_name, undoable=_undoable(user, row, now),
+        patient_id=row.patient_id, patient_name=_patient_name(row), patient_no=row.patient_no,
+        patient_deleted=row.patient_id is None, appointment_id=row.appointment_id, used_at=row.used_at,
+        used_by=row.used_by_name, undoable=_undoable(user, row, now),
     )
 
 
@@ -374,25 +426,35 @@ def _unique(*groups: list[str] | tuple[str, ...], limit: int) -> list[str]:
     return list(seen.values())[:limit]
 
 
+def _team(conn: Connection, practice_id: int) -> list[TeamMember]:
+    rows = conn.execute(
+        select(app_user.c.id, app_user.c.name)
+        .where(app_user.c.practice_id == practice_id, app_user.c.role.in_(STAFF_ROLES))
+        .order_by(func.lower(app_user.c.name), app_user.c.id)
+    ).all()
+    return [TeamMember(id=r.id, name=r.name, initials=initials(r.name)) for r in rows]
+
+
 @router.get("/cycles/setup")
 def cycle_setup(user: StaffUser, conn: Conn) -> CycleSetup:
-    numbers = (
-        select(sterilization_cycle.c.equipment_id, func.max(sterilization_cycle.c.number).label("last"),
-               func.max(sterilization_cycle.c.run_at).label("last_run_at"))
+    last_runs = (
+        select(sterilization_cycle.c.equipment_id, func.max(sterilization_cycle.c.run_at).label("last_run_at"))
         .where(sterilization_cycle.c.practice_id == user.pid).group_by(sterilization_cycle.c.equipment_id).subquery()
     )
     rows = conn.execute(
-        select(equipment.c.id, equipment.c.name, equipment.c.label_code, numbers.c.last, numbers.c.last_run_at)
-        .select_from(equipment.outerjoin(numbers, numbers.c.equipment_id == equipment.c.id))
+        select(equipment.c.id, equipment.c.name, equipment.c.label_code, equipment.c.last_cycle_number,
+               last_runs.c.last_run_at)
+        .select_from(equipment.outerjoin(last_runs, last_runs.c.equipment_id == equipment.c.id))
         .where(equipment.c.practice_id == user.pid, equipment.c.kind == "autoclave", equipment.c.active.is_(True))
         .order_by(func.lower(equipment.c.name), equipment.c.id)
     ).all()
     specialty = conn.execute(select(practice.c.specialty).where(practice.c.id == user.pid)).scalar_one()
     return CycleSetup(
-        autoclaves=[AutoclaveOut(id=r.id, name=r.name, label_code=r.label_code, next_number=(r.last or 0) + 1,
+        autoclaves=[AutoclaveOut(id=r.id, name=r.name, label_code=r.label_code, next_number=r.last_cycle_number + 1,
                                  last_run_at=r.last_run_at) for r in rows],
         programs=_unique(_recent_programs(conn, user.pid), DEFAULT_PROGRAMS, limit=8),
         contents=_unique(_recent_contents(conn, user.pid), pack_contents(specialty, user.lang), limit=14),
+        team=_team(conn, user.pid),
     )
 
 
@@ -409,6 +471,47 @@ def _autoclave(conn: Connection, practice_id: int, equipment_id: int) -> Any:
     return row
 
 
+def _performer(conn: Connection, user: Principal, member_id: int | None) -> tuple[int, str]:
+    """Who ran the cycle: a member of the team (422 ``invalid_member``), by default the signed-in person."""
+    if member_id is None:
+        return user.user_id, user.name
+    name = conn.execute(select(app_user.c.name).where(app_user.c.id == member_id, app_user.c.practice_id == user.pid,
+                                                      app_user.c.role.in_(STAFF_ROLES))).scalar_one_or_none()
+    if name is None:
+        raise unprocessable("Cette personne ne fait pas partie de l'équipe.", code="invalid_member")
+    return member_id, name
+
+
+def _label_code(conn: Connection, practice_id: int, gear: Any) -> str:
+    """The autoclave's code on its labels – the next one of the practice at its first cycle, never one given before."""
+    if gear.label_code is not None:
+        return str(gear.label_code)
+    given = conn.execute(select(practice.c.autoclave_codes_given).where(practice.c.id == practice_id)).scalar_one()
+    try:
+        code = next_label_code(given)
+    except ValueError as exc:
+        raise unprocessable("Le cabinet a déjà reçu 99 codes d'autoclave.", code="no_autoclave_code") from exc
+    conn.execute(update(practice).where(practice.c.id == practice_id).values(autoclave_codes_given=given + 1))
+    conn.execute(update(equipment).where(equipment.c.id == gear.id).values(label_code=code))
+    return code
+
+
+def _cycle_number(conn: Connection, gear: Any, wanted: int | None) -> int:
+    """The next number of the autoclave's counter – or the number given (a cycle entered afterwards), which moves the
+    counter only forward. The counter never goes back: a number is never given twice."""
+    last = int(gear.last_cycle_number)
+    if wanted is None:
+        if last >= MAX_CYCLE_NUMBER:
+            raise unprocessable("Le compteur de cet autoclave est au bout : saisissez le n° du cycle.",
+                                code="validation")
+        number = last + 1
+    else:
+        number = wanted
+    if number > last:
+        conn.execute(update(equipment).where(equipment.c.id == gear.id).values(last_cycle_number=number))
+    return number
+
+
 @router.post("/cycles", status_code=201)
 def create_cycle(body: CycleIn, user: StaffWriter, ctx: Ctx, conn: Conn) -> CycleOut:
     now, today = ctx.clock.now(), today_tunis(ctx.clock)
@@ -422,19 +525,11 @@ def create_cycle(body: CycleIn, user: StaffWriter, ctx: Ctx, conn: Conn) -> Cycl
     total = sum(line.quantity for line in body.packs)
     if total > MAX_PACKS:
         raise unprocessable(f"{MAX_PACKS} paquets au plus par cycle.", code="too_many_packs")
+    performer_id, performer = _performer(conn, user, body.performed_by_id)
     conn.execute(select(func.pg_advisory_xact_lock(CYCLE_LOCK, user.pid)))
-    gear = _autoclave(conn, user.pid, body.equipment_id)
-    code = gear.label_code
-    if code is None:
-        taken = conn.execute(select(equipment.c.label_code).where(equipment.c.practice_id == user.pid,
-                                                                  equipment.c.label_code.is_not(None))).scalars()
-        code = next_label_code(list(taken))
-        conn.execute(update(equipment).where(equipment.c.id == gear.id).values(label_code=code))
-    number = body.number
-    if number is None:
-        last = conn.execute(select(func.max(sterilization_cycle.c.number))
-                            .where(sterilization_cycle.c.equipment_id == gear.id)).scalar_one()
-        number = (last or 0) + 1
+    gear = _autoclave(conn, user.pid, body.equipment_id)  # locked until the cycle is in: one number after the other
+    code = _label_code(conn, user.pid, gear)
+    number = _cycle_number(conn, gear, body.number)
     settings = label_settings(conn.execute(select(practice.c.label_settings).where(practice.c.id == user.pid)).scalar_one())
     try:
         with conn.begin_nested():
@@ -442,8 +537,9 @@ def create_cycle(body: CycleIn, user: StaffWriter, ctx: Ctx, conn: Conn) -> Cycl
                 insert(sterilization_cycle).values(
                     practice_id=user.pid, equipment_id=gear.id, number=number, run_at=run_at, program=body.program,
                     result=body.result, pack_count=total if body.result == "ok" else (body.pack_count or 0),
-                    note=body.note, performed_by=user.user_id, performed_by_name=user.name[:120],
-                    initials=initials(user.name), created_at=now,
+                    note=body.note, performed_by=performer_id, performed_by_name=performer[:120],
+                    initials=initials(performer), recorded_by=user.user_id, recorded_by_name=user.name[:120],
+                    created_at=now,
                 ).returning(sterilization_cycle.c.id)
             ).scalar_one()
     except IntegrityError as exc:
@@ -462,7 +558,7 @@ def create_cycle(body: CycleIn, user: StaffWriter, ctx: Ctx, conn: Conn) -> Cycl
             })
     if packs:
         conn.execute(insert(sterile_pack), packs)
-    return _cycle(conn, user.pid, cycle_id, today)
+    return _cycle(conn, user, cycle_id, today)
 
 
 @router.get("/cycles")
@@ -484,22 +580,28 @@ def list_cycles(
     conditions = [sterilization_cycle.c.run_at >= start, sterilization_cycle.c.run_at < end]
     if equipment_id is not None:
         conditions.append(sterilization_cycle.c.equipment_id == equipment_id)
-    return CycleList(from_=first, to=last, cycles=load_cycles(conn, user.pid, today, *conditions))
+    return CycleList(from_=first, to=last, cycles=load_cycles(conn, user.pid, today, *conditions, owner=user.is_owner))
 
 
 @router.get("/cycles/{cycle_id}")
 def get_cycle(cycle_id: int, user: StaffUser, ctx: Ctx, conn: Conn) -> CycleOut:
-    return _cycle(conn, user.pid, cycle_id, today_tunis(ctx.clock))
+    return _cycle(conn, user, cycle_id, today_tunis(ctx.clock))
 
 
 def _cycle_name(c: CycleOut) -> str:
     return f"{c.label_code} n° {c.number}"
 
 
+def _not_cancelled(c: CycleOut) -> None:
+    if c.cancelled_at is not None:
+        raise conflict(f"Le cycle {_cycle_name(c)} est annulé.", code="cycle_cancelled")
+
+
 @router.patch("/cycles/{cycle_id}")
 def correct_cycle(cycle_id: int, body: CycleCorrection, user: OwnerWriter, ctx: Ctx, conn: Conn) -> CycleOut:
     today = today_tunis(ctx.clock)
-    current = _cycle(conn, user.pid, cycle_id, today)
+    current = _cycle(conn, user, cycle_id, today)
+    _not_cancelled(current)
     values = {k: v for k, v in body.model_dump(exclude_unset=True, by_alias=False).items()
               if k in ("result", "program", "note") and v is not None}
     before, after = audit.diff(current.model_dump(by_alias=False), values,
@@ -508,22 +610,32 @@ def correct_cycle(cycle_id: int, body: CycleCorrection, user: OwnerWriter, ctx: 
         conn.execute(update(sterilization_cycle).where(sterilization_cycle.c.id == cycle_id).values(**values))
         audit.record(conn, user, entity="sterilization_cycle", entity_id=cycle_id, action="update", now=ctx.clock.now(),
                      before={"cycle": _cycle_name(current), **before}, after=after, reason=body.reason.strip())
-    return _cycle(conn, user.pid, cycle_id, today)
+    return _cycle(conn, user, cycle_id, today)
 
 
-@router.delete("/cycles/{cycle_id}", status_code=204)
-def delete_cycle(cycle_id: int, body: ReasonIn, user: OwnerWriter, ctx: Ctx, conn: Conn) -> Response:
-    current = _cycle(conn, user.pid, cycle_id, today_tunis(ctx.clock))
+@router.post("/cycles/{cycle_id}/cancel")
+def cancel_cycle(cycle_id: int, body: CancelIn, user: OwnerWriter, ctx: Ctx, conn: Conn) -> CycleOut:
+    """A cycle entered by mistake: it stays in the register with its number and codes, marked cancelled."""
+    reason = body.reason.strip()
+    if not reason:
+        raise unprocessable("Indiquez le motif de l'annulation.")
+    now, today = ctx.clock.now(), today_tunis(ctx.clock)
+    locked = conn.execute(select(sterilization_cycle.c.id).where(sterilization_cycle.c.id == cycle_id,
+                                                                 sterilization_cycle.c.practice_id == user.pid)
+                          .with_for_update()).scalar_one_or_none()
+    if locked is None:
+        raise not_found()
+    # its packs too: a pack noted for a patient at this moment either comes first (409 here) or is refused after
+    conn.execute(select(sterile_pack.c.id).where(sterile_pack.c.cycle_id == cycle_id).with_for_update())
+    current = _cycle(conn, user, cycle_id, today)
+    _not_cancelled(current)
     if any(p.use is not None for p in current.packs):
         raise conflict("Un paquet de ce cycle a déjà été utilisé : corrigez le cycle plutôt.", code="cycle_in_use")
-    audit.record(conn, user, entity="sterilization_cycle", entity_id=cycle_id, action="delete", now=ctx.clock.now(),
-                 before={"cycle": _cycle_name(current), "equipment": current.equipment_name, "runAt": current.run_at,
-                         "program": current.program, "result": current.result, "packCount": current.pack_count,
-                         "performedBy": current.performed_by},
-                 reason=body.reason.strip())
-    conn.execute(delete(sterilization_cycle).where(sterilization_cycle.c.id == cycle_id,
-                                                   sterilization_cycle.c.practice_id == user.pid))
-    return Response(status_code=204)
+    conn.execute(update(sterilization_cycle).where(sterilization_cycle.c.id == cycle_id).values(
+        cancelled_at=now, cancelled_by=user.user_id, cancelled_by_name=user.name[:120], cancel_reason=reason))
+    audit.record(conn, user, entity="sterilization_cycle", entity_id=cycle_id, action="update", now=now,
+                 before={"cycle": _cycle_name(current), "cancelled": False}, after={"cancelled": True}, reason=reason)
+    return _cycle(conn, user, cycle_id, today)
 
 
 # --- packs and their use ------------------------------------------------------------------------------------------
@@ -557,9 +669,9 @@ def find_packs(
     if q.strip():
         rows = _pack_rows(conn, user.pid, *_query_conditions(q), limit=60)
     else:
-        rows = _pack_rows(conn, user.pid, sterilization_cycle.c.result == "ok", sterile_pack_use.c.id.is_(None),
-                          sterile_pack.c.expires_on > today, limit=limit)
-    found = [_found(r, today) for r in rows]
+        rows = _pack_rows(conn, user.pid, sterilization_cycle.c.result == "ok", sterilization_cycle.c.cancelled_at.is_(None),
+                          sterile_pack_use.c.id.is_(None), sterile_pack.c.expires_on > today, limit=limit)
+    found = [_found(r, today, user.is_owner) for r in rows]
     found.sort(key=lambda p: STATE_ORDER[p.state])  # stable: newest cycle first within a state
     return found[:limit]
 
@@ -574,28 +686,35 @@ def _whom(conn: Connection, practice_id: int, body: UseIn) -> tuple[int, int | N
         if body.patient_id is not None and body.patient_id != found.patient_id:
             raise unprocessable("Ce patient n'est pas celui du rendez-vous.", code="invalid_patient")
         return found.patient_id, body.appointment_id
-    known = conn.execute(select(exists().where(patient.c.id == body.patient_id,
-                                               patient.c.practice_id == practice_id))).scalar_one()
-    if not known:
+    known = conn.execute(select(patient.c.id).where(patient.c.id == body.patient_id,
+                                                    patient.c.practice_id == practice_id)).scalar_one_or_none()
+    if known is None:
         raise unprocessable("Patient introuvable dans le cabinet.", code="invalid_patient")
-    return int(body.patient_id or 0), None
+    return int(known), None
 
 
 def _fr_day(day: date) -> str:
     return day.strftime("%d/%m/%Y")
 
 
-def _refuse(row: Any, today: date) -> None:
+def _refuse(user: Principal, row: Any, today: date, patient_id: int) -> None:
     state = _state(row, today)
+    if state == "cancelled":
+        raise ApiError(422, f"Cycle {row.label_code} n° {row.number} annulé ({row.cancel_reason}) : cette étiquette "
+                            "n'est plus valable. Utilisez l'étiquette du bon cycle.", code="pack_cancelled",
+                       extra={"reason": row.cancel_reason, "cycleNumber": row.number})
     if state == "not_sterile":
         raise ApiError(422, f"Cycle non conforme ({row.label_code} n° {row.number}) : ce paquet n'est pas stérile. "
                             "Ne l'utilisez pas, restérilisez-le.", code="pack_not_sterile",
                        extra={"cycleNumber": row.number})
     if state == "used":
+        owner = user.is_owner
         raise ApiError(409, f"Ce paquet est déjà utilisé (le {_fr_day(row.used_at.astimezone(TUNIS).date())}).",
                        code="pack_used",
-                       extra={"patientName": _name(row.first_name, row.last_name),
-                              "usedAt": audit.jsonable(row.used_at)})
+                       extra={"usedAt": audit.jsonable(row.used_at), "samePatient": row.patient_id == patient_id,
+                              "patientName": _patient_name(row) if owner else None,
+                              "patientNo": row.patient_no if owner else None,
+                              "patientDeleted": row.patient_id is None})
     if state == "expired":
         raise ApiError(422, f"Paquet périmé (à utiliser avant le {_fr_day(row.expires_on)}) : ne l'utilisez pas, "
                             "restérilisez-le.", code="pack_expired", extra={"expiresOn": row.expires_on.isoformat()})
@@ -619,12 +738,12 @@ def use_pack(body: UseIn, user: StaffWriter, ctx: Ctx, conn: Conn) -> UseOut:
     if pack_id is None:
         raise _unknown()
     (row,) = _pack_rows(conn, user.pid, sterile_pack.c.id == pack_id)
-    _refuse(row, today)
+    _refuse(user, row, today, patient_id)
     try:
         with conn.begin_nested():
             conn.execute(insert(sterile_pack_use).values(
-                practice_id=user.pid, pack_id=pack_id, patient_id=patient_id, appointment_id=appointment_id, used_at=now,
-                used_by=user.user_id, used_by_name=user.name[:120]))
+                practice_id=user.pid, pack_id=pack_id, patient_id=patient_id, patient_no=patient_id,
+                appointment_id=appointment_id, used_at=now, used_by=user.user_id, used_by_name=user.name[:120]))
     except IntegrityError as exc:
         if constraint_name(exc) == "sterile_pack_use_once":
             raise conflict("Ce paquet est déjà utilisé.", code="pack_used") from exc
@@ -652,7 +771,6 @@ def list_uses(
     return _sorted_uses(user, rows, ctx.clock.now())
 
 
-
 @router.delete("/pack-uses/{use_id}", status_code=204)
 def undo_use(use_id: int, user: StaffWriter, ctx: Ctx, conn: Conn,
              body: Annotated[UndoIn | None, Body()] = None) -> Response:
@@ -666,14 +784,21 @@ def undo_use(use_id: int, user: StaffWriter, ctx: Ctx, conn: Conn,
             raise forbidden("Seule la personne titulaire peut annuler après 15 minutes.", code="undo_too_late")
         raise forbidden()
     reason = body.reason.strip() if body else ""
-    if not quick and not reason:
-        raise unprocessable("Indiquez le motif de l'annulation.", code="reason_required")
+    if not reason:
+        raise unprocessable("Indiquez le motif du retrait.", code="reason_required")
+    patient_gone = {"patientNo": row.patient_no} if row.patient_id is None else {}
     audit.record(conn, user, entity="sterile_pack_use", entity_id=use_id, action="delete", now=now,
-                 before={"code": row.code, "content": row.content, "patient": _name(row.first_name, row.last_name),
+                 before={"code": row.code, "content": row.content, "patient": _patient_name(row), **patient_gone,
                          "usedAt": row.used_at, "usedBy": row.used_by_name},
                  reason=reason)
     conn.execute(delete(sterile_pack_use).where(sterile_pack_use.c.id == use_id))
     return Response(status_code=204)
+
+
+def release_patient(conn: Connection, practice_id: int, patient_id: int) -> None:
+    """Before a patient is erased: the packs he got stay used – their use keeps his number, no longer him."""
+    conn.execute(update(sterile_pack_use).where(sterile_pack_use.c.practice_id == practice_id,
+                                                sterile_pack_use.c.patient_id == patient_id).values(patient_id=None))
 
 
 # --- traceability (owner) -----------------------------------------------------------------------------------------
@@ -696,7 +821,7 @@ def trace(
         if not rows:
             raise not_found()
         row = rows[0]
-        return PackTrace(pack=_found(row, today), use=_use(user, row, now) if row.use_id is not None else None)
+        return PackTrace(pack=_found(row, today, owner=True), use=_use(user, row, now) if row.use_id is not None else None)
     if patient_id is not None:
         person = conn.execute(select(patient.c.first_name, patient.c.last_name)
                               .where(patient.c.id == patient_id, patient.c.practice_id == user.pid)).first()
@@ -706,9 +831,3 @@ def trace(
         return PatientTrace(patient=TracePatient(id=patient_id, name=_name(person.first_name, person.last_name)),
                             uses=_sorted_uses(user, rows, now))
     raise unprocessable("Indiquez un code de paquet ou un patient.")
-
-
-def cycles_of(conn: Connection, equipment_id: int) -> int:
-    """How many cycles an autoclave has (it then stays in the register)."""
-    return int(conn.execute(select(func.count()).where(sterilization_cycle.c.equipment_id == equipment_id)).scalar_one())
-

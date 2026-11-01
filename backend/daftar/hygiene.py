@@ -198,6 +198,9 @@ def patch_equipment(equipment_id: int, body: EquipmentPatch, user: HygieneManage
 
 @router.delete("/equipment/{equipment_id}", status_code=204)
 def delete_equipment(equipment_id: int, user: HygieneManager, ctx: Ctx, conn: Conn) -> Response:
+    # locked like a new cycle locks its autoclave: no cycle slips in between the check and the deletion
+    conn.execute(select(equipment.c.id).where(equipment.c.id == equipment_id, equipment.c.practice_id == user.pid)
+                 .with_for_update())
     current = _one_equipment(conn, user.pid, equipment_id)
     if current.tasks or current.cycles:
         raise conflict("Des tâches ou des cycles utilisent cet équipement : désactivez-le plutôt.", code="equipment_in_use")

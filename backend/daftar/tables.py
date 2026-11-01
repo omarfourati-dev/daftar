@@ -109,6 +109,7 @@ practice = Table(
     Column("onboarding", JSONB, nullable=False),  # "Erste Schritte" state (migration 0002)
     _ts("created_at"),
     Column("label_settings", JSONB, nullable=False),  # label formats and shelf lives (migration 0012)
+    Column("autoclave_codes_given", Integer, nullable=False),  # A1, A2 … given so far – never again (migration 0013)
 )
 
 app_user = Table(
@@ -479,6 +480,7 @@ equipment = Table(
     Column("active", Boolean, nullable=False),
     _ts("created_at"),
     Column("label_code", Text, nullable=True),  # "A1" on the labels of an autoclave (migration 0012)
+    Column("last_cycle_number", Integer, nullable=False),  # only counts up (migration 0013)
 )
 
 #: A recurring hygiene / maintenance task (rhythm rules: daftar/hygiene_rules.py).
@@ -546,6 +548,13 @@ sterilization_cycle = Table(
     Column("performed_by_name", Text, nullable=False),
     Column("initials", Text, nullable=False),  # as printed on the labels
     _ts("created_at"),
+    Column("recorded_by", BigInteger, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),  # 0013
+    Column("recorded_by_name", Text, nullable=False),
+    # cancelled by the owner (entered by mistake): keeps its number and codes, its packs are no longer usable
+    _ts("cancelled_at", nullable=True),
+    Column("cancelled_by", BigInteger, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),
+    Column("cancelled_by_name", Text, nullable=True),
+    Column("cancel_reason", Text, nullable=True),
 )
 
 #: One pack of a cycle with its label code (``A1-0412-07``), unique in the practice.
@@ -554,7 +563,7 @@ sterile_pack = Table(
     metadata,
     _id(),
     _practice_id(),
-    Column("cycle_id", BigInteger, nullable=False),  # composite FK (cycle_id, practice_id), CASCADE
+    Column("cycle_id", BigInteger, nullable=False),  # composite FK (cycle_id, practice_id); cycles stay
     Column("seq", Integer, nullable=False),
     Column("code", Text, nullable=False),
     Column("content", Text, nullable=False),
@@ -569,7 +578,9 @@ sterile_pack_use = Table(
     _id(),
     _practice_id(),
     Column("pack_id", BigInteger, nullable=False, unique=True),  # composite FK (pack_id, practice_id)
-    Column("patient_id", BigInteger, nullable=False),  # composite FK (patient_id, practice_id), CASCADE
+    # composite FK (patient_id, practice_id), no cascade: erasing the patient sets it to NULL first (migration 0013)
+    Column("patient_id", BigInteger, nullable=True),
+    Column("patient_no", BigInteger, nullable=False),  # the patient's number, kept after the erasure
     Column("appointment_id", BigInteger, ForeignKey("appointment.id", ondelete="SET NULL"), nullable=True),
     _ts("used_at"),
     Column("used_by", BigInteger, ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True),

@@ -322,8 +322,8 @@ def test_deleting_a_practice_deletes_everything_of_it(
                 practice_id=p.id, cycle_id=cycle, seq=1, code="A1-0001-01", content="Kit", packaging="sachet",
                 expires_on=date(2027, 1, 28)).returning(sterile_pack.c.id)).scalar_one()
             conn.execute(insert(sterile_pack_use).values(practice_id=p.id, pack_id=pack, patient_id=pat.id,
-                                                         appointment_id=appt.id, used_at=clock.now(), used_by=user.id,
-                                                         used_by_name="X"))
+                                                         patient_no=pat.id, appointment_id=appt.id, used_at=clock.now(),
+                                                         used_by=user.id, used_by_name="X"))
             conn.execute(insert(specimen_label_log).values(
                 practice_id=p.id, patient_id=pat.id, appointment_id=appt.id, items=[{"kind": "edta", "count": 1}],
                 label_count=1, collected_at=clock.now(), printed_by=user.id, printed_by_name="X", printed_at=clock.now()))

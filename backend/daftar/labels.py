@@ -4,7 +4,7 @@ with their cycle (:mod:`daftar.sterilization`); every label is printed by the we
 - ``GET /settings`` (staff) → ``{formats:{sterile, specimen}, shelfLifeDays:{sachet, double_sachet, conteneur, champ}}``
   · ``PATCH /settings`` (assistant, owner) – part of it; logged old → new (``label_settings``).
 - ``POST /specimens {patientId, appointmentId?, items:[{kind, count, label?}], collectedAt?, collectedBy?}`` → 201
-  Specimen print: every tube's label (patient NOM Prénom, birth date or year, file number, kind, when, practice, code
+  Specimen print: every tube's label (patient NOM Prénom, birth date or year, kind, when, practice, code
   ``E<print>-<tube>``). It is also the proof: who printed, when, which tubes, how many – never a result. ``autre``
   needs its name (422 ``specimen_label_required``); at most 48 labels (422 ``too_many_labels``); collected at most a
   month ago and at most a day ahead (422 ``invalid_collected_at``). 422 ``invalid_patient`` / ``invalid_appointment``
