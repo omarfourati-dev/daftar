@@ -21,8 +21,13 @@ from .deps import Conn, Ctx, OwnerUser
 from .tables import (
     app_user,
     appointment,
+    audit_log,
     cash_closing,
+    equipment,
     feedback,
+    hygiene_task,
+    hygiene_task_done,
+    hygiene_task_due,
     import_template,
     invitation,
     invoice,
@@ -33,6 +38,11 @@ from .tables import (
     practitioner,
     queue_entry,
     service,
+    stock_movement,
+    stock_product,
+    stock_receipt,
+    stock_receipt_line,
+    supplier,
     treatment,
 )
 
@@ -59,6 +69,16 @@ SECTIONS: tuple[tuple[str, Table], ...] = (
     ("invoices", invoice),
     ("importTemplates", import_template),
     ("feedback", feedback),
+    ("suppliers", supplier),
+    ("stockProducts", stock_product),
+    ("stockReceipts", stock_receipt),
+    ("stockReceiptLines", stock_receipt_line),
+    ("stockMovements", stock_movement),
+    ("auditLog", audit_log),
+    ("equipment", equipment),
+    ("hygieneTasks", hygiene_task),
+    ("hygieneTasksDone", hygiene_task_done),
+    ("hygieneRegister", hygiene_task_due),
 )
 
 

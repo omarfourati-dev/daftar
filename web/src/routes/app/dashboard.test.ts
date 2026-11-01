@@ -140,6 +140,44 @@ describe('/app – today at a glance', () => {
 		expect(overdue.getByRole('button', { name: 'Absent' })).toBeInTheDocument();
 	});
 
+	it('shows the card "À commander" with the number of products at their threshold (spec stock-hygiène 8)', async () => {
+		dashboardApi({ 'GET /api/dashboard': () => json(200, { ...dashboard, onlineRequests: [], stockToOrder: 3 }) });
+		render(Page);
+		const card = within(await screen.findByRole('region', { name: 'À commander' }));
+		expect(card.getByText('3 produit(s) au seuil de commande')).toBeInTheDocument();
+		expect(card.getByRole('link', { name: 'Voir la liste' })).toHaveAttribute('href', '/app/stock?tab=commander');
+	});
+
+	it('shows "Hygiène du jour" with the overdue task on top and ticks in one tap (spec stock-hygiène 5.2)', async () => {
+		const hygiene = {
+			day: '2026-10-30',
+			open: 2,
+			items: [
+				{ taskId: 1, title: 'Test Bowie-Dick', equipmentName: 'Autoclave', frequency: 'weekly', instructions: '', dueOn: '2026-10-26', state: 'overdue', done: null },
+				{ taskId: 2, title: 'Purge des conduits', equipmentName: null, frequency: 'daily', instructions: '', dueOn: '2026-10-30', state: 'due', done: null }
+			]
+		};
+		dashboardApi({
+			'GET /api/dashboard': () => json(200, { ...dashboard, onlineRequests: [], hygiene }),
+			'POST /api/hygiene/tasks/2/done': () =>
+				json(201, { ...hygiene.items[1], state: 'done', done: { id: 5, doneBy: 'Salma', doneAt: '2026-10-30T10:12:00+01:00', result: 'ok', note: '', undoable: true } })
+		});
+		render(Page);
+		const card = within(await screen.findByRole('region', { name: 'Hygiène du jour' }));
+		expect(card.getByText('2 à faire')).toBeInTheDocument();
+		expect(card.getAllByRole('listitem')[0]).toHaveTextContent('En retard depuis le 26/10/2026');
+		await fireEvent.click(card.getByRole('button', { name: 'Fait – Purge des conduits' }));
+		expect(await card.findByText('1 à faire')).toBeInTheDocument();
+		expect(card.getByRole('link', { name: 'Voir l’hygiène' })).toHaveAttribute('href', '/app/hygiene');
+	});
+
+	it('leaves the hygiene card away when the practice has no plan', async () => {
+		dashboardApi({ 'GET /api/dashboard': () => json(200, { ...dashboard, onlineRequests: [], hygiene: { day: '2026-10-30', open: 0, items: [] } }) });
+		render(Page);
+		await screen.findByRole('list', { name: 'Résumé de la journée' });
+		expect(screen.queryByRole('region', { name: 'Hygiène du jour' })).not.toBeInTheDocument();
+	});
+
 	it('hides the lists that have nothing to do', async () => {
 		dashboardApi({
 			'GET /api/appointments/overdue': () => json(200, []),

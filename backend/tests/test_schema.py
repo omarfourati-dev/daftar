@@ -32,6 +32,16 @@ from daftar.tables import (
     import_template,
     feedback,
     password_reset,
+    audit_log,
+    equipment,
+    hygiene_task,
+    hygiene_task_done,
+    hygiene_task_due,
+    stock_movement,
+    stock_product,
+    stock_receipt,
+    stock_receipt_line,
+    supplier,
 )
 
 REFLECTED = {"BigInteger": "BIGINT", "Integer": "INTEGER", "Text": "TEXT", "DateTime": "TIMESTAMP",
@@ -279,6 +289,27 @@ def test_deleting_a_practice_deletes_everything_of_it(
             conn.execute(insert(feedback).values(practice_id=p.id, user_id=user.id, message="Super", page="/app"))
             conn.execute(insert(cash_closing).values(practice_id=p.id, day=date(2026, 10, 29), expected_cash_millimes=0,
                                                      counted_cash_millimes=0, closed_by=user.id, closed_at=clock.now()))
+            sup = conn.execute(insert(supplier).values(practice_id=p.id, name="Dentalia").returning(supplier.c.id)).scalar_one()
+            product = conn.execute(insert(stock_product).values(practice_id=p.id, name="Gants", supplier_id=sup)
+                                   .returning(stock_product.c.id)).scalar_one()
+            receipt = conn.execute(insert(stock_receipt).values(practice_id=p.id, received_on=date(2026, 10, 29), supplier_id=sup,
+                                                                created_by=user.id).returning(stock_receipt.c.id)).scalar_one()
+            line = conn.execute(insert(stock_receipt_line).values(practice_id=p.id, receipt_id=receipt, product_id=product,
+                                                                  quantity=5).returning(stock_receipt_line.c.id)).scalar_one()
+            conn.execute(insert(stock_movement).values(practice_id=p.id, product_id=product, kind="receipt", quantity=5,
+                                                       receipt_line_id=line, created_by=user.id))
+            conn.execute(insert(audit_log).values(practice_id=p.id, user_id=user.id, entity="stock_movement", entity_id=1,
+                                                  action="delete"))
+            gear = conn.execute(insert(equipment).values(practice_id=p.id, name="Autoclave", kind="autoclave")
+                                .returning(equipment.c.id)).scalar_one()
+            task = conn.execute(insert(hygiene_task).values(practice_id=p.id, title="Bowie-Dick", equipment_id=gear,
+                                                            frequency="weekly", weekday=1, starts_on=date(2026, 10, 26))
+                                .returning(hygiene_task.c.id)).scalar_one()
+            conn.execute(insert(hygiene_task_done).values(practice_id=p.id, task_id=task, due_on=date(2026, 10, 26),
+                                                          done_by=user.id, done_at=clock.now()))
+            conn.execute(insert(hygiene_task_due).values(practice_id=p.id, task_id=task, due_on=date(2026, 10, 26),
+                                                         title="Bowie-Dick", equipment_id=gear, equipment_name="Autoclave",
+                                                         status="done"))
     with db.begin() as conn:
         conn.execute(delete(practice).where(practice.c.id == doomed.id))
         for table in ALL_TABLES:

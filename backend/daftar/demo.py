@@ -5,8 +5,8 @@ Every visitor gets an own practice (``is_demo``, slug ``demo-<8>``, expires afte
 names (Arabic script in an Arabic demo) and phone numbers ``+21600000001…`` (the prefix 00 does not exist),
 a family sharing one number, medical alerts, appointments from −14 to +7 days (done, no-show, cancelled, confirmed,
 online requests), today's waiting room (3 waiting, 1 in treatment), acts, instalments and a deposit, cash closings
-(one verified, yesterday's waiting for the owner), tomorrow's reminders, and recurring sessions for physiotherapists
-and psychologists. Appointments are written directly
+(one verified, yesterday's waiting for the owner), tomorrow's reminders, recurring sessions for physiotherapists
+and psychologists, a filled stock (:mod:`daftar.demo_stock`) and three weeks of hygiene proofs (:mod:`daftar.demo_hygiene`). Appointments are written directly
 into the tables and never overlap (the database's EXCLUDE constraints would refuse them).
 
 Realistic (fixlist 2): today's appointments that ended before now are done (at most one no-show today), so the
@@ -35,6 +35,8 @@ from sqlalchemy import Connection, delete, insert, select
 
 from .auth import Session, session_for
 from .catalog import Specialty, insert_default_services
+from .demo_hygiene import seed_hygiene
+from .demo_stock import seed_stock
 from .clock import TUNIS, at_tunis
 from .context import AppContext
 from .deps import ClientIp, Conn, Ctx
@@ -530,6 +532,11 @@ def seed_demo(conn: Connection, *, now: datetime, lang: str, specialty: str, rng
     seeder.money()
     seeder.cash_closings()
     seeder.waiting_room()
+    seed_stock(conn, practice_id=seeder.practice_id, user_id=seeder.user_id, specialty=specialty,
+               arabic=seeder.arabic, now=now, plans=seeder.plans, rng=seeder.rng)
+    seed_hygiene(conn, practice_id=seeder.practice_id, user_id=seeder.user_id,
+                 user_name="د. تجربة" if seeder.arabic else "Dr. Démo", specialty=specialty, arabic=seeder.arabic, now=now,
+                 rng=seeder.rng)
     return seeder.user_id
 
 

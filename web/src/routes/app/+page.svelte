@@ -2,7 +2,8 @@
 	/**
 	 * /app "Aujourd'hui" – the desk's start page: the day in five numbers, online requests to confirm or decline (with a
 	 * WhatsApp message), appointments whose time has passed without arrival ("Non venus ?", story B5), the next
-	 * appointments, and for the owner the "Premiers pas" checklist (story A5) until it is done or hidden.
+	 * appointments, "Hygiène du jour" and "À commander" (spec stock-hygiène 5.2, 8), and for the owner the "Premiers pas" checklist (story A5)
+	 * until it is done or hidden.
 	 */
 	import { errorText } from '#lib/agenda/errors';
 	import { onMount } from 'svelte';
@@ -19,6 +20,7 @@
 	import type { Appointment, Dashboard, Onboarding, PracticeSettings } from '#lib/types/agenda';
 	import Icon, { type IconName } from '../../lib/components/daily/Icon.svelte';
 	import StatusPill from '../../lib/components/agenda/StatusPill.svelte';
+	import HygieneToday from '../../lib/components/hygiene/HygieneToday.svelte';
 
 	const STEP_LINKS: Record<string, string> = {
 		hours: '/app/reglages/horaires',
@@ -44,6 +46,8 @@
 	let handled = $state<Record<number, { text: string; message?: PatientMessage; appointment: Appointment }>>({});
 	let busy = $state<number | null>(null);
 	let rowError = $state('');
+	/** Open hygiene tasks of the card, updated when one is ticked there. */
+	let hygieneOpen = $state(0);
 
 	async function load() {
 		error = '';
@@ -54,6 +58,7 @@
 				api<PracticeSettings>('/api/practice').catch(() => null)
 			]);
 			data = d;
+			hygieneOpen = d.hygiene?.open ?? 0;
 			overdue = late;
 			requests = [...(d.onlineRequests ?? [])].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
 			practice = p;
@@ -311,6 +316,28 @@
 						</li>
 					{/each}
 				</ul>
+			</section>
+		{/if}
+
+		{#if data?.hygiene?.items.length}
+			<section aria-labelledby="hygiene-card-title" class="card flex flex-col gap-3">
+				<div class="flex flex-wrap items-center justify-between gap-2">
+					<h2 id="hygiene-card-title" class="text-lg font-bold">{t('hygiene.today.title')}</h2>
+					{#if hygieneOpen}<span class="rounded-full bg-accent-400 px-2.5 py-0.5 text-sm font-bold text-ink">{t('hygiene.today.openCount', { count: hygieneOpen })}</span>{/if}
+				</div>
+				<HygieneToday data={data.hygiene} compact onchange={(d) => (hygieneOpen = d.open)} />
+				<a class="self-start text-sm font-semibold text-brand-800 underline-offset-2 hover:underline" href="/app/hygiene">{t('hygiene.today.seeAll')}</a>
+			</section>
+		{/if}
+
+		{#if data?.stockToOrder}
+			<section aria-labelledby="stock-card-title" class="card flex flex-wrap items-center gap-3 border-amber-300 bg-amber-50/60">
+				<span class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-amber-100 text-amber-900" aria-hidden="true"><Icon name="alert" /></span>
+				<div class="min-w-0 flex-1">
+					<h2 id="stock-card-title" class="text-lg font-bold">{t('stock.card.title')}</h2>
+					<p class="text-sm text-slate-700">{t('stock.card.count', { count: data.stockToOrder })}</p>
+				</div>
+				<a class="btn-secondary min-h-11" href="/app/stock?tab=commander">{t('stock.card.link')}</a>
 			</section>
 		{/if}
 

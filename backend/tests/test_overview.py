@@ -121,7 +121,7 @@ def test_badges_count_open_requests_and_overdue_appointments(
     make_appointment(make_patient(other), starts_at=at(14, 0), status="requested", source="online")
     res = client.get("/api/badges", headers=auth_headers(make_user(practice_row, "assistant")))
     assert res.status_code == 200, res.text
-    assert res.json() == {"onlineRequests": 2, "overdue": 2}
+    assert res.json() == {"onlineRequests": 2, "overdue": 2, "stockToOrder": 0, "hygiene": 0}
     assert_problem(client.get("/api/badges"), 401, "unauthorized")
 
 

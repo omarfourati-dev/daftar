@@ -31,6 +31,8 @@
 		{ href: '/app/patients', key: 'nav.patients' },
 		{ href: '/app/caisse', key: 'nav.caisse' },
 		{ href: '/app/rappels', key: 'nav.rappels' },
+		{ href: '/app/stock', key: 'nav.stock' },
+		{ href: '/app/hygiene', key: 'nav.hygiene' },
 		{ href: '/app/statistiques', key: 'nav.statistiques', ownerOnly: true },
 		{ href: '/app/reglages', key: 'nav.reglages' }
 	];
@@ -47,10 +49,17 @@
 
 	const isAdmin = $derived(auth.user?.role === 'admin');
 	const items = $derived(isAdmin ? ADMIN : STAFF.filter((i) => !i.ownerOnly || auth.user?.role === 'owner'));
-	/** Online requests + overdue appointments, shown next to "Aujourd'hui" (they are handled there). */
-	const badgeFor = (href: string) => (href === '/app' && !isAdmin ? badges.total : 0);
+	/** Online requests + overdue appointments next to "Aujourd'hui" (they are handled there), products to order next to
+	 * "Stock", open hygiene tasks next to "Hygiène"; on phones the menu "Plus" carries the sum of what it hides. */
+	const BADGES: Record<string, () => number> = {
+		'/app': () => badges.total,
+		'/app/stock': () => badges.stockToOrder,
+		'/app/hygiene': () => badges.hygiene
+	};
+	const badgeFor = (href: string) => (isAdmin ? 0 : (BADGES[href]?.() ?? 0));
 	const bottom = $derived(items.slice(0, isAdmin ? items.length : 4));
 	const more = $derived(isAdmin ? [] : items.slice(4));
+	const moreBadge = $derived(more.reduce((sum, item) => sum + badgeFor(item.href), 0));
 	const tools = $derived(isAdmin ? [] : TOOLS.filter((i) => i.roles.includes(String(auth.user?.role))));
 	const practice = $derived(auth.user?.practice ?? null);
 	let moreOpen = $state(false);
@@ -200,7 +209,10 @@
 					type="button"
 					class="flex min-h-14 flex-1 items-center justify-center text-xs font-medium text-slate-600"
 					aria-expanded={moreOpen}
-					onclick={() => (moreOpen = !moreOpen)}>{t('nav.more')}</button
+					onclick={() => (moreOpen = !moreOpen)}
+					>{t('nav.more')}{#if moreBadge}<span class="ms-1 rounded-full bg-accent-400 px-1.5 text-[0.7rem] font-bold text-ink tabular-nums"
+							><span aria-hidden="true">{moreBadge}</span><span class="sr-only"> – {t('nav.toHandle', { count: moreBadge })}</span></span
+						>{/if}</button
 				>
 			{/if}
 		</nav>
@@ -220,7 +232,9 @@
 				</div>
 				{#each more as item (item.href)}
 					<a href={item.href} class="rounded-lg px-3 py-3 font-medium text-slate-700" onclick={() => (moreOpen = false)}
-						>{t(item.key)}</a
+						>{t(item.key)}{#if badgeFor(item.href)}<span class="ms-2 rounded-full bg-accent-400 px-2 text-xs font-bold text-ink tabular-nums"
+								><span aria-hidden="true">{badgeFor(item.href)}</span><span class="sr-only"> – {t('nav.toHandle', { count: badgeFor(item.href) })}</span></span
+							>{/if}</a
 					>
 				{/each}
 				{#if tools.length}

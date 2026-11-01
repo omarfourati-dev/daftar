@@ -53,8 +53,8 @@ test('B2 – new appointment from a free slot; a taken slot proposes the next fr
 	await expect(conflict).toContainText('Sami Slot');
 	await conflict.getByRole('button').first().click();
 	await expect(page.getByRole('status')).toHaveText('Rendez-vous enregistré.');
-	const list = await p.api.get(`/api/patients/${lina.id}/appointments`);
-	expect(list).toHaveLength(1);
+	// the status above may still be the one of the first booking: wait for the server, not for the text
+	await expect.poll(async () => (await p.api.get(`/api/patients/${lina.id}/appointments`)).length).toBe(1);
 	void sami;
 });
 

@@ -1,10 +1,11 @@
 import { fireEvent, render, screen, within } from '@testing-library/svelte';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from './+page.svelte';
 import { auth } from '#lib/auth.svelte';
 import { clock } from '#lib/clock';
 import { i18n } from '#lib/i18n.svelte';
 import { calls, json, mockApi, problem } from '#lib/test-utils';
+import * as download from '#lib/download';
 import { assistant, NOW, owner } from '#lib/agenda/fixtures';
 
 const october = {
@@ -28,15 +29,41 @@ const october = {
 	}
 };
 
+const material = {
+	month: '2026-10',
+	spendingMillimes: 210000,
+	previousSpendingMillimes: 50000,
+	unpricedLines: 1,
+	bySupplier: [{ name: 'Dentalia Sfax', amountMillimes: 210000 }],
+	byCategory: [
+		{ category: 'hygiene', amountMillimes: 120000 },
+		{ category: 'restauration', amountMillimes: 90000 }
+	],
+	usageMillimes: 66000,
+	wasteMillimes: 12000,
+	byService: [
+		{ serviceId: 11, name: 'Soin carie / composite', treatments: 2, materialCostMillimes: 54000, perTreatmentMillimes: 27000, items: [{ productId: 3, name: 'Composite', unit: 'piece', quantity: 1, costMillimes: 30000 }] },
+		{ serviceId: null, name: null, treatments: 0, materialCostMillimes: 12000, perTreatmentMillimes: null, items: [] }
+	],
+	topMaterials: [{ productId: 1, name: 'Gants d’examen', unit: 'boite', quantity: 3, costMillimes: 36000 }]
+};
+
 describe('/app/statistiques – the month for the owner', () => {
 	beforeEach(() => {
 		auth.set('tok', owner);
 		i18n.setLocale('fr');
+		// the month shown and the CSV name come from "now": never from the day the suite runs (CI ran on 01.11.)
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(new Date(NOW));
 		clock.now = () => new Date(NOW);
 	});
 
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
 	it('shows the key numbers with the comparison to last month', async () => {
-		mockApi({ 'GET /api/stats?month=2026-10': () => json(200, october) });
+		mockApi({ 'GET /api/stats?month=2026-10': () => json(200, october), 'GET /api/stock/stats?month=2026-10': () => json(200, material) });
 		render(Page);
 		expect(screen.getByRole('heading', { level: 1, name: 'Statistiques' })).toBeInTheDocument();
 		expect(await screen.findByText('octobre 2026')).toBeInTheDocument();
@@ -61,10 +88,39 @@ describe('/app/statistiques – the month for the owner', () => {
 		expect(screen.getByRole('img', { name: 'Ce mois et le mois précédent' })).toBeInTheDocument();
 	});
 
+	it('shows the material of the month: spending, cost per act, and the CSV (spec stock-hygiène 4.3)', async () => {
+		const save = vi.spyOn(download, 'saveBlob').mockImplementation(() => undefined);
+		mockApi({
+			'GET /api/stats?month=2026-10': () => json(200, october),
+			'GET /api/stock/stats?month=2026-10': () => json(200, material),
+			'GET /api/stock/export.csv?month=2026-10': () => new Response('Date;Type', { status: 200, headers: { 'Content-Type': 'text/csv' } })
+		});
+		render(Page);
+		const region = within(await screen.findByRole('region', { name: 'Matériel du mois' }));
+		const spending = (await region.findByText('Achats')).closest('li') as HTMLElement;
+		expect(spending).toHaveTextContent('210 DT');
+		expect(spending).toHaveTextContent('+160 DT par rapport à septembre');
+		const table = within(region.getByRole('table', { name: 'Coût du matériel par acte' }));
+		const soin = table.getByRole('row', { name: /Soin carie/ });
+		expect(soin).toHaveTextContent('2');
+		expect(soin).toHaveTextContent('54 DT');
+		expect(soin).toHaveTextContent('27 DT');
+		expect(table.getByRole('row', { name: /Sans acte précisé/ })).toHaveTextContent('12 DT');
+		expect(region.getByText('1 ligne(s) reçue(s) sans prix ne sont pas comptées.')).toBeInTheDocument();
+		await fireEvent.click(region.getByRole('button', { name: 'Exporter le mois (CSV)' }));
+		await vi.waitFor(() => expect(save).toHaveBeenCalled());
+		const [blob, filename] = save.mock.calls[0];
+		expect(filename).toBe('stock-2026-10.csv');
+		expect(await blob.text()).toBe('Date;Type'); // a Blob of undici or jsdom alike (no instanceof across realms)
+		save.mockRestore();
+	});
+
 	it('goes back one month', async () => {
 		mockApi({
 			'GET /api/stats?month=2026-10': () => json(200, october),
-			'GET /api/stats?month=2026-09': () => json(200, { ...october.previous, previous: { ...october.previous, month: '2026-08' } })
+			'GET /api/stats?month=2026-09': () => json(200, { ...october.previous, previous: { ...october.previous, month: '2026-08' } }),
+			'GET /api/stock/stats?month=2026-10': () => json(200, material),
+			'GET /api/stock/stats?month=2026-09': () => json(200, { ...material, month: '2026-09' })
 		});
 		render(Page);
 		await screen.findByText('octobre 2026');

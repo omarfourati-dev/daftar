@@ -2,7 +2,8 @@
 	/**
 	 * /app/statistiques – the month for the owner (story H1): appointments, patients who came, no-show rate, cancelled,
 	 * online share, cash received, new patients – each compared with the previous month – plus a small bar chart and the
-	 * most frequent services. Plain SVG/CSS, no chart library.
+	 * most frequent services, and the material of the month (spending, cost per act – spec stock-hygiène 4.3). Plain
+	 * SVG/CSS, no chart library.
 	 */
 	import { api } from '#lib/api';
 	import { auth } from '#lib/auth.svelte';
@@ -10,6 +11,7 @@
 	import { money } from '#lib/agenda/format';
 	import { i18n, t, todayTunis } from '#lib/i18n.svelte';
 	import Icon from '../../../lib/components/daily/Icon.svelte';
+	import StockStats from '../../../lib/components/stock/StockStats.svelte';
 
 	type Month = {
 		month: string;
@@ -203,5 +205,7 @@
 				{/if}
 			</section>
 		</div>
+
+		<StockStats {month} previousName={monthName(stats.previous.month, false)} />
 	{/if}
 </div>

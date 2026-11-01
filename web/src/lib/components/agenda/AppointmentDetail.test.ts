@@ -47,6 +47,15 @@ describe('AppointmentDetail – status workflow with big buttons', () => {
 		expect(dialog.getByRole('link', { name: 'Appeler' })).toHaveAttribute('href', 'tel:+21620000002');
 	});
 
+	it('offers the optional material once the patient is there, never before (spec stock-hygiène 4.2)', () => {
+		mockApi({});
+		const { dialog } = open(appt({ id: 4, status: 'in_treatment' }));
+		expect(dialog.getByRole('button', { name: 'Noter le matériel utilisé' })).toHaveAttribute('aria-expanded', 'false');
+		screen.getByRole('dialog').remove();
+		const planned = open(appt({ id: 5, status: 'confirmed' }));
+		expect(planned.dialog.queryByRole('button', { name: 'Noter le matériel utilisé' })).not.toBeInTheDocument();
+	});
+
 	it('confirms an online request and prepares the WhatsApp message in the patient’s language', async () => {
 		const a = appt({ id: 3, status: 'requested', patient: { id: 9, firstName: 'Lina', lastName: 'Zouari', phone: '+21620000002', noShows: 0, lang: 'ar' } });
 		mockApi({ 'POST /api/appointments/3/status': () => json(200, { ...a, status: 'confirmed' }) });
