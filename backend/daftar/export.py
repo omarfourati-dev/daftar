@@ -38,6 +38,10 @@ from .tables import (
     practitioner,
     queue_entry,
     service,
+    specimen_label_log,
+    sterile_pack,
+    sterile_pack_use,
+    sterilization_cycle,
     stock_movement,
     stock_product,
     stock_receipt,
@@ -79,6 +83,10 @@ SECTIONS: tuple[tuple[str, Table], ...] = (
     ("hygieneTasks", hygiene_task),
     ("hygieneTasksDone", hygiene_task_done),
     ("hygieneRegister", hygiene_task_due),
+    ("sterilizationCycles", sterilization_cycle),
+    ("sterilePacks", sterile_pack),
+    ("sterilePackUses", sterile_pack_use),
+    ("specimenLabels", specimen_label_log),
 )
 
 
