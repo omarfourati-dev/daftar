@@ -20,12 +20,13 @@ def _prices(db: Engine) -> dict[str, int]:
 
 def test_0007_lowers_the_paid_plans_and_keeps_invoices(db: Engine, make_practice: Callable[..., Any]) -> None:
     assert _prices(db) == NEW
+    # the practice is made at head: the factory returns every column of today's table (0012 added label_settings)
+    p = make_practice(status="active", plan_code="cabinet_mensuel")
     try:
         with db.begin() as conn:
             command.downgrade(_alembic(conn), "0006")
         assert _prices(db) == {"pilot": 0, "cabinet_mensuel": 49_000, "cabinet_annuel": 490_000}
 
-        p = make_practice(status="active", plan_code="cabinet_mensuel")
         with db.begin() as conn:
             conn.execute(insert(invoice).values(practice_id=p.id, number="DAF-2026-0001", plan_code="cabinet_mensuel",
                                                 period_start=date(2026, 11, 1), period_end=date(2026, 11, 30),
