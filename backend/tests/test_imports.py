@@ -348,6 +348,7 @@ def test_commit_creates_patients_with_opening_balances_and_deletes_the_file(
     amira = rows[0]
     assert (amira.first_name, amira.phone, amira.birth_year, amira.lang, amira.alerts, amira.notes) == (
         "Amira", "+21620123456", 1985, "ar", "Pénicilline", "Réf. : D-001")
+    assert amira.birth_date == date(1985, 3, 1)  # the full date, for specimen labels
     assert [(b.label, b.price_millimes, b.performed_on, b.patient_id) for b in balances] == [
         ("Reprise de solde", 120_500, date(2026, 10, 30), amira.id)]
     assert job_row.committed_at == T0 and job_row.file_bytes is None

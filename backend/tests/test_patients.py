@@ -127,6 +127,7 @@ def test_summary_counts_reliability_balance_and_next_appointment(
         "lastName": pat.last_name,
         "phone": pat.phone,
         "birthYear": None,
+        "birthDate": None,
         "lang": "fr",
         "reminderConsent": False,
         "noShows": 2,

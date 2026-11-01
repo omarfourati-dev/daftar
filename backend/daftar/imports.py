@@ -409,11 +409,12 @@ def _patient_values(row: Row, options: ImportOptions, today: date) -> dict[str, 
     if phone is None and not any(p.field == "phone" for p in row.problems):
         row.fail("phone", "Téléphone manquant.")
     birth_year = None
+    birth_date = None
     if "birthDate" in row.used and not is_blank(row.get("birthDate")):
         born = row.parse("birthDate", lambda v: parse_date(v, options.date_format, today=today))
         if born is not None:
             if 1900 <= born.year and born <= today:
-                birth_year = born.year
+                birth_year, birth_date = born.year, born
             else:
                 row.fail("birthDate", "Date de naissance invalide.")
     elif "birthYear" in row.used:
@@ -427,12 +428,23 @@ def _patient_values(row: Row, options: ImportOptions, today: date) -> dict[str, 
         "last_name": last,
         "phone": phone,
         "birth_year": birth_year,
+        "birth_date": birth_date,
         "notes": notes,
         "alerts": row.free_text("alerts", MAX_ALERTS) if "alerts" in row.used else "",
         "lang": row.parse("lang", parse_lang),
         "reminder_consent": row.parse("reminderConsent", parse_bool),
         "opening_balance": row.parse("openingBalance", parse_millimes),
     }
+
+
+def birth_values(born: date | None, year: int | None, *, current: date | None) -> dict[str, Any]:
+    """What an import changes of a patient's birth: a date sets date and year; a year alone never overwrites a known
+    date (it is more precise)."""
+    if born is not None:
+        return {"birth_date": born, "birth_year": born.year}
+    if year is not None and current is None:
+        return {"birth_year": year}
+    return {}
 
 
 def _patient_sample(number: int, v: dict[str, Any], options: ImportOptions) -> dict[str, Any]:
@@ -523,7 +535,7 @@ def commit_patients(conn: Connection, practice_id: int, plan: Plan, options: Imp
     if plan.creates:
         rows = [{
             "practice_id": practice_id, "first_name": v["first_name"], "last_name": v["last_name"], "phone": v["phone"],
-            "birth_year": v["birth_year"], "lang": v["lang"] or options.default_lang,
+            "birth_year": v["birth_year"], "birth_date": v["birth_date"], "lang": v["lang"] or options.default_lang,
             "reminder_consent": options.reminder_consent if v["reminder_consent"] is None else v["reminder_consent"],
             "notes": v["notes"], "alerts": v["alerts"], "created_at": now,
         } for v in plan.creates]
@@ -531,10 +543,9 @@ def commit_patients(conn: Connection, practice_id: int, plan: Plan, options: Imp
         balances += [balance(pid, v["opening_balance"]) for pid, v in zip(ids, plan.creates, strict=True)
                      if v["opening_balance"]]
     for patient_id, v in plan.updates:
-        current = conn.execute(select(patient.c.notes).where(patient.c.id == patient_id).with_for_update()).one()
-        changes: dict[str, Any] = {}
-        if v["birth_year"] is not None:
-            changes["birth_year"] = v["birth_year"]
+        current = conn.execute(select(patient.c.notes, patient.c.birth_date).where(patient.c.id == patient_id)
+                               .with_for_update()).one()
+        changes: dict[str, Any] = birth_values(v["birth_date"], v["birth_year"], current=current.birth_date)
         if v["alerts"]:
             changes["alerts"] = v["alerts"]
         if v["lang"] is not None:
