@@ -1,8 +1,9 @@
 <script lang="ts">
 	/**
-	 * The owner corrects a cycle – a biological indicator read "non conforme" the next day recalls its packs – or deletes
-	 * a cycle entered by mistake (only while none of its packs was used). Always with a reason; the change log keeps
-	 * who, when, old → new and why.
+	 * The owner corrects a cycle – a biological indicator read "non conforme" the next day recalls its packs – or cancels
+	 * a cycle entered by mistake (only while none of its packs was used): it stays in the register with its number, its
+	 * codes are never given again, its printed labels are to be thrown away (review H1). Always with a reason; the
+	 * change log keeps who, when, old → new and why.
 	 */
 	import { untrack } from 'svelte';
 	import { api } from '../../api';
@@ -21,17 +22,19 @@
 	let reason = $state('');
 	let error = $state('');
 	let busy = $state(false);
+	/** "Annuler ce cycle…" was tapped: the consequences and the last button are shown. */
+	let cancelling = $state(false);
 	const used = start.packs.some((p) => p.use);
 
-	async function send(remove: boolean) {
+	async function send(cancel: boolean) {
 		if (!reason.trim()) return void (error = t('labels.errors.reason_required'));
 		busy = true;
 		error = '';
 		try {
 			const path = `/api/hygiene/cycles/${start.id}`;
-			if (remove) {
-				await api(path, { method: 'DELETE', json: { reason: reason.trim() } });
-				onsaved(t('labels.correction.deleted'), null);
+			if (cancel) {
+				const cancelled = await api<Cycle>(`${path}/cancel`, { method: 'POST', json: { reason: reason.trim() } });
+				onsaved(t('labels.correction.cancelled'), cancelled);
 			} else {
 				const saved = await api<Cycle>(path, { method: 'PATCH', json: { result, program: program.trim(), note: note.trim(), reason: reason.trim() } });
 				onsaved(t('labels.correction.saved'), saved);
@@ -68,12 +71,29 @@
 		<label class="label">{t('labels.cycleDialog.note')}<input class="input" bind:value={note} maxlength="500" autocomplete="off" dir="auto" /></label>
 		<label class="label">{t('labels.correction.reason')}<input class="input" bind:value={reason} maxlength="300" autocomplete="off" dir="auto" data-autofocus /></label>
 		{#if error}<p role="alert" class="rounded-lg bg-rose-50 px-3 py-2 text-sm font-medium text-rose-900 ring-1 ring-rose-200">{error}</p>{/if}
-		{#if !used}
-			<button type="button" class="btn-secondary min-h-11 self-start text-sm text-rose-800" disabled={busy} onclick={() => send(true)}>{t('labels.correction.delete')}</button>
+		{#if used}
+			<p class="text-sm text-slate-600">{t('labels.correction.inUse')}</p>
+		{:else if !cancelling}
+			<button type="button" class="btn-secondary min-h-11 self-start text-sm text-rose-800" disabled={busy} onclick={() => (cancelling = true)}
+				>{t('labels.correction.cancel')}</button
+			>
+		{:else}
+			<div class="flex flex-col gap-3 rounded-xl border border-rose-300 bg-rose-50 p-3" role="group" aria-labelledby="cycle-cancel-title">
+				<p id="cycle-cancel-title" class="font-semibold text-rose-950">
+					{t('labels.correction.cancelTitle', { code: start.labelCode, number: start.number })}
+				</p>
+				<p class="text-sm text-rose-950">{t('labels.correction.cancelText')}</p>
+				<div class="flex flex-wrap gap-2">
+					<button type="button" class="btn min-h-11 bg-rose-700 text-sm text-white hover:bg-rose-800" disabled={busy} onclick={() => send(true)}
+						>{t('labels.correction.cancelConfirm')}</button
+					>
+					<button type="button" class="btn-secondary min-h-11 text-sm" onclick={() => (cancelling = false)}>{t('labels.correction.cancelBack')}</button>
+				</div>
+			</div>
 		{/if}
 	</form>
 	{#snippet footer()}
-		<button type="button" class="btn-secondary" onclick={onclose}>{t('common.cancel')}</button>
+		<button type="button" class="btn-secondary" onclick={onclose}>{t('common.back')}</button>
 		<button type="submit" form="cycle-correction" class="btn-primary" disabled={busy}>{t('labels.correction.save')}</button>
 	{/snippet}
 </Modal>

@@ -4,7 +4,7 @@ export type LabelFormat = 'roll62' | 'label57x32' | 'a4_3x8';
 export type LabelKind = 'sterile' | 'specimen';
 export type Packaging = 'sachet' | 'double_sachet' | 'conteneur' | 'champ';
 export type SpecimenKind = 'edta' | 'sec' | 'citrate' | 'heparine' | 'urine' | 'selles' | 'frottis' | 'autre';
-export type PackState = 'usable' | 'expired' | 'used' | 'not_sterile';
+export type PackState = 'usable' | 'expired' | 'used' | 'not_sterile' | 'cancelled';
 export type CycleResult = 'ok' | 'not_ok';
 
 export interface LabelSettings {
@@ -12,10 +12,14 @@ export interface LabelSettings {
 	shelfLifeDays: Record<Packaging, number>;
 }
 
+/** The use of a pack in a list of packs: whom it went to only for the owner (`patient*` null for the desk). */
 export interface PackUseBrief {
 	id: number;
-	patientId: number;
-	patientName: string;
+	patientId: number | null;
+	patientName: string | null;
+	patientNo: number | null;
+	/** The patient was erased: the pack stays used, only the number is kept. */
+	patientDeleted: boolean;
 	appointmentId: number | null;
 	usedAt: string;
 	usedBy: string;
@@ -39,6 +43,8 @@ export interface PackFound extends Pack {
 	number: number;
 	equipmentName: string;
 	runAt: string;
+	/** Why its cycle was cancelled (null: not cancelled). */
+	cancelReason: string | null;
 }
 
 export interface Cycle {
@@ -52,9 +58,16 @@ export interface Cycle {
 	result: CycleResult;
 	packCount: number;
 	note: string;
+	/** Who ran the cycle (its initials are on the labels) and who entered it. */
 	performedBy: string;
+	performedById: number | null;
 	initials: string;
+	recordedBy: string;
 	createdAt: string;
+	/** Cancelled by the owner (entered by mistake): its number and codes stay taken, its labels are void. */
+	cancelledAt: string | null;
+	cancelledBy: string | null;
+	cancelReason: string | null;
 	packs: Pack[];
 }
 
@@ -76,6 +89,8 @@ export interface CycleSetup {
 	autoclaves: Autoclave[];
 	programs: string[];
 	contents: string[];
+	/** Who may have run the cycle ("fait par"). */
+	team: { id: number; name: string; initials: string }[];
 }
 
 /** A pack opened for a patient (`POST /api/hygiene/pack-uses`, `GET …?appointmentId=`). */
@@ -87,8 +102,11 @@ export interface PackUse {
 	packaging: Packaging;
 	expiresOn: string;
 	cycle: { id: number; labelCode: string; number: number; equipmentName: string; runAt: string; result: CycleResult };
-	patientId: number;
-	patientName: string;
+	/** null once the patient was erased (`patientDeleted`); the number stays. */
+	patientId: number | null;
+	patientName: string | null;
+	patientNo: number;
+	patientDeleted: boolean;
 	appointmentId: number | null;
 	usedAt: string;
 	usedBy: string;

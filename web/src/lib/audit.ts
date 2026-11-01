@@ -2,6 +2,7 @@
  * The change log of stock and hygiene in words (spec stock-hygiène 8, review M3): who changed, corrected or deleted
  * what, when, old → new – never a raw code. Backend: daftar/audit.py (`GET /api/audit-log?entity=a,b`); an update
  * names its object in `before` (product, supplier, task, equipment …) and holds only the new values in `after`.
+ * A cancelled sterilisation cycle is an update to `{cancelled: true}` – it reads "a annulé le cycle …".
  */
 import { money } from './agenda/format';
 import { displayPhone } from './agenda/links';
@@ -58,9 +59,12 @@ export function auditValue(field: string, value: unknown): string {
 	return (FORMAT[field] ?? str)(value);
 }
 
+/** A cycle entered by mistake, cancelled by the owner (review H1). */
+const isCancellation = (entry: AuditEntry) => entry.entity === 'sterilization_cycle' && entry.after?.cancelled === true;
+
 /** "Seuil de commande : 4 → 6", one line per changed field of an update. */
 export function auditChanges(entry: AuditEntry): string[] {
-	if (entry.action !== 'update' || !entry.after) return [];
+	if (entry.action !== 'update' || !entry.after || isCancellation(entry)) return [];
 	const before = entry.before ?? {};
 	return Object.entries(entry.after).map(([field, value]) =>
 		t('audit.change', {
@@ -84,8 +88,10 @@ export function auditSummary(entry: AuditEntry): string {
 		by: str(b.doneBy),
 		cycle: str(b.cycle),
 		code: str(b.code),
-		patient: str(b.patient)
+		// an erased patient: only his number is kept (review M4)
+		patient: isEmpty(b.patient) && !isEmpty(b.patientNo) ? t('labels.trace.deletedPatient', { no: str(b.patientNo) }) : str(b.patient)
 	};
-	const what = translate(`audit.what.${entry.entity}.${entry.action}`, params) ?? t('audit.what.other');
+	const action = isCancellation(entry) ? 'cancel' : entry.action;
+	const what = translate(`audit.what.${entry.entity}.${action}`, params) ?? t('audit.what.other');
 	return t('audit.entry', { date: formatDateTime(entry.at), user: entry.userName, what });
 }

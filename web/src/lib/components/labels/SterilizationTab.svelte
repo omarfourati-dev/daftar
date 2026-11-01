@@ -1,15 +1,16 @@
 <script lang="ts">
 	/**
 	 * Tab "Stérilisation" of /app/hygiene (spec stock-hygiène 5.2, 5.3): a new cycle in a few taps (its labels come right
-	 * after), the cycles of a period with their packs – who got which one –, the owner's traceability search and
-	 * corrections, the label settings, and the cycle register on A4 for an inspection.
+	 * after), the cycles of a period with their packs – who got which one (the owner; the desk sees "used") –, the
+	 * owner's traceability search, corrections and cancellations, the label settings, and the cycle register on A4 for
+	 * an inspection. A cancelled cycle stays in the list and the register, marked, without labels.
 	 */
 	import { onMount } from 'svelte';
 	import { api, deps } from '../../api';
 	import { auth } from '../../auth.svelte';
 	import { clock } from '../../clock';
 	import { addDays, formatDate, formatDateTime, formatDay, formatTime, t, todayTunis } from '../../i18n.svelte';
-	import { labelsError } from '../../labels';
+	import { labelsError, patientOfUse } from '../../labels';
 	import type { Cycle, CycleList, LabelSettings } from '../../types/labels';
 	import Icon from '../daily/Icon.svelte';
 	import CycleCorrection from './CycleCorrection.svelte';
@@ -72,11 +73,13 @@
 		used: c.packs.filter((p) => p.state === 'used').length,
 		expired: c.packs.filter((p) => p.state === 'expired').length
 	});
+	const valid = $derived(list?.cycles.filter((c) => !c.cancelledAt) ?? []);
 	const summary = $derived({
-		cycles: list?.cycles.length ?? 0,
-		notOk: list?.cycles.filter((c) => c.result !== 'ok').length ?? 0,
-		packs: list?.cycles.reduce((sum, c) => sum + c.packs.length, 0) ?? 0
+		cycles: valid.length,
+		notOk: valid.filter((c) => c.result !== 'ok').length,
+		packs: valid.reduce((sum, c) => sum + c.packs.length, 0)
 	});
+	const cancelledCount = $derived((list?.cycles.length ?? 0) - valid.length);
 </script>
 
 <div class="flex flex-col gap-5">
@@ -113,11 +116,12 @@
 				<p class="text-sm">{t('hygiene.history.printedOn', { date: formatDateTime(clock.now()) })}</p>
 			</div>
 			<p class="text-sm font-semibold text-slate-700">{t('labels.cycles.summary', summary)}</p>
+			{#if cancelledCount}<p class="-mt-2 text-sm text-slate-600">{t('labels.cycles.cyclesCancelled', { count: cancelledCount })}</p>{/if}
 			{#if list.cycles.length}
 				<ul class="flex flex-col gap-3 print:hidden" aria-label={t('labels.cycles.title')}>
 					{#each list.cycles as c (c.id)}
 						{@const n = counts(c)}
-						<li class="card flex flex-col gap-3 {c.result === 'ok' ? '' : 'border-rose-300 bg-rose-50/50'}">
+						<li class="card flex flex-col gap-3 {c.cancelledAt ? 'border-dashed bg-slate-50' : c.result === 'ok' ? '' : 'border-rose-300 bg-rose-50/50'}">
 							<div class="flex items-start gap-3">
 								<div class="grid w-16 shrink-0 place-items-center rounded-lg bg-slate-50 py-1.5 ring-1 ring-slate-200" aria-hidden="true">
 									<span class="text-xs font-semibold text-slate-600" dir="ltr">{c.labelCode}</span>
@@ -129,9 +133,15 @@
 										<span class="font-normal text-slate-600 tabular-nums">{formatDate(c.runAt)} {formatTime(c.runAt)}</span>
 									</h3>
 									<p class="text-sm text-slate-600">
-										<span dir="auto">{c.equipmentName}</span>{#if c.program}{' – '}<span dir="auto">{c.program}</span>{/if}{' – '}<span dir="auto">{c.performedBy}</span>
+										<span dir="auto">{c.equipmentName}</span>{#if c.program}{' – '}<span dir="auto">{c.program}</span>{/if}{' – '}<span dir="auto">{c.performedBy}</span
+										>{#if c.recordedBy && c.recordedBy !== c.performedBy}{' '}({t('labels.cycles.recordedBy', { by: c.recordedBy })}){/if}
 									</p>
-									{#if c.result === 'ok'}
+									{#if c.cancelledAt}
+										<p class="mt-1 flex flex-wrap items-center gap-2 text-sm">
+											<span class="rounded-full bg-slate-200 px-2 text-xs font-bold text-slate-900">{t('labels.cycles.cancelledShort')}</span>
+											<span>{t('labels.cycles.cancelled', { date: formatDateTime(c.cancelledAt), by: c.cancelledBy ?? '', reason: c.cancelReason ?? '' })}</span>
+										</p>
+									{:else if c.result === 'ok'}
 										<p class="mt-1 flex flex-wrap items-center gap-2 text-sm">
 											<span class="inline-flex items-center gap-1 font-semibold text-emerald-800"><Icon name="check" class="h-4 w-4" />{t('labels.cycleDialog.ok')}</span>
 											<span>{c.packs.length ? t('labels.cycles.packs', { count: c.packs.length, ...n }) : t('labels.cycles.noPacks')}</span>
@@ -146,7 +156,7 @@
 								</div>
 							</div>
 							<div class="flex flex-wrap gap-2">
-								{#if c.result === 'ok' && c.packs.length}
+								{#if c.result === 'ok' && !c.cancelledAt && c.packs.length}
 									<a class="btn-secondary min-h-10 px-3 text-sm" href="/app/etiquettes?cycle={c.id}"
 										><Icon name="print" class="h-4 w-4" />{t('labels.cycles.labels', { code: c.labelCode, number: c.number })}</a
 									>
@@ -156,7 +166,7 @@
 										>{open.includes(c.id) ? t('labels.cycles.hidePacks') : t('labels.cycles.showPacks')}</button
 									>
 								{/if}
-								{#if isOwner}
+								{#if isOwner && !c.cancelledAt}
 									<button
 										type="button"
 										class="btn-secondary min-h-10 px-3 text-sm"
@@ -173,9 +183,12 @@
 											<span class="min-w-0 flex-1" dir="auto">{p.content}</span>
 											<StateChip state={p.state} />
 											<span class="w-full text-slate-600">
-												{t('labels.trace.useBefore', { date: formatDay(p.expiresOn) })}{#if p.use}{' – '}{t('labels.cycles.usedFor')}
-													<a class="font-semibold text-brand-800 underline-offset-2 hover:underline" href="/app/patients/{p.use.patientId}">{p.use.patientName}</a>
-													<span class="tabular-nums">({formatDate(p.use.usedAt)})</span>{/if}
+												{t('labels.trace.useBefore', { date: formatDay(p.expiresOn) })}{#if p.use}{' – '}{#if p.use.patientId !== null}{t('labels.cycles.usedFor')}
+														<a class="font-semibold text-brand-800 underline-offset-2 hover:underline" href="/app/patients/{p.use.patientId}">{p.use.patientName}</a>
+														<span class="tabular-nums">({formatDate(p.use.usedAt)})</span>{:else if p.use.patientDeleted && p.use.patientNo !== null}{t('labels.cycles.usedFor')}
+														{patientOfUse(p.use)} <span class="tabular-nums">({formatDate(p.use.usedAt)})</span>{:else}{t('labels.cycles.usedOn', {
+															date: formatDate(p.use.usedAt)
+														})}{/if}{/if}
 											</span>
 										</li>
 									{/each}
@@ -203,7 +216,13 @@
 								<td class="px-2 py-1 whitespace-nowrap tabular-nums">{formatDateTime(c.runAt)}</td>
 								<th scope="row" class="px-2 py-1 text-start font-semibold"><span dir="auto">{c.equipmentName}</span> {c.labelCode} n° {c.number}</th>
 								<td class="px-2 py-1" dir="auto">{c.program}</td>
-								<td class="px-2 py-1">{c.result === 'ok' ? t('labels.cycleDialog.ok') : t('labels.cycleDialog.notOk')}</td>
+								<td class="px-2 py-1"
+									>{c.cancelledAt
+										? t('labels.cycles.cancelled', { date: formatDateTime(c.cancelledAt), by: c.cancelledBy ?? '', reason: c.cancelReason ?? '' })
+										: c.result === 'ok'
+											? t('labels.cycleDialog.ok')
+											: t('labels.cycleDialog.notOk')}</td
+								>
 								<td class="px-2 py-1 tabular-nums">{c.packCount}</td>
 								<td class="px-2 py-1" dir="auto">{c.performedBy}</td>
 								<td class="px-2 py-1" dir="auto">{c.note}</td>

@@ -9,10 +9,16 @@
  *
  * The safe area keeps text and QR away from the edges printers cannot reach (2–2.5 mm on label printers, 4–5 mm on
  * office printers). Text is at least 7 pt, black on white; codes and dates are always left to right.
+ *
+ * Sterilisation labels stay in the practice (the screen's language); specimen labels go to the lab and are always in
+ * French (review M3) – the screen stays in the user's language.
  */
 import { ApiError, apiErrorMessage } from './api';
-import { formatDate, formatDay, formatTime, i18n, t, translate } from './i18n.svelte';
-import type { Cycle, LabelFormat, Pack, Packaging, SpecimenKind, SpecimenPrint } from './types/labels';
+import { formatDate, formatDay, formatTime, i18n, t, translate, translateIn, type Locale } from './i18n.svelte';
+import type { Cycle, LabelFormat, Pack, PackUseBrief, Packaging, SpecimenKind, SpecimenPrint } from './types/labels';
+
+/** The language of a specimen label, whatever the screen shows. */
+export const SPECIMEN_LOCALE: Locale = 'fr';
 
 export const FORMATS: readonly LabelFormat[] = ['roll62', 'label57x32', 'a4_3x8'];
 export const PACKAGINGS: readonly Packaging[] = ['sachet', 'double_sachet', 'conteneur', 'champ'];
@@ -97,8 +103,9 @@ export interface SpecimenLabel {
 	practice: string;
 	/** NOM Prénom – the family name in capitals, as labs read it. */
 	name: string;
+	/** NOM P. – when the name does not fit even at 7 pt: the family name whole, the first names as initials. */
+	shortName: string;
 	birth: string;
-	fileNo: string;
 	specimen: string;
 	collected: string;
 }
@@ -111,23 +118,53 @@ export interface TestLabel {
 
 export type LabelData = SterileLabel | SpecimenLabel | TestLabel;
 
+/** The lines of a label that get smaller to fit (and may not fit even at 7 pt). */
+export type FitField = 'content' | 'name' | 'specimen';
+
 /** "TRABELSI Sami"; Arabic names stay as they are written. */
 export const labelName = (first: string, last: string) => `${last.toLocaleUpperCase('fr')} ${first}`.trim();
 
-/** A date or time on a label: without the bidi marks of the Arabic format, and – in Arabic text – isolated left to
- * right, so "30/01/2027" never turns into "302027/01/". */
-export function labelDate(text: string): string {
-	const plain = text.replace(/[‎‏؜]/g, '');
-	return i18n.dir === 'rtl' ? `⁦${plain}⁩` : plain;
+/** "BEN HADJ ABDALLAH M. A." – the family name whole, each first name (also each part of "Mohamed-Amine") an initial. */
+export function shortLabelName(first: string, last: string): string {
+	const initials = first
+		.trim()
+		.split(/\s+/)
+		.filter(Boolean)
+		.map((word) =>
+			word
+				.split('-')
+				.map((part) => (part ? `${part[0].toLocaleUpperCase('fr')}.` : ''))
+				.join('-')
+		)
+		.join(' ');
+	return `${last.toLocaleUpperCase('fr')} ${initials}`.trim();
 }
 
-export function birthText(patient: { birthDate: string | null; birthYear: number | null }): string {
-	if (patient.birthDate) return t('labels.specimen.bornOn', { date: labelDate(formatDay(patient.birthDate)) });
-	if (patient.birthYear) return t('labels.specimen.bornIn', { year: patient.birthYear });
+/** A date or time on a label: without the bidi marks of the Arabic format, and – in Arabic text – isolated left to
+ * right, so "30/01/2027" never turns into "302027/01/". */
+export function labelDate(text: string, rtl = i18n.dir === 'rtl'): string {
+	const plain = text.replace(/[‎‏؜]/g, '');
+	return rtl ? `⁦${plain}⁩` : plain;
+}
+
+export function birthText(patient: { birthDate: string | null; birthYear: number | null }, locale: Locale = i18n.locale): string {
+	if (patient.birthDate) {
+		const date = labelDate(formatDay(patient.birthDate, 'short', locale), locale === 'ar');
+		return translateIn(locale, 'labels.specimen.bornOn', { date }) ?? '';
+	}
+	if (patient.birthYear) return translateIn(locale, 'labels.specimen.bornIn', { year: patient.birthYear }) ?? '';
 	return '';
 }
 
-export const specimenName = (kind: SpecimenKind, label = '') => (kind === 'autre' && label ? label : (translate(`labels.kinds.${kind}`) ?? kind));
+export const specimenName = (kind: SpecimenKind, label = '', locale: Locale = i18n.locale) =>
+	kind === 'autre' && label ? label : (translateIn(locale, `labels.kinds.${kind}`) ?? kind);
+
+/** Whom a used pack went to: the name, "Patient supprimé (n° 48)" once erased, '' when the desk may not see it. */
+export function patientOfUse(use: Pick<PackUseBrief, 'patientName' | 'patientNo' | 'patientDeleted'>): string {
+	if (use.patientName) return use.patientName;
+	if (use.patientDeleted && use.patientNo !== null) return t('labels.trace.deletedPatient', { no: use.patientNo });
+	return '';
+}
 
 /** The packs a cycle's label page offers first: those still to use (a reprint chooses others by hand). */
 export const printable = (pack: Pack) => pack.state === 'usable';
@@ -145,17 +182,22 @@ export function sterileLabels(cycle: Cycle, packs: Pack[], practice: string): St
 	}));
 }
 
+/** The tubes of a specimen print – in French for the lab (review M3); no patient number (review N3). */
 export function specimenLabels(print: SpecimenPrint, practice: string): SpecimenLabel[] {
-	const collected = labelDate(`${formatDate(print.collectedAt)} ${formatTime(print.collectedAt)}`);
+	const fr = SPECIMEN_LOCALE;
+	const when = `${formatDate(print.collectedAt, 'short', fr)} ${formatTime(print.collectedAt, fr)}`;
+	const collected = print.collectedBy
+		? translateIn(fr, 'labels.specimen.collectedBy', { when, by: initialsOf(print.collectedBy) })
+		: translateIn(fr, 'labels.specimen.collected', { when });
 	return print.labels.map((l) => ({
 		kind: 'specimen',
 		code: l.code,
 		practice,
 		name: labelName(print.patient.firstName, print.patient.lastName),
-		birth: birthText(print.patient),
-		fileNo: String(print.patient.id),
-		specimen: specimenName(l.kind, l.label),
-		collected: print.collectedBy ? t('labels.specimen.collectedBy', { when: collected, by: initialsOf(print.collectedBy) }) : t('labels.specimen.collected', { when: collected })
+		shortName: shortLabelName(print.patient.firstName, print.patient.lastName),
+		birth: birthText(print.patient, fr),
+		specimen: specimenName(l.kind, l.label, fr),
+		collected: collected ?? ''
 	}));
 }
 
@@ -172,15 +214,28 @@ export function initialsOf(name: string): string {
 		.toLocaleUpperCase('fr');
 }
 
-/** Error texts of the labels and the traceability, with the dates the server sends along. */
+/**
+ * Error texts of the labels and the traceability, with what the server sends along: dates, the reason a cycle was
+ * cancelled; for a pack already used, whom it went to (the owner) or whether it was this patient (the desk).
+ */
 export function labelsError(err: unknown): string {
 	if (err instanceof ApiError && err.code) {
 		const body = (err.body ?? {}) as Record<string, unknown>;
 		const params: Record<string, string> = {};
 		if (typeof body.expiresOn === 'string') params.date = formatDay(body.expiresOn);
 		if (typeof body.usedAt === 'string') params.date = formatDate(body.usedAt);
-		if (typeof body.patientName === 'string') params.patient = body.patientName;
-		const own = translate(`labels.errors.${err.code}`, params);
+		if (typeof body.reason === 'string') params.reason = body.reason;
+		let code = err.code;
+		if (code === 'pack_used') {
+			const patient = patientOfUse({
+				patientName: typeof body.patientName === 'string' ? body.patientName : null,
+				patientNo: typeof body.patientNo === 'number' ? body.patientNo : null,
+				patientDeleted: body.patientDeleted === true
+			});
+			if (patient) params.patient = patient;
+			else code = body.samePatient === true ? 'pack_used_same' : 'pack_used_other';
+		}
+		const own = translate(`labels.errors.${code}`, params);
 		if (own) return own;
 	}
 	return apiErrorMessage(err);

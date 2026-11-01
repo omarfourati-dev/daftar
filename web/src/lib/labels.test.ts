@@ -10,9 +10,11 @@ import {
 	labelsError,
 	nextStart,
 	pageCss,
+	patientOfUse,
 	readStart,
 	saveStart,
 	sheets,
+	shortLabelName,
 	specimenLabels,
 	sterileLabels
 } from './labels';
@@ -21,8 +23,8 @@ import type { Cycle, SpecimenPrint } from './types/labels';
 
 const cycle: Cycle = {
 	id: 3, equipmentId: 1, equipmentName: 'Autoclave Melag', labelCode: 'A1', number: 412, runAt: '2026-10-30T07:45:00+01:00',
-	program: '134 °C – 18 min', result: 'ok', packCount: 1, note: '', performedBy: 'Nisrine Hamza', initials: 'NH',
-	createdAt: '2026-10-30T07:46:00+01:00',
+	program: '134 °C – 18 min', result: 'ok', packCount: 1, note: '', performedBy: 'Nisrine Hamza', performedById: 5, initials: 'NH',
+	recordedBy: 'Nisrine Hamza', createdAt: '2026-10-30T07:46:00+01:00', cancelledAt: null, cancelledBy: null, cancelReason: null,
 	packs: [{ id: 9, seq: 7, code: 'A1-0412-07', content: 'Kit extraction', packaging: 'sachet', expiresOn: '2027-01-28', state: 'usable', use: null }]
 };
 const print: SpecimenPrint = {
@@ -79,31 +81,65 @@ describe('labels on real printers (spec stock-hygiène 7)', () => {
 		expect(birthText({ birthDate: null, birthYear: 2015 })).toBe('Né(e) en 2015');
 		expect(birthText({ birthDate: null, birthYear: null })).toBe('');
 		const [edta, other] = specimenLabels(print, 'Cabinet du Lac');
+		// no "N°": the patient's id means nothing to the lab and nothing at the desk (review N3)
 		expect(edta).toEqual({
-			kind: 'specimen', code: 'E1042-01', practice: 'Cabinet du Lac', name: 'TRABELSI Sami', birth: 'Né(e) le 12/03/1978', fileNo: '77',
-			specimen: 'Sang EDTA', collected: 'Prél. le 30/10/2026 09:42 – ABS'
+			kind: 'specimen', code: 'E1042-01', practice: 'Cabinet du Lac', name: 'TRABELSI Sami', shortName: 'TRABELSI S.',
+			birth: 'Né(e) le 12/03/1978', specimen: 'Sang EDTA', collected: 'Prél. le 30/10/2026 09:42 – ABS'
 		});
 		expect(other.specimen).toBe('Liquide pleural');
 		expect(initialsOf('Nisrine Hamza')).toBe('NH');
 		expect(initialsOf('Dr Fadoua')).toBe('F');
 	});
 
+	it('keeps the family name whole and makes initials of the first names when a name is too long', () => {
+		expect(shortLabelName('Mohamed Amine Fatma Zahra Wijden', 'Ben Hadj Abdallah El Ouerghemmi Bouzouita')).toBe(
+			'BEN HADJ ABDALLAH EL OUERGHEMMI BOUZOUITA M. A. F. Z. W.'
+		);
+		expect(shortLabelName('Mohamed-Amine', 'Trabelsi')).toBe('TRABELSI M.-A.');
+		expect(shortLabelName('', 'Trabelsi')).toBe('TRABELSI');
+		expect(shortLabelName('سامي', 'الطرابلسي')).toBe('الطرابلسي س.');
+	});
+
 	it('explains a refused pack with its date and patient', () => {
 		const expired = new ApiError(422, 'x', 'pack_expired', { code: 'pack_expired', expiresOn: '2026-10-29' });
 		expect(labelsError(expired)).toBe('Paquet périmé (à utiliser avant le 29/10/2026) : ne l’utilisez pas, restérilisez-le.');
-		const used = new ApiError(409, 'x', 'pack_used', { code: 'pack_used', patientName: 'Sami Trabelsi', usedAt: '2026-10-30T09:00:00+01:00' });
-		expect(labelsError(used)).toBe('Ce paquet est déjà noté pour Sami Trabelsi (le 30/10/2026).');
+		const usedAt = '2026-10-30T09:00:00+01:00';
+		const used = (body: Record<string, unknown>) => new ApiError(409, 'x', 'pack_used', { code: 'pack_used', usedAt, ...body });
+		// the owner learns whom it went to, the desk only whether it was this patient
+		expect(labelsError(used({ patientName: 'Sami Trabelsi', samePatient: false }))).toBe('Ce paquet est déjà noté pour Sami Trabelsi (le 30/10/2026).');
+		expect(labelsError(used({ patientName: null, patientNo: 48, patientDeleted: true, samePatient: false }))).toBe(
+			'Ce paquet est déjà noté pour Patient supprimé (n° 48) (le 30/10/2026).'
+		);
+		expect(labelsError(used({ patientName: null, samePatient: true }))).toBe('Ce paquet est déjà noté pour ce patient (le 30/10/2026).');
+		expect(labelsError(used({ patientName: null, samePatient: false }))).toBe('Ce paquet est déjà noté pour un autre patient (le 30/10/2026).');
+		const cancelled = new ApiError(422, 'x', 'pack_cancelled', { code: 'pack_cancelled', reason: 'Saisi deux fois' });
+		expect(labelsError(cancelled)).toBe('Cycle annulé (Saisi deux fois) : cette étiquette n’est plus valable. Utilisez l’étiquette du bon cycle.');
 		i18n.setLocale('ar');
 		expect(labelsError(new ApiError(422, 'x', 'pack_not_sterile'))).toContain('غير معقّمة');
 	});
 
-	it('keeps dates left to right on Arabic labels', () => {
+	it('names the patient of a used pack, or says the patient was erased', () => {
+		expect(patientOfUse({ patientName: 'Sami Trabelsi', patientNo: 7, patientDeleted: false })).toBe('Sami Trabelsi');
+		expect(patientOfUse({ patientName: null, patientNo: 7, patientDeleted: true })).toBe('Patient supprimé (n° 7)');
+		expect(patientOfUse({ patientName: null, patientNo: null, patientDeleted: false })).toBe('');
+	});
+
+	it('keeps sterilisation labels in the screen language, dates left to right', () => {
 		i18n.setLocale('ar');
 		const [label] = sterileLabels(cycle, cycle.packs, 'Cabinet du Lac');
 		expect(label.useBefore).toBe('28/01/2027'); // no right-to-left marks inside the left-to-right date
-		const [tube] = specimenLabels(print, 'Cabinet du Lac');
-		expect(tube.birth).toBe('تاريخ الولادة ⁦12/03/1978⁩');
-		expect(tube.collected).toBe('أُخذت في ⁦30/10/2026 09:42⁩ – ABS');
+	});
+
+	it('writes specimen labels in French whatever the screen language – the labs read French (review M3)', () => {
+		i18n.setLocale('ar');
+		const [tube, other] = specimenLabels({ ...print, labels: [{ code: 'E1042-01', kind: 'urine', label: '' }, print.labels[1]] }, 'Cabinet du Lac');
+		expect(tube).toEqual({
+			kind: 'specimen', code: 'E1042-01', practice: 'Cabinet du Lac', name: 'TRABELSI Sami', shortName: 'TRABELSI S.',
+			birth: 'Né(e) le 12/03/1978', specimen: 'Urine', collected: 'Prél. le 30/10/2026 09:42 – ABS'
+		});
+		expect(other.specimen).toBe('Liquide pleural');
+		const born = specimenLabels({ ...print, patient: { ...print.patient, birthDate: null, birthYear: 1990 } }, 'X')[0];
+		expect(born.birth).toBe('Né(e) en 1990');
 	});
 });
 

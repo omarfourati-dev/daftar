@@ -23,7 +23,7 @@ export const audit: Messages['audit'] = {
 			update: 'صحّح «{name}» بتاريخ {date} (أنجزها {by})',
 			delete: 'ألغى «{name}» بتاريخ {date} (أنجزها {by})'
 		},
-		sterilization_cycle: { update: 'صحّح الدورة {cycle}', delete: 'حذف الدورة {cycle}' },
+		sterilization_cycle: { update: 'صحّح الدورة {cycle}', delete: 'حذف الدورة {cycle}', cancel: 'ألغى الدورة {cycle}' },
 		sterile_pack_use: { delete: 'حذف الحزمة {code} المسجّلة لـ {patient}' },
 		label_settings: { update: 'عدّل إعدادات الملصقات' },
 		other: 'عدّل معطًى'

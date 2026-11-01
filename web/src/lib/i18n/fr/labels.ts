@@ -17,12 +17,11 @@ export const labels = {
 		frottis: 'Frottis',
 		autre: 'Autre'
 	},
-	states: { usable: 'À utiliser', expired: 'Périmé', used: 'Utilisé', not_sterile: 'Non stérile' },
+	states: { usable: 'À utiliser', expired: 'Périmé', used: 'Utilisé', not_sterile: 'Non stérile', cancelled: 'Annulé' },
 	sterile: { sterilizedOn: 'Stérilisé le', useBefore: 'À utiliser avant le', autoclave: 'Autoclave {code}' },
 	specimen: {
 		bornOn: 'Né(e) le {date}',
 		bornIn: 'Né(e) en {year}',
-		fileNo: 'N° {no}',
 		collected: 'Prél. le {when}',
 		collectedBy: 'Prél. le {when} – {by}'
 	},
@@ -37,6 +36,7 @@ export const labels = {
 		testIntro:
 			'Imprimez ce test une fois par imprimante : le cadre doit tomber sur le bord de l’étiquette, le pointillé à l’intérieur, et le texte de 7 pt doit rester lisible.',
 		notOk: 'Cycle non conforme : aucune étiquette. Recommencez le cycle.',
+		cancelled: 'Cycle annulé ({reason}) : aucune étiquette. Ses étiquettes déjà imprimées ne sont plus valables.',
 		settings: 'Impression',
 		format: 'Format',
 		makeDefault: 'Garder ce format pour les prochaines fois',
@@ -53,6 +53,19 @@ export const labels = {
 		printTestNow: 'Imprimer la page de test',
 		backToLabels: 'Revenir aux étiquettes',
 		nextStart: 'La prochaine impression sur planche commencera à la position {n} (modifiable).',
+		printedQuestion: 'Les {count} étiquette(s) sont-elles bien sorties de l’imprimante ?',
+		printedYes: 'Oui, bien sorties',
+		printedNo: 'Non, pas imprimées',
+		sameStart: 'La planche reste à la position {n}.',
+		tooLongTitle: 'Texte trop long : il serait coupé sur l’étiquette',
+		tooLong: {
+			content: 'Contenu trop long pour ce format – {count} caractère(s) en trop : « {text} ».',
+			name: 'Nom trop long pour ce format – {count} caractère(s) en trop, même avec les prénoms en initiales : « {text} ».',
+			specimen: 'Prélèvement trop long pour ce format – {count} caractère(s) en trop : « {text} ».'
+		},
+		tooLongBigger: 'Choisissez un format plus grand (planche A4) ou raccourcissez le texte avant d’imprimer.',
+		tooLongShorten: 'Raccourcissez le texte avant d’imprimer.',
+		initials: 'Prénom(s) en initiales pour tenir sur ce format : « {name} ».',
 		tipsTitle: 'Réglages de l’imprimante',
 		tips: {
 			roll62:
@@ -118,17 +131,25 @@ export const labels = {
 		chooseResult: 'Indiquez le résultat : conforme ou non conforme.',
 		whenInvalid: 'Vérifiez la date et l’heure du cycle.',
 		numberInvalid: 'Le n° de cycle est un nombre entier.',
-		quantityInvalid: 'Le nombre de paquets est un nombre entier.'
+		quantityInvalid: 'Le nombre de paquets est un nombre entier.',
+		contentMissing: 'Indiquez le contenu du paquet {n}, ou retirez la ligne.',
+		performedBy: 'Fait par'
 	},
 	correction: {
 		title: 'Corriger le cycle',
 		text: 'Le journal garde la trace : votre nom, la date, l’ancienne et la nouvelle valeur, et le motif.',
 		recall: 'Les {count} paquet(s) de ce cycle seront refusés. La traçabilité montre les patients qui en ont déjà reçu un.',
 		reason: 'Motif',
-		delete: 'Supprimer le cycle',
 		save: 'Enregistrer la correction',
 		saved: 'Cycle corrigé.',
-		deleted: 'Cycle supprimé. Le journal garde sa trace.'
+		cancel: 'Annuler ce cycle (saisi par erreur)…',
+		cancelTitle: 'Annuler le cycle {code} n° {number} ?',
+		cancelText:
+			'Le cycle reste au registre avec son numéro, marqué « annulé » ; ses paquets ne pourront plus être notés. Retirez des paquets les étiquettes déjà imprimées et jetez-les.',
+		cancelConfirm: 'Oui, annuler le cycle',
+		cancelBack: 'Ne pas annuler',
+		cancelled: 'Cycle annulé. Jetez ses étiquettes déjà imprimées.',
+		inUse: 'Un paquet de ce cycle a déjà été utilisé : le cycle ne peut plus être annulé. Corrigez son résultat si besoin.'
 	},
 	cycles: {
 		name: '{code} n° {number}',
@@ -150,11 +171,16 @@ export const labels = {
 		correctLabel: 'Corriger – cycle {code} n° {number}',
 		packsOf: 'Paquets du cycle {code} n° {number}',
 		usedFor: 'utilisé pour',
+		usedOn: 'utilisé le {date}',
 		colDate: 'Date',
 		colCycle: 'Autoclave et cycle',
 		empty: 'Aucun cycle sur cette période. Notez le prochain cycle de l’autoclave : ses étiquettes sortent juste après.',
 		savedNoPacks: 'Cycle enregistré.',
-		savedNotOk: 'Cycle non conforme enregistré. Recommencez le cycle.'
+		savedNotOk: 'Cycle non conforme enregistré. Recommencez le cycle.',
+		cancelledShort: 'Annulé',
+		cancelled: 'Annulé le {date} par {by} : {reason}',
+		cyclesCancelled: '{count} cycle(s) annulé(s), hors total',
+		recordedBy: 'saisi par {by}'
 	},
 	trace: {
 		title: 'Traçabilité',
@@ -170,7 +196,8 @@ export const labels = {
 		usedFor: 'Utilisé pour',
 		usedWhen: 'le {date}, noté par {by}',
 		notUsed: 'Pas encore utilisé.',
-		packsOf: '{patient} : {count} paquet(s)'
+		packsOf: '{patient} : {count} paquet(s)',
+		deletedPatient: 'Patient supprimé (n° {no})'
 	},
 	use: {
 		open: 'Traçabilité stérilisation',
@@ -189,11 +216,19 @@ export const labels = {
 		removeLabel: 'Retirer {code}',
 		expiredOn: 'Périmé depuis le {date} : ne pas l’utiliser, le restériliser.',
 		usedFor: 'Déjà utilisé pour {patient}.',
-		notSterile: 'Cycle non conforme : ce paquet n’est pas stérile.'
+		usedAlready: 'Déjà utilisé.',
+		notSterile: 'Cycle non conforme : ce paquet n’est pas stérile.',
+		cancelled: 'Cycle annulé ({reason}) : étiquette plus valable.',
+		reason: 'Motif du retrait',
+		reasonWrongPack: 'Mauvais paquet',
+		reasonWrongPatient: 'Mauvais patient',
+		reasonsQuick: 'Motifs fréquents',
+		removeConfirm: 'Confirmer le retrait',
+		keep: 'Garder'
 	},
 	specimenForm: {
 		open: 'Étiquettes de prélèvement',
-		hint: 'Chaque tube reçoit le nom, la date de naissance, le n° de dossier, le prélèvement et l’heure. Aucun résultat n’est enregistré.',
+		hint: 'Chaque tube reçoit le nom, la date de naissance, le prélèvement et l’heure – toujours en français, pour le laboratoire. Aucun résultat n’est enregistré.',
 		noBirthDate: 'Date de naissance non renseignée : l’année sera imprimée. Les laboratoires demandent souvent la date complète.',
 		tubes: 'Tubes et prélèvements',
 		less: 'Un de moins – {kind}',
@@ -219,6 +254,12 @@ export const labels = {
 		pack_expired: 'Paquet périmé (à utiliser avant le {date}) : ne l’utilisez pas, restérilisez-le.',
 		pack_not_sterile: 'Cycle non conforme : ce paquet n’est pas stérile. Ne l’utilisez pas, restérilisez-le.',
 		pack_used: 'Ce paquet est déjà noté pour {patient} (le {date}).',
+		pack_used_same: 'Ce paquet est déjà noté pour ce patient (le {date}).',
+		pack_used_other: 'Ce paquet est déjà noté pour un autre patient (le {date}).',
+		pack_cancelled: 'Cycle annulé ({reason}) : cette étiquette n’est plus valable. Utilisez l’étiquette du bon cycle.',
+		cycle_cancelled: 'Ce cycle est annulé.',
+		invalid_member: 'Cette personne ne fait plus partie de l’équipe. Rechargez la page.',
+		no_autoclave_code: '99 codes d’autoclave au plus par cabinet.',
 		cycle_number_taken: 'Ce n° de cycle existe déjà pour cet autoclave.',
 		not_an_autoclave: 'Choisissez un autoclave.',
 		equipment_inactive: 'Cet autoclave est hors service.',
@@ -227,7 +268,7 @@ export const labels = {
 		run_too_old: 'Ce cycle a plus d’un an.',
 		too_many_packs: '99 paquets au plus par cycle.',
 		cycle_not_ok: 'Cycle non conforme : pas d’étiquettes.',
-		cycle_in_use: 'Un paquet de ce cycle a déjà été utilisé : corrigez le cycle au lieu de le supprimer.',
+		cycle_in_use: 'Un paquet de ce cycle a déjà été utilisé : corrigez le cycle au lieu de l’annuler.',
 		reason_required: 'Indiquez le motif.',
 		undo_too_late: 'Après 15 minutes, seul le titulaire peut retirer un paquet.',
 		specimen_label_required: 'Nommez le prélèvement « Autre ».',

@@ -5,15 +5,21 @@
 	 * overrides the practice's format. The preview shows every label at its real size; printing goes through the
 	 * browser like the receipt and the poster, with an `@page` of the chosen format (one label per page on rolls, the A4
 	 * sheet of 3 × 8 from any start position). Everything else on the page disappears on paper.
+	 *
+	 * Nothing prints for a cycle "non conforme" or cancelled, also from an old link (review N1, H1). A text too long for
+	 * the format even at 7 pt is announced before printing, with what to do (review M6). The A4 sheet moves on only once
+	 * the labels came out of the printer – the browser does not tell whether the print dialog was cancelled (review N5).
 	 */
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { api, ApiError } from '#lib/api';
 	import { auth } from '#lib/auth.svelte';
 	import { formatDate, t } from '#lib/i18n.svelte';
+	import type { FitResult } from '#lib/fit';
 	import {
 		FORMAT_SPECS,
 		FORMATS,
 		SHEET_SLOTS,
+		type FitField,
 		isFormat,
 		labelName,
 		labelsError,
@@ -57,6 +63,12 @@
 	let saving = $state(false);
 	/** The test page of the chosen format (also opened from a cycle or a specimen print, and back). */
 	let testing = $state(kind === 'test');
+	/** After printing on an A4 sheet: did the labels come out? Then the sheet moves on to `next`. */
+	let asking = $state<{ count: number; next: number } | null>(null);
+	/** What each fitted line of each label shows on paper, by `format|code|field`. */
+	let fits = $state<Record<string, FitResult>>({});
+	/** Labels only for a conforme cycle that was not cancelled. */
+	const printableCycle = $derived(!!cycle && cycle.result === 'ok' && !cycle.cancelledAt);
 
 	async function load() {
 		loading = true;
@@ -66,7 +78,8 @@
 			if (!isFormat(wanted)) format = settings.formats[kind === 'test' ? 'sterile' : kind];
 			if (cycleId) {
 				cycle = await api<Cycle>(`/api/hygiene/cycles/${cycleId}`);
-				chosen = cycle.packs.filter((p) => (onlyPacks.length ? onlyPacks.includes(p.id) : printable(p))).map((p) => p.id);
+				const ok = cycle.result === 'ok' && !cycle.cancelledAt;
+				chosen = ok ? cycle.packs.filter((p) => (onlyPacks.length ? onlyPacks.includes(p.id) : printable(p))).map((p) => p.id) : [];
 			}
 			if (specimenId) specimen = await api<SpecimenPrint>(`/api/labels/specimens/${specimenId}`);
 		} catch (err) {
@@ -84,7 +97,7 @@
 
 	const labels = $derived.by((): LabelData[] => {
 		if (testing) return testLabels();
-		if (cycle) return sterileLabels(cycle, cycle.packs.filter((p) => chosen.includes(p.id)), practiceName);
+		if (cycle) return printableCycle ? sterileLabels(cycle, cycle.packs.filter((p) => chosen.includes(p.id)), practiceName) : [];
 		if (specimen) return specimenLabels(specimen, practiceName);
 		return [];
 	});
@@ -98,19 +111,55 @@
 	);
 	const back = $derived(kind === 'specimen' && specimen ? `/app/patients/${specimen.patient.id}` : '/app/hygiene?tab=sterilisation');
 
-	function print() {
+	/** Too long even at 7 pt: one line per text (the same content on ten labels is said once). */
+	const tooLong = $derived.by(() => {
+		const seen = new Map<string, { field: FitField; text: string; excess: number }>();
+		for (const label of labels)
+			for (const field of ['content', 'name', 'specimen'] as const) {
+				const fitted = fits[`${format}|${label.code}|${field}`];
+				if (fitted?.excess) seen.set(`${field}|${fitted.text}`, { field, text: fitted.text, excess: fitted.excess });
+			}
+		return [...seen.values()];
+	});
+	/** Names printed with the first names as initials. */
+	const initialled = $derived([
+		...new Set(
+			labels.map((l) => fits[`${format}|${l.code}|name`]).filter((f): f is FitResult => !!f && f.index > 0 && !f.excess).map((f) => f.text)
+		)
+	]);
+
+	function fitted(code: string, field: FitField, result: FitResult) {
+		const key = `${format}|${code}|${field}`;
+		const before = fits[key];
+		if (before && before.text === result.text && before.excess === result.excess && before.index === result.index) return;
+		fits = { ...fits, [key]: result };
+	}
+
+	async function print() {
 		notice = '';
+		asking = null;
 		window.print();
 		if (sheet && !testing) {
-			start = nextStart(start, labels.length);
+			asking = { count: labels.length, next: nextStart(start, labels.length) };
+			await tick();
+			document.getElementById('printed-yes')?.focus();
+		}
+	}
+
+	function printed(out: boolean) {
+		if (!asking) return;
+		if (out) {
+			start = asking.next;
 			saveStart(start);
 			notice = t('labels.print.nextStart', { n: start });
-		}
+		} else notice = t('labels.print.sameStart', { n: start });
+		asking = null;
 	}
 
 	function pick(position: number) {
 		start = position;
 		saveStart(position);
+		asking = null;
 	}
 
 	async function makeDefault() {
@@ -168,9 +217,11 @@
 	<LoadState {loading} {error} onretry={load} />
 
 	{#if !loading && !error}
-		{#if cycle && cycle.result !== 'ok' && !testing}
+		{#if cycle && !printableCycle && !testing}
 			<p role="alert" class="flex gap-2 rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 font-semibold text-rose-900">
-				<Icon name="alert" class="mt-0.5 h-5 w-5" />{t('labels.print.notOk')}
+				<Icon name="alert" class="mt-0.5 h-5 w-5" />{cycle.cancelledAt
+					? t('labels.print.cancelled', { reason: cycle.cancelReason ?? '' })
+					: t('labels.print.notOk')}
 			</p>
 		{/if}
 
@@ -220,7 +271,7 @@
 					</fieldset>
 				{/if}
 
-				{#if cycle && cycle.packs.length && !testing}
+				{#if cycle && printableCycle && cycle.packs.length && !testing}
 					<div class="flex flex-col gap-2">
 						<button type="button" class="btn-secondary self-start text-sm" aria-expanded={choosing} onclick={() => (choosing = !choosing)}
 							>{t('labels.print.choose', { count: chosen.length, total: cycle.packs.length })}</button
@@ -241,6 +292,23 @@
 					</div>
 				{/if}
 
+				{#if tooLong.length && !testing}
+					<div role="alert" class="flex flex-col gap-2 rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-950">
+						<p class="flex gap-2 font-semibold"><Icon name="alert" class="mt-0.5 h-5 w-5 shrink-0" />{t('labels.print.tooLongTitle')}</p>
+						<ul class="flex list-disc flex-col gap-1 ps-5">
+							{#each tooLong as long (`${long.field}|${long.text}`)}
+								<li dir="auto">{t(`labels.print.tooLong.${long.field}`, { count: long.excess, text: long.text })}</li>
+							{/each}
+						</ul>
+						<p>{format === 'a4_3x8' ? t('labels.print.tooLongShorten') : t('labels.print.tooLongBigger')}</p>
+					</div>
+				{/if}
+				{#if initialled.length && !testing}
+					<p class="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-950 ring-1 ring-amber-200" dir="auto">
+						{t('labels.print.initials', { name: initialled.join(' · ') })}
+					</p>
+				{/if}
+
 				<div class="flex flex-wrap gap-2">
 					{#if testing}
 						<button type="button" class="btn-primary" onclick={print}><Icon name="print" />{t('labels.print.printTestNow')}</button>
@@ -252,6 +320,15 @@
 						<button type="button" class="btn-secondary" onclick={() => showTest(true)}>{t('labels.print.printTest')}</button>
 					{/if}
 				</div>
+				{#if asking}
+					<div class="flex flex-col gap-2 rounded-xl bg-white p-3 ring-1 ring-brand-700/40" role="group" aria-labelledby="printed-question">
+						<p id="printed-question" class="font-semibold">{t('labels.print.printedQuestion', { count: asking.count })}</p>
+						<div class="flex flex-wrap gap-2">
+							<button id="printed-yes" type="button" class="btn-primary min-h-11" onclick={() => printed(true)}>{t('labels.print.printedYes')}</button>
+							<button type="button" class="btn-secondary min-h-11" onclick={() => printed(false)}>{t('labels.print.printedNo')}</button>
+						</div>
+					</div>
+				{/if}
 				{#if notice}<p role="status" class="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900 ring-1 ring-emerald-200">{notice}</p>{/if}
 
 				<details class="rounded-xl bg-white p-3 text-sm ring-1 ring-slate-200">
@@ -286,11 +363,12 @@
 			{#if sheet && spec.sheet}
 				<div class="sheet" style="padding-top:{spec.sheet.top}mm;grid-template-columns:repeat({spec.sheet.cols},{spec.label[0]}mm);grid-template-rows:repeat({spec.sheet.rows},{spec.label[1]}mm)">
 					{#each page as slot, s (s)}
-						<div class="slot-paper">{#if slot}<LabelView label={slot} {format} />{/if}</div>
+						<div class="slot-paper">{#if slot}<LabelView label={slot} {format} onfit={(field, r) => fitted(slot.code, field, r)} />{/if}</div>
 					{/each}
 				</div>
 			{:else if page[0]}
-				<LabelView label={page[0]} {format} />
+				{@const only = page[0]}
+				<LabelView label={only} {format} onfit={(field, r) => fitted(only.code, field, r)} />
 			{/if}
 		</div>
 	{/each}

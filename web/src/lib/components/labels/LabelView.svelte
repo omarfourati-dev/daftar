@@ -1,28 +1,35 @@
 <script lang="ts">
 	/**
 	 * One label at its real size (millimetres and points – the same on screen and on paper), black on white, at least
-	 * 7 pt. Sterilisation: practice, content, "stérilisé le", "à utiliser avant", autoclave and initials, code with QR.
-	 * Specimen: NOM Prénom, birth date (or year) and file number, kind of specimen, when and by whom, practice, code
-	 * with QR. Test: the edge of the label, the safe area, the smallest text and a QR code. Codes and dates stay left to
-	 * right in Arabic; the QR code sits on the side where reading starts.
+	 * 7 pt. Sterilisation (in the screen's language): practice, content, "stérilisé le", "à utiliser avant", autoclave
+	 * and initials, code with QR. Specimen (always in French, for the lab): NOM Prénom – the first names as initials when
+	 * the name does not fit –, birth date (or year), kind of specimen, when and by whom, practice, code with QR. Test: the
+	 * edge of the label, the safe area, the smallest text and a QR code. Codes and dates stay left to right in Arabic;
+	 * the QR code sits on the side where reading starts. `onfit` tells the page what does not fit (review M6).
 	 */
-	import { fit } from '../../fit';
-	import { i18n, t } from '../../i18n.svelte';
-	import { FORMAT_SPECS, type LabelData } from '../../labels';
+	import { fit, type FitResult } from '../../fit';
+	import { i18n, t, translateIn } from '../../i18n.svelte';
+	import { FORMAT_SPECS, SPECIMEN_LOCALE, type FitField, type LabelData } from '../../labels';
 	import type { LabelFormat } from '../../types/labels';
 	import LabelQr from './LabelQr.svelte';
 
-	let { label, format }: { label: LabelData; format: LabelFormat } = $props();
+	type Props = { label: LabelData; format: LabelFormat; onfit?: (field: FitField, result: FitResult) => void };
+	let { label, format, onfit }: Props = $props();
 
 	const spec = $derived(FORMAT_SPECS[format]);
 	const qr = $derived(label.kind === 'specimen' ? spec.qr.specimen : spec.qr.sterile);
 	const vars = $derived(
 		`--lw:${spec.label[0]}mm;--lh:${spec.label[1]}mm;--px:${spec.pad[0]}mm;--py:${spec.pad[1]}mm;--qr:${qr}mm`
 	);
-	const name = $derived(label.kind === 'test' ? t('labels.test.label', { n: label.position }) : t('labels.print.label', { code: label.code }));
+	const lang = $derived(label.kind === 'specimen' ? SPECIMEN_LOCALE : i18n.locale);
+	const dir = $derived(lang === 'ar' ? 'rtl' : 'ltr');
+	const name = $derived(
+		label.kind === 'test' ? t('labels.test.label', { n: label.position }) : (translateIn(lang, 'labels.print.label', { code: label.code }) ?? label.code)
+	);
+	const report = (field: FitField) => (result: FitResult) => onfit?.(field, result);
 </script>
 
-<article class="label {label.kind}" style={vars} dir={i18n.dir} lang={i18n.locale} aria-label={name} data-label={label.code}>
+<article class="label {label.kind}" style={vars} {dir} {lang} aria-label={name} data-label={label.code}>
 	{#if label.kind === 'sterile'}
 		<p class="head" data-critical>{label.practice}</p>
 		<div class="body">
@@ -31,7 +38,7 @@
 				<p class="code" dir="ltr" data-critical>{label.code}</p>
 			</div>
 			<div class="info">
-				<p class="strong" use:fit={{ max: 9, key: [label.content, format] }} data-critical>{label.content}</p>
+				<p class="strong content" data-fit="content" use:fit={{ max: 9, text: label.content, key: format, onfit: report('content') }} data-critical></p>
 				<p data-critical>{t('labels.sterile.sterilizedOn')} <span class="ltr" dir="ltr">{label.sterilizedOn}</span></p>
 				<div>
 					<p>{t('labels.sterile.useBefore')}</p>
@@ -41,15 +48,15 @@
 			</div>
 		</div>
 	{:else if label.kind === 'specimen'}
-		<p class="strong name" use:fit={{ max: 9.5, key: [label.name, format] }} data-critical>{label.name}</p>
+		<p class="strong name" data-fit="name" use:fit={{ max: 9.5, text: [label.name, label.shortName], key: format, onfit: report('name') }} data-critical></p>
 		<div class="body">
 			<div class="qr-col">
 				<LabelQr text={label.code} class="qr" />
 				<p class="code" dir="ltr" data-critical>{label.code}</p>
 			</div>
 			<div class="info">
-				<p data-critical>{label.birth}{label.birth ? ' – ' : ''}{t('labels.specimen.fileNo', { no: label.fileNo })}</p>
-				<p class="strong" use:fit={{ max: 9, key: [label.specimen, format] }} data-critical>{label.specimen}</p>
+				{#if label.birth}<p data-critical>{label.birth}</p>{/if}
+				<p class="strong" data-fit="specimen" use:fit={{ max: 9, text: label.specimen, key: format, onfit: report('specimen') }} data-critical></p>
 				<p data-critical>{label.collected}</p>
 				<p class="practice">{label.practice}</p>
 			</div>
@@ -144,6 +151,11 @@
 		-webkit-box-orient: vertical;
 		-webkit-line-clamp: 2;
 		line-clamp: 2;
+	}
+	.content {
+		/* three lines where the label has the room: a long content stays readable at 7 pt */
+		-webkit-line-clamp: 3;
+		line-clamp: 3;
 	}
 	.name {
 		flex: none;

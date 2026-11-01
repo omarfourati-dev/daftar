@@ -143,6 +143,11 @@ describe('/app/hygiene – tasks of the day, plan, history', () => {
 			'GET /api/hygiene/history?from=2026-10-01&to=2026-10-30': () => json(200, { from: '2026-10-01', to: '2026-10-30', rows }),
 			'GET /api/audit-log?entity=hygiene_task,equipment,hygiene_task_done,sterilization_cycle,sterile_pack_use,label_settings&limit=50': () =>
 				json(200, [
+					{ id: 4, at: '2026-10-30T11:00:00+01:00', userName: 'Amira', entity: 'sterilization_cycle', entityId: 6, action: 'update',
+						before: { cycle: 'A1 n° 413', cancelled: false }, after: { cancelled: true }, reason: 'Saisi deux fois' },
+					{ id: 3, at: '2026-10-30T10:30:00+01:00', userName: 'Amira', entity: 'sterile_pack_use', entityId: 7, action: 'delete',
+						before: { code: 'A1-0412-01', content: 'Kit examen', patient: null, patientNo: 48, usedAt: '2026-10-29T09:00:00+01:00', usedBy: 'Salma' },
+						after: null, reason: 'Mauvais code' },
 					{ id: 2, at: '2026-10-30T10:00:00+01:00', userName: 'Amira', entity: 'hygiene_task_done', entityId: 8, action: 'delete',
 						before: { task: 'Purge des conduits', dueOn: '2026-10-29', doneBy: 'Salma', result: 'ok', note: '' }, after: null, reason: 'Pas fait en réalité' },
 					{ id: 1, at: '2026-10-30T09:00:00+01:00', userName: 'Salma', entity: 'hygiene_task', entityId: 2, action: 'update',
@@ -158,6 +163,10 @@ describe('/app/hygiene – tasks of the day, plan, history', () => {
 		expect(screen.getByRole('table', { name: 'Registre d’hygiène' })).toBeInTheDocument(); // tablet and paper
 		expect(screen.getByText('1 fait(s), 0 non fait(s), 1 en retard')).toBeInTheDocument();
 		const log = within(await screen.findByRole('list', { name: 'Journal des corrections' }));
+		// a cycle entered by mistake is cancelled, not deleted (review H1); an erased patient keeps only his number (M4)
+		expect(log.getByText('30/10/2026 11:00 – Amira a annulé le cycle A1 n° 413')).toBeInTheDocument();
+		expect(log.getByText('Motif : Saisi deux fois')).toBeInTheDocument();
+		expect(log.getByText('30/10/2026 10:30 – Amira a retiré le paquet A1-0412-01 noté pour Patient supprimé (n° 48)')).toBeInTheDocument();
 		expect(log.getByText('30/10/2026 10:00 – Amira a annulé « Purge des conduits » du 29/10/2026 (fait par Salma)')).toBeInTheDocument();
 		expect(log.getByText('Motif : Pas fait en réalité')).toBeInTheDocument();
 		expect(log.getByText('30/10/2026 09:00 – Salma a modifié la tâche « Purge des conduits »')).toBeInTheDocument();

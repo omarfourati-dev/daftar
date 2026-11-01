@@ -2,12 +2,14 @@
 	/**
 	 * "Traçabilité stérilisation" in the appointment dialog (spec stock-hygiène 5.3): which sterile pack was opened for
 	 * this patient. Folded away and never required – the desk never waits for it. Opened: type the code of the label (a
-	 * desk scanner types it too, then Enter) or tap one of the packs ready to use; an expired pack or one of a
-	 * "non conforme" cycle is refused with the reason, before and after choosing it.
+	 * desk scanner types it too, then Enter) or tap one of the packs ready to use; an expired pack, one of a
+	 * "non conforme" or of a cancelled cycle is refused with the reason, before and after choosing it. Taking a pack
+	 * back asks why (a tap on a usual reason) – the change log keeps it (review M1).
 	 */
+	import { tick } from 'svelte';
 	import { api } from '../../api';
 	import { formatDay, formatTime, t } from '../../i18n.svelte';
-	import { labelsError } from '../../labels';
+	import { labelsError, patientOfUse } from '../../labels';
 	import type { PackFound, PackUse } from '../../types/labels';
 	import Icon from '../daily/Icon.svelte';
 	import StateChip from './StateChip.svelte';
@@ -21,6 +23,9 @@
 	let notice = $state('');
 	let error = $state('');
 	let busy = $state(false);
+	/** The pack being taken back, and why. */
+	let removing = $state<PackUse | null>(null);
+	let why = $state('');
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	let seq = 0;
 	const id = `trace-${Math.random().toString(36).slice(2, 8)}`;
@@ -73,14 +78,27 @@
 		}
 	}
 
-	async function remove(use: PackUse) {
-		busy = true;
+	async function askWhy(use: PackUse) {
+		removing = use;
+		why = '';
 		error = '';
 		notice = '';
+		await tick();
+		document.getElementById(`${id}-why`)?.focus();
+	}
+
+	async function remove(e: SubmitEvent) {
+		e.preventDefault();
+		const use = removing;
+		if (!use) return;
+		if (!why.trim()) return void (error = t('labels.errors.reason_required'));
+		busy = true;
+		error = '';
 		try {
-			await api(`/api/hygiene/pack-uses/${use.id}`, { method: 'DELETE' });
+			await api(`/api/hygiene/pack-uses/${use.id}`, { method: 'DELETE', json: { reason: why.trim() } });
 			uses = (uses ?? []).filter((u) => u.id !== use.id);
 			notice = t('labels.use.removed', { code: use.code });
+			removing = null;
 			void search(code.trim());
 		} catch (err) {
 			error = labelsError(err);
@@ -89,12 +107,19 @@
 		}
 	}
 
+	function used(p: PackFound) {
+		const patient = p.use ? patientOfUse(p.use) : '';
+		return patient ? t('labels.use.usedFor', { patient }) : t('labels.use.usedAlready');
+	}
+
 	const reason = (p: PackFound) =>
 		p.state === 'expired'
 			? t('labels.use.expiredOn', { date: formatDay(p.expiresOn) })
 			: p.state === 'used'
-				? t('labels.use.usedFor', { patient: p.use?.patientName ?? '' })
-				: t('labels.use.notSterile');
+				? used(p)
+				: p.state === 'cancelled'
+					? t('labels.use.cancelled', { reason: p.cancelReason ?? '' })
+					: t('labels.use.notSterile');
 </script>
 
 <div class="flex flex-col gap-2">
@@ -127,9 +152,25 @@
 										type="button"
 										class="btn ms-auto min-h-9 px-2 text-xs text-slate-600 hover:text-rose-700"
 										disabled={busy}
+										aria-expanded={removing?.id === u.id}
 										aria-label={t('labels.use.removeLabel', { code: u.code })}
-										onclick={() => remove(u)}>{t('labels.use.remove')}</button
+										onclick={() => askWhy(u)}>{t('labels.use.remove')}</button
 									>
+								{/if}
+								{#if removing?.id === u.id}
+									<form class="flex w-full flex-col gap-2 rounded-lg bg-white p-2 ring-1 ring-slate-200" onsubmit={remove} novalidate>
+										<label class="label" for="{id}-why">{t('labels.use.reason')}</label>
+										<div class="flex flex-wrap gap-2" role="group" aria-label={t('labels.use.reasonsQuick')}>
+											{#each [t('labels.use.reasonWrongPack'), t('labels.use.reasonWrongPatient')] as quick (quick)}
+												<button type="button" class="btn-secondary min-h-9 px-3 text-xs" onclick={() => (why = quick)}>{quick}</button>
+											{/each}
+										</div>
+										<input id="{id}-why" class="input" bind:value={why} maxlength="300" autocomplete="off" dir="auto" aria-required="true" />
+										<div class="flex flex-wrap gap-2">
+											<button type="submit" class="btn-primary min-h-10 text-sm" disabled={busy}>{t('labels.use.removeConfirm')}</button>
+											<button type="button" class="btn-secondary min-h-10 text-sm" onclick={() => ((removing = null), (error = ''))}>{t('labels.use.keep')}</button>
+										</div>
+									</form>
 								{/if}
 							</li>
 						{/each}

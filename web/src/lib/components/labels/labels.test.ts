@@ -7,6 +7,7 @@ import { i18n } from '../../i18n.svelte';
 import { calls, json, labelInNameProblems, mockApi, noContent, problem, sentJson } from '../../test-utils';
 import { assistant, dentist, owner } from '../../testing/fixtures';
 import type { Cycle, CycleSetup, LabelSettings, PackFound, PackUse } from '../../types/labels';
+import CycleCorrection from './CycleCorrection.svelte';
 import CycleDialog from './CycleDialog.svelte';
 import SpecimenForm from './SpecimenForm.svelte';
 import SterileTrace from './SterileTrace.svelte';
@@ -19,23 +20,30 @@ const settings: LabelSettings = {
 const setup: CycleSetup = {
 	autoclaves: [{ id: 4, name: 'Autoclave Melag', labelCode: 'A1', nextNumber: 413, lastRunAt: '2026-10-29T17:00:00+01:00' }],
 	programs: ['134 °C – 18 min', '121 °C – 20 min'],
-	contents: ['Kit examen', 'Kit extraction', 'Kit détartrage']
+	contents: ['Kit examen', 'Kit extraction', 'Kit détartrage'],
+	team: [
+		{ id: 2, name: 'Amira Ben Salah', initials: 'ABS' },
+		{ id: 5, name: 'Salma', initials: 'S' }
+	]
 };
 const found = (code: string, state: PackFound['state'] = 'usable', extra: Partial<PackFound> = {}): PackFound => ({
 	id: Number(code.slice(-2)), seq: Number(code.slice(-2)), code, content: 'Kit examen', packaging: 'sachet', expiresOn: '2027-01-28', state,
-	use: null, cycleId: 3, labelCode: 'A1', number: 412, equipmentName: 'Autoclave Melag', runAt: '2026-10-30T07:45:00+01:00', ...extra
+	use: null, cycleId: 3, labelCode: 'A1', number: 412, equipmentName: 'Autoclave Melag', runAt: '2026-10-30T07:45:00+01:00', cancelReason: null,
+	...extra
 });
 const used = (code: string, extra: Partial<PackUse> = {}): PackUse => ({
 	id: 50, packId: 1, code, content: 'Kit examen', packaging: 'sachet', expiresOn: '2027-01-28',
 	cycle: { id: 3, labelCode: 'A1', number: 412, equipmentName: 'Autoclave Melag', runAt: '2026-10-30T07:45:00+01:00', result: 'ok' },
-	patientId: 7, patientName: 'Sami Trabelsi', appointmentId: 30, usedAt: '2026-10-30T09:05:00+01:00', usedBy: 'Karim', undoable: true, ...extra
+	patientId: 7, patientName: 'Sami Trabelsi', patientNo: 7, patientDeleted: false, appointmentId: 30, usedAt: '2026-10-30T09:05:00+01:00',
+	usedBy: 'Karim', undoable: true, ...extra
 });
+const brief = { id: 50, patientId: 7, patientName: 'Sami Trabelsi', patientNo: 7, patientDeleted: false, appointmentId: 30, usedAt: '2026-10-30T09:05:00+01:00', usedBy: 'Karim' };
 const cycle: Cycle = {
 	id: 3, equipmentId: 4, equipmentName: 'Autoclave Melag', labelCode: 'A1', number: 412, runAt: '2026-10-30T07:45:00+01:00',
-	program: '134 °C – 18 min', result: 'ok', packCount: 2, note: '', performedBy: 'Salma', initials: 'S', createdAt: '2026-10-30T07:46:00+01:00',
+	program: '134 °C – 18 min', result: 'ok', packCount: 2, note: '', performedBy: 'Salma', performedById: 5, initials: 'S', recordedBy: 'Salma',
+	createdAt: '2026-10-30T07:46:00+01:00', cancelledAt: null, cancelledBy: null, cancelReason: null,
 	packs: [
-		{ id: 1, seq: 1, code: 'A1-0412-01', content: 'Kit examen', packaging: 'sachet', expiresOn: '2027-01-28', state: 'used',
-			use: { id: 50, patientId: 7, patientName: 'Sami Trabelsi', appointmentId: 30, usedAt: '2026-10-30T09:05:00+01:00', usedBy: 'Karim' } },
+		{ id: 1, seq: 1, code: 'A1-0412-01', content: 'Kit examen', packaging: 'sachet', expiresOn: '2027-01-28', state: 'used', use: brief },
 		{ id: 2, seq: 2, code: 'A1-0412-02', content: 'Kit examen', packaging: 'sachet', expiresOn: '2027-01-28', state: 'usable', use: null }
 	]
 };
@@ -64,9 +72,40 @@ describe('Traçabilité stérilisation in the appointment (spec stock-hygiène 5
 		await vi.waitFor(() => expect(sentJson('POST /api/hygiene/pack-uses')).toEqual({ code: 'A1-0412-02', appointmentId: 30 }));
 		expect(await region.findByText('A1-0412-02 (Kit examen) noté pour ce patient.')).toBeInTheDocument();
 		expect(within(region.getByRole('list', { name: 'Paquets notés pour ce rendez-vous' })).getByText('A1-0412-02')).toBeInTheDocument();
+		// taking it back asks why – the reason goes into the change log (review M1)
 		await fireEvent.click(region.getByRole('button', { name: 'Retirer A1-0412-02' }));
+		await fireEvent.click(region.getByRole('button', { name: 'Confirmer le retrait' }));
+		expect(await region.findByRole('alert')).toHaveTextContent('Indiquez le motif.');
+		expect(calls().some((c) => c.startsWith('DELETE'))).toBe(false);
+		await fireEvent.click(region.getByRole('button', { name: 'Mauvais paquet' }));
+		expect(region.getByLabelText('Motif du retrait')).toHaveValue('Mauvais paquet');
+		await fireEvent.click(region.getByRole('button', { name: 'Confirmer le retrait' }));
 		expect(await region.findByText('A1-0412-02 retiré.')).toBeInTheDocument();
+		expect(sentJson('DELETE /api/hygiene/pack-uses/50')).toEqual({ reason: 'Mauvais paquet' });
 		expect(labelInNameProblems()).toEqual([]);
+	});
+
+	it('lets the desk keep a pack after all, and says why a pack of a cancelled cycle or a used one is refused', async () => {
+		mockApi({
+			'GET /api/hygiene/pack-uses?appointmentId=30': () => json(200, [used('A1-0412-02')]),
+			'GET /api/hygiene/packs': () => json(200, []),
+			'GET /api/hygiene/packs?q=0001': () =>
+				json(200, [
+					found('A1-0001-01', 'cancelled', { number: 1, cancelReason: 'Saisi deux fois' }),
+					found('A1-0001-02', 'used', { number: 1, use: { ...brief, patientId: null, patientName: null, patientNo: null, appointmentId: null } })
+				])
+		});
+		render(SterileTrace, { props: { appointmentId: 30 } });
+		await fireEvent.click(screen.getByRole('button', { name: 'Traçabilité stérilisation' }));
+		const region = within(await screen.findByRole('region', { name: 'Paquets stérilisés utilisés' }));
+		await fireEvent.click(await region.findByRole('button', { name: 'Retirer A1-0412-02' }));
+		await fireEvent.input(region.getByLabelText('Motif du retrait'), { target: { value: 'Erreur' } });
+		await fireEvent.click(region.getByRole('button', { name: 'Garder' }));
+		expect(region.queryByLabelText('Motif du retrait')).toBeNull();
+		expect(calls().some((c) => c.startsWith('DELETE'))).toBe(false);
+		await fireEvent.input(region.getByLabelText('Code du paquet'), { target: { value: '0001' } });
+		expect(await region.findByText('Cycle annulé (Saisi deux fois) : étiquette plus valable.')).toBeInTheDocument();
+		expect(region.getByText('Déjà utilisé.')).toBeInTheDocument(); // whom it went to is the owner's to see
 	});
 
 	it('refuses an expired pack with the date and says why before a tap', async () => {
@@ -118,9 +157,43 @@ describe('a new sterilisation cycle', () => {
 		expect(sentJson('POST /api/hygiene/cycles')).toEqual({
 			equipmentId: 4, number: 413, runAt: '2026-10-30T10:10:00+01:00', program: '134 °C – 18 min', result: 'ok',
 			packs: [{ content: 'Kit examen', packaging: 'sachet', quantity: 2 }, { content: 'Kit extraction', packaging: 'double_sachet', quantity: 1 }],
-			packCount: null, note: ''
+			packCount: null, note: '', performedById: 5
 		});
 		expect(labelInNameProblems()).toEqual([]);
+	});
+
+	it('names who ran the cycle – by default the signed-in person (review N6)', async () => {
+		mockApi({
+			'GET /api/hygiene/cycles/setup': () => json(200, setup),
+			'POST /api/hygiene/cycles': () => json(201, cycle)
+		});
+		render(CycleDialog, { props: { settings, onsaved: vi.fn(), onclose: vi.fn() } });
+		const dialog = within(await screen.findByRole('dialog'));
+		const who = await dialog.findByLabelText('Fait par');
+		expect(who).toHaveValue('5');
+		await fireEvent.change(who, { target: { value: '2' } });
+		await fireEvent.click(dialog.getByLabelText('Conforme'));
+		await fireEvent.click(dialog.getByRole('button', { name: 'Enregistrer le cycle' }));
+		await vi.waitFor(() => expect(sentJson('POST /api/hygiene/cycles')).toMatchObject({ performedById: 2, packs: [] }));
+	});
+
+	it('never drops a pack line without a content: it asks for it, and counts only the packs it will print (review N2)', async () => {
+		mockApi({
+			'GET /api/hygiene/cycles/setup': () => json(200, setup),
+			'POST /api/hygiene/cycles': () => json(201, cycle)
+		});
+		render(CycleDialog, { props: { settings, onsaved: vi.fn(), onclose: vi.fn() } });
+		const dialog = within(await screen.findByRole('dialog'));
+		await fireEvent.click(await dialog.findByLabelText('Conforme'));
+		await fireEvent.click(dialog.getByRole('group', { name: 'Ajouter un paquet type' }).querySelector('button')!);
+		await fireEvent.click(dialog.getByRole('button', { name: 'Autre contenu' }));
+		expect(dialog.getByRole('button', { name: 'Enregistrer et imprimer 1 étiquette(s)' })).toBeInTheDocument();
+		await fireEvent.click(dialog.getByRole('button', { name: 'Enregistrer et imprimer 1 étiquette(s)' }));
+		expect(await dialog.findByRole('alert')).toHaveTextContent('Indiquez le contenu du paquet 2, ou retirez la ligne.');
+		expect(calls().some((c) => c.startsWith('POST'))).toBe(false);
+		await fireEvent.input(dialog.getByLabelText('Contenu du paquet 2'), { target: { value: 'Plateau ortho' } });
+		await fireEvent.click(dialog.getByRole('button', { name: 'Enregistrer et imprimer 2 étiquette(s)' }));
+		await vi.waitFor(() => expect(sentJson('POST /api/hygiene/cycles')).toMatchObject({ packs: [{ content: 'Kit examen' }, { content: 'Plateau ortho' }] }));
 	});
 
 	it('records a non conforme cycle without labels and explains a taken number', async () => {
@@ -176,6 +249,70 @@ describe('specimen labels', () => {
 		});
 		expect(labelInNameProblems()).toEqual([]);
 	});
+
+	it('takes "now" when the tubes are prepared, not when the file was opened (review M2)', async () => {
+		mockApi({ 'POST /api/labels/specimens': () => json(201, { id: 1043 }) });
+		clock.now = () => new Date('2026-10-30T08:40:00+01:00');
+		render(SpecimenForm, { props: { patientId: 7, birthDate: '1978-03-12' } });
+		clock.now = () => new Date('2026-10-30T09:25:00+01:00'); // the blood is taken 45 minutes later
+		await fireEvent.click(screen.getByRole('button', { name: 'Étiquettes de prélèvement' }));
+		expect(screen.getByLabelText('Heure')).toHaveValue('09:25');
+		await fireEvent.click(screen.getByRole('button', { name: 'Un de plus – Sang EDTA' }));
+		clock.now = () => new Date('2026-10-30T09:31:00+01:00');
+		await fireEvent.click(screen.getByRole('button', { name: 'Préparer 1 étiquette(s)' }));
+		await vi.waitFor(() => expect(sentJson('POST /api/labels/specimens')).toMatchObject({ collectedAt: '2026-10-30T09:31:00+01:00' }));
+	});
+
+	it('keeps a time the user typed, and shows "now" moving on while the form stays open', async () => {
+		vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+		try {
+			mockApi({ 'POST /api/labels/specimens': () => json(201, { id: 1044 }) });
+			clock.now = () => new Date('2026-10-30T23:59:00+01:00');
+			render(SpecimenForm, { props: { patientId: 7, birthDate: '1978-03-12' } });
+			await fireEvent.click(screen.getByRole('button', { name: 'Étiquettes de prélèvement' }));
+			clock.now = () => new Date('2026-10-31T00:02:00+01:00'); // a tab left open over midnight
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(screen.getByLabelText('Date du prélèvement')).toHaveValue('2026-10-31');
+			expect(screen.getByLabelText('Heure')).toHaveValue('00:02');
+			await fireEvent.input(screen.getByLabelText('Heure'), { target: { value: '07:15' } });
+			clock.now = () => new Date('2026-10-31T09:00:00+01:00');
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(screen.getByLabelText('Heure')).toHaveValue('07:15');
+			await fireEvent.click(screen.getByRole('button', { name: 'Un de plus – Urine' }));
+			await fireEvent.click(screen.getByRole('button', { name: 'Préparer 1 étiquette(s)' }));
+			await vi.waitFor(() => expect(sentJson('POST /api/labels/specimens')).toMatchObject({ collectedAt: '2026-10-31T07:15:00+01:00' }));
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});
+
+describe('the owner cancels a cycle entered by mistake (review H1)', () => {
+	beforeEach(() => auth.set('tok', owner));
+
+	it('asks once more, with the reason, and says to throw its labels away', async () => {
+		const cancelled = { ...cycle, packs: [cycle.packs[1]], cancelledAt: '2026-10-30T10:10:00+01:00', cancelledBy: 'Amira Ben Salah', cancelReason: 'Saisi deux fois' };
+		mockApi({ 'POST /api/hygiene/cycles/3/cancel': () => json(200, cancelled) });
+		const onsaved = vi.fn();
+		render(CycleCorrection, { props: { cycle: { ...cycle, packs: [cycle.packs[1]] }, onsaved, onclose: vi.fn() } });
+		const dialog = within(await screen.findByRole('dialog', { name: 'Corriger le cycle' }));
+		await fireEvent.click(dialog.getByRole('button', { name: 'Annuler ce cycle (saisi par erreur)…' }));
+		expect(dialog.getByText(/Retirez des paquets les étiquettes déjà imprimées et jetez-les/)).toBeInTheDocument();
+		await fireEvent.click(dialog.getByRole('button', { name: 'Oui, annuler le cycle' }));
+		expect(await dialog.findByRole('alert')).toHaveTextContent('Indiquez le motif.');
+		await fireEvent.input(dialog.getByLabelText('Motif'), { target: { value: 'Saisi deux fois' } });
+		await fireEvent.click(dialog.getByRole('button', { name: 'Oui, annuler le cycle' }));
+		await vi.waitFor(() => expect(onsaved).toHaveBeenCalledWith('Cycle annulé. Jetez ses étiquettes déjà imprimées.', cancelled));
+		expect(sentJson('POST /api/hygiene/cycles/3/cancel')).toEqual({ reason: 'Saisi deux fois' });
+		expect(screen.getByRole('button', { name: 'Retour' })).toBeInTheDocument(); // never two buttons called "Annuler"
+	});
+
+	it('offers no cancellation once a pack of the cycle was used', async () => {
+		render(CycleCorrection, { props: { cycle, onsaved: vi.fn(), onclose: vi.fn() } });
+		const dialog = within(await screen.findByRole('dialog', { name: 'Corriger le cycle' }));
+		expect(dialog.queryByRole('button', { name: /Annuler ce cycle/ })).toBeNull();
+		expect(dialog.getByText(/le cycle ne peut plus être annulé/)).toBeInTheDocument();
+	});
 });
 
 describe('tab Stérilisation of /app/hygiene', () => {
@@ -212,5 +349,31 @@ describe('tab Stérilisation of /app/hygiene', () => {
 		expect(await screen.findByText(/Aucun cycle sur cette période/)).toBeInTheDocument();
 		expect(screen.queryByRole('region', { name: 'Traçabilité' })).toBeNull();
 		expect(screen.getByRole('button', { name: 'Réglages des étiquettes' })).toBeInTheDocument();
+	});
+
+	it('keeps a cancelled cycle in the list, marked, without labels; the desk sees a pack used, not for whom', async () => {
+		auth.set('tok', assistant);
+		const hidden = { ...brief, patientId: null, patientName: null, patientNo: null, appointmentId: null };
+		const gone: Cycle = {
+			...cycle, id: 4, number: 413, cancelledAt: '2026-10-30T09:30:00+01:00', cancelledBy: 'Amira Ben Salah', cancelReason: 'Saisi deux fois',
+			packs: cycle.packs.map((p) => ({ ...p, id: p.id + 10, code: p.code.replace('0412', '0413'), state: 'cancelled' as const, use: null }))
+		};
+		const real: Cycle = { ...cycle, performedBy: 'Salma', recordedBy: 'Amira Ben Salah', packs: [{ ...cycle.packs[0], use: hidden }, cycle.packs[1]] };
+		mockApi({
+			'GET /api/labels/settings': () => json(200, settings),
+			'GET /api/hygiene/cycles?from=2026-10-01&to=2026-10-30': () => json(200, { from: '2026-10-01', to: '2026-10-30', cycles: [gone, real] })
+		});
+		render(SterilizationTab);
+		const list = within(await screen.findByRole('list', { name: 'Cycles de stérilisation' }));
+		expect(screen.getByText('1 cycle(s), dont 0 non conforme(s) – 2 paquet(s)')).toBeInTheDocument();
+		expect(screen.getByText('1 cycle(s) annulé(s), hors total')).toBeInTheDocument();
+		expect(list.getByText('Annulé le 30/10/2026 09:30 par Amira Ben Salah : Saisi deux fois')).toBeInTheDocument();
+		expect(list.getAllByRole('link', { name: 'Étiquettes' })).toHaveLength(1); // only the real cycle prints
+		expect(list.getByText(/saisi par Amira Ben Salah/)).toBeInTheDocument();
+		await fireEvent.click(list.getAllByRole('button', { name: 'Voir les paquets' })[1]);
+		const packs = within(list.getByRole('list', { name: 'Paquets du cycle A1 n° 412' }));
+		expect(packs.queryByRole('link')).toBeNull();
+		expect(packs.getByText(/utilisé le 30\/10\/2026/)).toBeInTheDocument();
+		expect(labelInNameProblems()).toEqual([]);
 	});
 });

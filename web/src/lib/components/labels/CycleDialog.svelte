@@ -3,7 +3,8 @@
 	 * A new sterilisation cycle (spec stock-hygiène 5.3), made for the phone next to the autoclave: the autoclave and
 	 * its next number are filled in, the program and the contents are one tap (the practice's last ones first), the
 	 * result is two big buttons. "Conforme": the packs, then their labels. "Non conforme": no label – the load is
-	 * sterilised again.
+	 * sterilised again. "Fait par": who ran the autoclave (its initials go on the labels), by default the signed-in
+	 * person. A pack line without content is never dropped silently: the dialog asks for it.
 	 */
 	import { onMount } from 'svelte';
 	import { api } from '../../api';
@@ -35,6 +36,7 @@
 	let load = $state(1);
 	let note = $state('');
 	let newAutoclave = $state('');
+	let performer = $state(String(auth.user?.id ?? ''));
 	let error = $state('');
 	let busy = $state(false);
 	let nextKey = 1;
@@ -47,6 +49,7 @@
 			setup = await api<CycleSetup>('/api/hygiene/cycles/setup');
 			if (!equipmentId && setup.autoclaves.length) choose(String(setup.autoclaves[0].id));
 			if (!program) program = setup.programs[0] ?? '';
+			if (!setup.team.some((m) => String(m.id) === performer)) performer = setup.team[0] ? String(setup.team[0].id) : '';
 		} catch (err) {
 			loadError = labelsError(err);
 		}
@@ -81,7 +84,8 @@
 		else lines.push({ key: nextKey++, content, packaging: 'sachet', quantity: 1 });
 	}
 
-	const total = $derived(lines.reduce((sum, l) => sum + (Number.isInteger(l.quantity) ? l.quantity : 0), 0));
+	/** The labels the cycle will give: lines with a content only. */
+	const total = $derived(lines.reduce((sum, l) => sum + (l.content.trim() && Number.isInteger(l.quantity) ? l.quantity : 0), 0));
 	const expiries = $derived(
 		[...new Set(lines.map((l) => l.packaging))].map((p) => ({ packaging: p, date: addDays(day, settings.shelfLifeDays[p]) }))
 	);
@@ -96,7 +100,9 @@
 		if (!result) return void (error = t('labels.cycleDialog.chooseResult'));
 		if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{2}:\d{2}$/.test(time)) return void (error = t('labels.cycleDialog.whenInvalid'));
 		if (number !== null && (!Number.isInteger(number) || number < 1)) return void (error = t('labels.cycleDialog.numberInvalid'));
-		const packs = result === 'ok' ? lines.filter((l) => l.content.trim()) : [];
+		const packs = result === 'ok' ? lines : [];
+		const empty = packs.findIndex((l) => !l.content.trim());
+		if (empty >= 0) return void (error = t('labels.cycleDialog.contentMissing', { n: empty + 1 }));
 		if (packs.some((l) => !Number.isInteger(l.quantity) || l.quantity < 1)) return void (error = t('labels.cycleDialog.quantityInvalid'));
 		busy = true;
 		try {
@@ -110,7 +116,8 @@
 					result,
 					packs: packs.map((l) => ({ content: l.content.trim(), packaging: l.packaging, quantity: l.quantity })),
 					packCount: result === 'not_ok' ? load : null,
-					note: note.trim()
+					note: note.trim(),
+					performedById: performer ? Number(performer) : null
 				}
 			});
 			onsaved(cycle);
@@ -174,6 +181,14 @@
 				>
 				<datalist id="{id}-programs">{#each setup.programs as p (p)}<option value={p}></option>{/each}</datalist>
 			</div>
+			{#if setup.team.length > 1}
+				<label class="label sm:max-w-xs"
+					>{t('labels.cycleDialog.performedBy')}
+					<select class="input" bind:value={performer}>
+						{#each setup.team as m (m.id)}<option value={String(m.id)}>{m.name}</option>{/each}
+					</select>
+				</label>
+			{/if}
 
 			<fieldset class="flex flex-col gap-2">
 				<legend class="mb-1 text-sm font-semibold text-slate-700">{t('labels.cycleDialog.result')}</legend>

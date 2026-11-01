@@ -6,7 +6,7 @@
 	 */
 	import { api, ApiError } from '../../api';
 	import { formatDate, formatDay, formatDateTime, t } from '../../i18n.svelte';
-	import { labelsError } from '../../labels';
+	import { labelsError, patientOfUse } from '../../labels';
 	import type { PackTrace, PackUse, PatientTrace } from '../../types/labels';
 	import type { PatientSummary } from '../../types/patients';
 	import Icon from '../daily/Icon.svelte';
@@ -97,7 +97,11 @@
 				{#if packResult.use}
 					<p class="font-semibold">
 						{t('labels.trace.usedFor')}
-						<a class="text-brand-800 underline-offset-2 hover:underline" href="/app/patients/{packResult.use.patientId}">{packResult.use.patientName}</a>
+						{#if packResult.use.patientId !== null}
+							<a class="text-brand-800 underline-offset-2 hover:underline" href="/app/patients/{packResult.use.patientId}">{packResult.use.patientName}</a>
+						{:else}
+							<span>{patientOfUse(packResult.use)}</span>
+						{/if}
 					</p>
 					<p class="text-sm text-slate-700">{t('labels.trace.usedWhen', { date: formatDateTime(packResult.use.usedAt), by: packResult.use.usedBy })}</p>
 				{:else}

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from './+page.svelte';
 import { auth } from '#lib/auth.svelte';
 import { i18n } from '#lib/i18n.svelte';
+import { owner } from '#lib/testing/fixtures';
 import { json, mockApi, problem, sentJson } from '#lib/test-utils';
 import { assistant, dentist } from '#lib/testing/fixtures';
 import type { Cycle, LabelSettings, SpecimenPrint } from '#lib/types/labels';
@@ -17,8 +18,9 @@ const pack = (id: number, seq: number, state: 'usable' | 'used' | 'expired' = 'u
 });
 const cycle: Cycle = {
 	id: 3, equipmentId: 1, equipmentName: 'Autoclave Melag', labelCode: 'A1', number: 412, runAt: '2026-10-30T07:45:00+01:00',
-	program: '134 °C – 18 min', result: 'ok', packCount: 3, note: '', performedBy: 'Nisrine Hamza', initials: 'NH',
-	createdAt: '2026-10-30T07:46:00+01:00', packs: [pack(9, 1), pack(10, 2, 'used'), pack(11, 3)]
+	program: '134 °C – 18 min', result: 'ok', packCount: 3, note: '', performedBy: 'Nisrine Hamza', performedById: 5, initials: 'NH',
+	recordedBy: 'Nisrine Hamza', createdAt: '2026-10-30T07:46:00+01:00', cancelledAt: null, cancelledBy: null, cancelReason: null,
+	packs: [pack(9, 1), pack(10, 2, 'used'), pack(11, 3)]
 };
 const print: SpecimenPrint = {
 	id: 1042, patient: { id: 77, firstName: 'Sami', lastName: 'Trabelsi', birthDate: '1978-03-12', birthYear: 1978 }, appointmentId: null,
@@ -33,6 +35,20 @@ function open(search: string) {
 }
 const pageStyle = () => document.head.querySelector('style[data-label-page]')?.textContent ?? '';
 const preview = () => within(screen.getByRole('list', { name: 'Aperçu des étiquettes' }));
+
+/** A fake layout for the lines that fit (jsdom has none): a box of 40 characters at any size. */
+function narrowLabels() {
+	Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get() { return this.dataset.fit ? 20 : 0; } });
+	Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+		configurable: true,
+		get() { return this.dataset.fit && (this.textContent ?? '').length > 40 ? 60 : this.dataset.fit ? 20 : 0; }
+	});
+	return () => {
+		// back to the getters of Element.prototype
+		delete (HTMLElement.prototype as { clientHeight?: number }).clientHeight;
+		delete (HTMLElement.prototype as { scrollHeight?: number }).scrollHeight;
+	};
+}
 
 describe('/app/etiquettes – labels at their real size, then the browser prints them (spec stock-hygiène 7)', () => {
 	beforeEach(() => {
@@ -86,6 +102,10 @@ describe('/app/etiquettes – labels at their real size, then the browser prints
 		await fireEvent.click(map.getByRole('button', { name: 'Commencer à la position 24' }));
 		expect(screen.getByText('2 planche(s) à imprimer')).toBeInTheDocument();
 		await fireEvent.click(screen.getByRole('button', { name: 'Imprimer 2 étiquette(s)' }));
+		// the sheet moves on only once the labels came out (a print cancelled in the dialog leaves it – review N5)
+		expect(await screen.findByText('Les 2 étiquette(s) sont-elles bien sorties de l’imprimante ?')).toBeInTheDocument();
+		expect(localStorage.getItem('daftar.labels.sheetStart')).toBe('24');
+		await fireEvent.click(screen.getByRole('button', { name: 'Oui, bien sorties' }));
 		expect(await screen.findByText('La prochaine impression sur planche commencera à la position 2 (modifiable).')).toBeInTheDocument();
 		expect(localStorage.getItem('daftar.labels.sheetStart')).toBe('2');
 		await fireEvent.click(screen.getByRole('button', { name: 'Garder ce format pour les prochaines fois' }));
@@ -104,7 +124,8 @@ describe('/app/etiquettes – labels at their real size, then the browser prints
 		expect(screen.getByLabelText(/Planche A4 de 24/)).toBeChecked();
 		const label = within(preview().getAllByRole('article')[0]);
 		expect(label.getByText('TRABELSI Sami')).toBeInTheDocument();
-		expect(label.getByText('Né(e) le 12/03/1978 – N° 77')).toBeInTheDocument();
+		expect(label.getByText('Né(e) le 12/03/1978')).toBeInTheDocument(); // no "N° 77": the id means nothing to the lab
+		expect(preview().getAllByRole('article')[0]).not.toHaveTextContent('77');
 		expect(label.getByText('Sang EDTA')).toBeInTheDocument();
 		expect(label.getByText(/^Prél\. le 30\/10\/2026 09:42\s– NH$/)).toBeInTheDocument();
 		expect(screen.getByRole('link', { name: 'Retour' })).toHaveAttribute('href', '/app/patients/77');
@@ -136,6 +157,101 @@ describe('/app/etiquettes – labels at their real size, then the browser prints
 		expect(await screen.findByText('Cycle non conforme : aucune étiquette. Recommencez le cycle.')).toBeInTheDocument();
 		expect(screen.getByText('Aucune étiquette à imprimer.')).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Imprimer 0 étiquette(s)' })).toBeDisabled();
+	});
+
+	it('prints nothing for a recalled or a cancelled cycle, also from an old link with its packs (review N1, H1)', async () => {
+		const recalled = { ...cycle, id: 4, result: 'not_ok' as const, packs: cycle.packs.map((p) => ({ ...p, state: 'not_sterile' as const })) };
+		const cancelled = {
+			...cycle, id: 6, cancelledAt: '2026-10-30T09:00:00+01:00', cancelledBy: 'Amira', cancelReason: 'Saisi deux fois',
+			packs: cycle.packs.map((p) => ({ ...p, state: 'cancelled' as const }))
+		};
+		mockApi({
+			'GET /api/labels/settings': () => json(200, settings),
+			'GET /api/hygiene/cycles/4': () => json(200, recalled),
+			'GET /api/hygiene/cycles/6': () => json(200, cancelled)
+		});
+		const page = open('?cycle=4&packs=9,11');
+		expect(await screen.findByText('Cycle non conforme : aucune étiquette. Recommencez le cycle.')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Imprimer 0 étiquette(s)' })).toBeDisabled();
+		expect(screen.queryByRole('button', { name: /étiquette\(s\) sur/ })).toBeNull(); // nothing to choose
+		page.unmount();
+		open('?cycle=6&packs=9');
+		expect(await screen.findByText('Cycle annulé (Saisi deux fois) : aucune étiquette. Ses étiquettes déjà imprimées ne sont plus valables.')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Imprimer 0 étiquette(s)' })).toBeDisabled();
+	});
+
+	it('leaves the A4 start where it was when nothing came out of the printer (review N5)', async () => {
+		mockApi({
+			'GET /api/labels/settings': () => json(200, { ...settings, formats: { ...settings.formats, sterile: 'a4_3x8' } }),
+			'GET /api/hygiene/cycles/3': () => json(200, cycle)
+		});
+		open('?cycle=3');
+		await fireEvent.click(await screen.findByRole('button', { name: 'Imprimer 2 étiquette(s)' }));
+		await fireEvent.click(await screen.findByRole('button', { name: 'Non, pas imprimées' }));
+		expect(await screen.findByText('La planche reste à la position 1.')).toBeInTheDocument();
+		expect(localStorage.getItem('daftar.labels.sheetStart')).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Oui, bien sorties' })).toBeNull();
+	});
+
+	it('warns before printing a content too long for the format instead of cutting it silently (review M6)', async () => {
+		const restore = narrowLabels();
+		try {
+			const long = 'Kit extraction chirurgicale complet + élévateurs + davier 17'; // 60 characters
+			mockApi({
+				'GET /api/labels/settings': () => json(200, settings),
+				'GET /api/hygiene/cycles/3': () => json(200, { ...cycle, packs: [{ ...pack(9, 1), content: long }, { ...pack(11, 3), content: long }] })
+			});
+			open('?cycle=3');
+			const alert = await screen.findByRole('alert');
+			expect(alert).toHaveTextContent('Texte trop long : il serait coupé sur l’étiquette');
+			expect(alert).toHaveTextContent(`Contenu trop long pour ce format – 20 caractère(s) en trop : « ${long} ».`);
+			expect(alert).toHaveTextContent('Choisissez un format plus grand (planche A4) ou raccourcissez le texte avant d’imprimer.');
+			expect(within(alert).getAllByRole('listitem')).toHaveLength(1); // the same content once
+		} finally {
+			restore();
+		}
+	});
+
+	it('writes the first names as initials when the name is too long, and says so', async () => {
+		const restore = narrowLabels();
+		try {
+			mockApi({
+				'GET /api/labels/settings': () => json(200, settings),
+				'GET /api/labels/specimens/1042': () =>
+					json(200, { ...print, patient: { ...print.patient, firstName: 'Mohamed Amine Fatma', lastName: 'Ben Hadj Abdallah El Ouerghemmi' } })
+			});
+			open('?specimen=1042');
+			// 51 characters in full, 40 with the initials
+			const label = within(await screen.findByRole('article', { name: 'Étiquette E1042-01' }));
+			expect(label.getByText('BEN HADJ ABDALLAH EL OUERGHEMMI M. A. F.')).toBeInTheDocument();
+			expect(screen.getByText('Prénom(s) en initiales pour tenir sur ce format : « BEN HADJ ABDALLAH EL OUERGHEMMI M. A. F. ».')).toBeInTheDocument();
+			expect(screen.queryByRole('alert')).toBeNull();
+		} finally {
+			restore();
+		}
+	});
+
+	it('prints specimen labels in French on an Arabic screen; sterilisation labels follow the screen (review M3)', async () => {
+		auth.set('tok', owner);
+		i18n.setLocale('ar');
+		mockApi({
+			'GET /api/labels/settings': () => json(200, settings),
+			'GET /api/labels/specimens/1042': () => json(200, { ...print, labels: [{ code: 'E1042-01', kind: 'urine', label: '' }], labelCount: 1 }),
+			'GET /api/hygiene/cycles/3': () => json(200, cycle)
+		});
+		const page = open('?specimen=1042');
+		expect(await screen.findByRole('heading', { level: 1, name: 'ملصقات العيّنات' })).toBeInTheDocument();
+		const tube = await screen.findByRole('article', { name: 'Étiquette E1042-01' });
+		expect(tube).toHaveAttribute('lang', 'fr');
+		expect(tube).toHaveAttribute('dir', 'ltr');
+		expect(tube).toHaveTextContent('Urine');
+		expect(tube).toHaveTextContent('Né(e) le 12/03/1978');
+		expect(tube).toHaveTextContent('Prél. le 30/10/2026 09:42 – NH');
+		page.unmount();
+		open('?cycle=3');
+		const pack = await screen.findByRole('article', { name: 'ملصق A1-0412-01' });
+		expect(pack).toHaveAttribute('lang', 'ar');
+		expect(pack).toHaveAttribute('dir', 'rtl');
 	});
 
 	it('explains a print that does not exist', async () => {

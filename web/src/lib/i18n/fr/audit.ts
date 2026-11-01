@@ -21,7 +21,7 @@ export const audit = {
 			update: 'a corrigé « {name} » du {date} (fait par {by})',
 			delete: 'a annulé « {name} » du {date} (fait par {by})'
 		},
-		sterilization_cycle: { update: 'a corrigé le cycle {cycle}', delete: 'a supprimé le cycle {cycle}' },
+		sterilization_cycle: { update: 'a corrigé le cycle {cycle}', delete: 'a supprimé le cycle {cycle}', cancel: 'a annulé le cycle {cycle}' },
 		sterile_pack_use: { delete: 'a retiré le paquet {code} noté pour {patient}' },
 		label_settings: { update: 'a modifié les réglages des étiquettes' },
 		other: 'a modifié une donnée'
