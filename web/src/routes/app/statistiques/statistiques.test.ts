@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/svelte';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from './+page.svelte';
 import { auth } from '#lib/auth.svelte';
 import { clock } from '#lib/clock';
@@ -52,7 +52,14 @@ describe('/app/statistiques – the month for the owner', () => {
 	beforeEach(() => {
 		auth.set('tok', owner);
 		i18n.setLocale('fr');
+		// the month shown and the CSV name come from "now": never from the day the suite runs (CI ran on 01.11.)
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(new Date(NOW));
 		clock.now = () => new Date(NOW);
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
 	});
 
 	it('shows the key numbers with the comparison to last month', async () => {
@@ -101,7 +108,10 @@ describe('/app/statistiques – the month for the owner', () => {
 		expect(table.getByRole('row', { name: /Sans acte précisé/ })).toHaveTextContent('12 DT');
 		expect(region.getByText('1 ligne(s) reçue(s) sans prix ne sont pas comptées.')).toBeInTheDocument();
 		await fireEvent.click(region.getByRole('button', { name: 'Exporter le mois (CSV)' }));
-		await vi.waitFor(() => expect(save).toHaveBeenCalledWith(expect.any(Blob), 'stock-2026-10.csv'));
+		await vi.waitFor(() => expect(save).toHaveBeenCalled());
+		const [blob, filename] = save.mock.calls[0];
+		expect(filename).toBe('stock-2026-10.csv');
+		expect(await blob.text()).toBe('Date;Type'); // a Blob of undici or jsdom alike (no instanceof across realms)
 		save.mockRestore();
 	});
 
