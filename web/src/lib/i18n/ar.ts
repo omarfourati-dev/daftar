@@ -14,6 +14,7 @@ import { feedback } from './ar/feedback';
 import { importer } from './ar/importer';
 import { stock } from './ar/stock';
 import { hygiene } from './ar/hygiene';
+import { labels } from './ar/labels';
 import { audit } from './ar/audit';
 import { installer } from './ar/installer';
 import { invitation } from './ar/invitation';
@@ -72,5 +73,6 @@ export const ar: Messages = {
 	importer,
 	stock,
 	hygiene,
-	audit
+	audit,
+	labels
 };
