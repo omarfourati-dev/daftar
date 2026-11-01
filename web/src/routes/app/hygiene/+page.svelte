@@ -5,8 +5,8 @@
 	 * date with its proof or gap, filter by period and equipment, printable as an A4 register for an inspection; the
 	 * owner corrects a proof with a reason and reads the change log there). The register is written down day by day
 	 * (review H1): a change of the plan never rewrites it. On a phone it is a list of cards, from a tablet on and on
-	 * paper a table. `?tab=taches|historique` opens a part directly. The sterilisation tab comes with the labels
-	 * (phase 3).
+	 * paper a table. "Stérilisation" (spec 5.3): cycles, their packs and labels, traceability (components/labels).
+	 * `?tab=sterilisation|taches|historique` opens a part directly.
 	 */
 	import { onMount } from 'svelte';
 	import { api } from '#lib/api';
@@ -22,10 +22,12 @@
 	import HygieneTodayList from '../../../lib/components/hygiene/HygieneToday.svelte';
 	import ProofDialog from '../../../lib/components/hygiene/ProofDialog.svelte';
 	import TaskDialog from '../../../lib/components/hygiene/TaskDialog.svelte';
+	import SterilizationTab from '../../../lib/components/labels/SterilizationTab.svelte';
 
-	type Tab = 'aujourdhui' | 'taches' | 'historique';
-	const TABS: { key: Tab; label: 'hygiene.tabs.today' | 'hygiene.tabs.setup' | 'hygiene.tabs.history' }[] = [
+	type Tab = 'aujourdhui' | 'sterilisation' | 'taches' | 'historique';
+	const TABS: { key: Tab; label: 'hygiene.tabs.today' | 'hygiene.tabs.sterilization' | 'hygiene.tabs.setup' | 'hygiene.tabs.history' }[] = [
 		{ key: 'aujourdhui', label: 'hygiene.tabs.today' },
+		{ key: 'sterilisation', label: 'hygiene.tabs.sterilization' },
 		{ key: 'taches', label: 'hygiene.tabs.setup' },
 		{ key: 'historique', label: 'hygiene.tabs.history' }
 	];
@@ -183,7 +185,9 @@
 		</div>
 	{/if}
 
-	{#if tab === 'aujourdhui'}
+	{#if tab === 'sterilisation'}
+		<SterilizationTab />
+	{:else if tab === 'aujourdhui'}
 		{#if todayData}
 			<section class="card" aria-labelledby="hygiene-today-title">
 				<h2 id="hygiene-today-title" class="mb-3 text-lg font-bold">{t('hygiene.today.title')}</h2>

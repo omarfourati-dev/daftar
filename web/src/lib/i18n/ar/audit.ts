@@ -10,6 +10,7 @@ export const audit: Messages['audit'] = {
 	yes: 'نعم',
 	no: 'لا',
 	none: '–',
+	days: '{count} يوم',
 	what: {
 		stock_receipt: { delete: 'حذف استلام يوم {date} ({total})' },
 		stock_receipt_line: { update: 'صحّح استلام يوم {date}: {product}' },
@@ -22,6 +23,9 @@ export const audit: Messages['audit'] = {
 			update: 'صحّح «{name}» بتاريخ {date} (أنجزها {by})',
 			delete: 'ألغى «{name}» بتاريخ {date} (أنجزها {by})'
 		},
+		sterilization_cycle: { update: 'صحّح الدورة {cycle}', delete: 'حذف الدورة {cycle}' },
+		sterile_pack_use: { delete: 'حذف الحزمة {code} المسجّلة لـ {patient}' },
+		label_settings: { update: 'عدّل إعدادات الملصقات' },
 		other: 'عدّل معطًى'
 	},
 	fields: {
@@ -46,6 +50,13 @@ export const audit: Messages['audit'] = {
 		serialNumber: 'الرقم التسلسلي',
 		quantity: 'الكمية',
 		unitPriceMillimes: 'سعر الوحدة',
-		result: 'النتيجة'
+		result: 'النتيجة',
+		program: 'البرنامج',
+		formatSterile: 'مقاس ملصقات التعقيم',
+		formatSpecimen: 'مقاس ملصقات العيّنات',
+		shelfLifeSachet: 'مدة الاستعمال – كيس',
+		shelfLifeDoubleSachet: 'مدة الاستعمال – كيس مزدوج',
+		shelfLifeConteneur: 'مدة الاستعمال – حاوية',
+		shelfLifeChamp: 'مدة الاستعمال – لفّة قماش'
 	}
 };

@@ -27,7 +27,7 @@ export interface AuditEntry {
 
 /** What each page asks for: its own entities only. */
 export const STOCK_ENTITIES = 'stock_receipt,stock_receipt_line,stock_movement,stock_product,supplier';
-export const HYGIENE_ENTITIES = 'hygiene_task,equipment,hygiene_task_done';
+export const HYGIENE_ENTITIES = 'hygiene_task,equipment,hygiene_task_done,sterilization_cycle,sterile_pack_use,label_settings';
 
 const isEmpty = (value: unknown) => value === null || value === undefined || value === '';
 const str = (value: unknown) => String(value ?? '');
@@ -44,7 +44,13 @@ const FORMAT: Record<string, (value: unknown) => string> = {
 	unitPriceMillimes: (v) => money(Number(v)),
 	phone: (v) => displayPhone(str(v)),
 	whatsapp: (v) => displayPhone(str(v)),
-	result: (v) => t(v === 'not_ok' ? 'hygiene.today.resultNotOk' : 'hygiene.today.resultOk')
+	result: (v) => t(v === 'not_ok' ? 'hygiene.today.resultNotOk' : 'hygiene.today.resultOk'),
+	formatSterile: (v) => translate(`labels.formats.${str(v)}`) ?? str(v),
+	formatSpecimen: (v) => translate(`labels.formats.${str(v)}`) ?? str(v),
+	shelfLifeSachet: (v) => t('audit.days', { count: Number(v) }),
+	shelfLifeDoubleSachet: (v) => t('audit.days', { count: Number(v) }),
+	shelfLifeConteneur: (v) => t('audit.days', { count: Number(v) }),
+	shelfLifeChamp: (v) => t('audit.days', { count: Number(v) })
 };
 
 export function auditValue(field: string, value: unknown): string {
@@ -75,7 +81,10 @@ export function auditSummary(entry: AuditEntry): string {
 		total: money(Number(b.totalMillimes ?? 0)),
 		kind: translate(`stock.movements.kinds.${str(b.kind)}`) ?? '',
 		quantity: Math.abs(Number(b.quantity ?? 0)),
-		by: str(b.doneBy)
+		by: str(b.doneBy),
+		cycle: str(b.cycle),
+		code: str(b.code),
+		patient: str(b.patient)
 	};
 	const what = translate(`audit.what.${entry.entity}.${entry.action}`, params) ?? t('audit.what.other');
 	return t('audit.entry', { date: formatDateTime(entry.at), user: entry.userName, what });

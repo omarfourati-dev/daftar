@@ -8,6 +8,7 @@ export const audit = {
 	yes: 'oui',
 	no: 'non',
 	none: '–',
+	days: '{count} jours',
 	what: {
 		stock_receipt: { delete: 'a supprimé la réception du {date} ({total})' },
 		stock_receipt_line: { update: 'a corrigé la réception du {date} : {product}' },
@@ -20,6 +21,9 @@ export const audit = {
 			update: 'a corrigé « {name} » du {date} (fait par {by})',
 			delete: 'a annulé « {name} » du {date} (fait par {by})'
 		},
+		sterilization_cycle: { update: 'a corrigé le cycle {cycle}', delete: 'a supprimé le cycle {cycle}' },
+		sterile_pack_use: { delete: 'a retiré le paquet {code} noté pour {patient}' },
+		label_settings: { update: 'a modifié les réglages des étiquettes' },
 		other: 'a modifié une donnée'
 	},
 	fields: {
@@ -44,6 +48,13 @@ export const audit = {
 		serialNumber: 'N° de série',
 		quantity: 'Quantité',
 		unitPriceMillimes: 'Prix unitaire',
-		result: 'Résultat'
+		result: 'Résultat',
+		program: 'Programme',
+		formatSterile: 'Format des étiquettes de stérilisation',
+		formatSpecimen: 'Format des étiquettes de prélèvement',
+		shelfLifeSachet: 'Durée d’utilisation – sachet',
+		shelfLifeDoubleSachet: 'Durée d’utilisation – double sachet',
+		shelfLifeConteneur: 'Durée d’utilisation – conteneur',
+		shelfLifeChamp: 'Durée d’utilisation – champ plié'
 	}
 };

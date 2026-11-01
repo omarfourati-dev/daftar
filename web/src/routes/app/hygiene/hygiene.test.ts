@@ -141,7 +141,7 @@ describe('/app/hygiene – tasks of the day, plan, history', () => {
 		];
 		hygieneApi({
 			'GET /api/hygiene/history?from=2026-10-01&to=2026-10-30': () => json(200, { from: '2026-10-01', to: '2026-10-30', rows }),
-			'GET /api/audit-log?entity=hygiene_task,equipment,hygiene_task_done&limit=50': () =>
+			'GET /api/audit-log?entity=hygiene_task,equipment,hygiene_task_done,sterilization_cycle,sterile_pack_use,label_settings&limit=50': () =>
 				json(200, [
 					{ id: 2, at: '2026-10-30T10:00:00+01:00', userName: 'Amira', entity: 'hygiene_task_done', entityId: 8, action: 'delete',
 						before: { task: 'Purge des conduits', dueOn: '2026-10-29', doneBy: 'Salma', result: 'ok', note: '' }, after: null, reason: 'Pas fait en réalité' },
@@ -184,7 +184,7 @@ describe('/app/hygiene – tasks of the day, plan, history', () => {
 		const done = { dueOn: '2026-10-26', taskId: 1, title: 'Test Bowie-Dick', equipmentName: 'Autoclave', status: 'done', late: false, done: { id: 9, doneBy: 'Karim', doneAt: '2026-10-26T08:10:00+01:00', result: 'ok', note: '' } };
 		hygieneApi({
 			'GET /api/hygiene/history?from=2026-10-01&to=2026-10-30': () => json(200, { from: '2026-10-01', to: '2026-10-30', rows: [done] }),
-			'GET /api/audit-log?entity=hygiene_task,equipment,hygiene_task_done&limit=50': () => json(200, []),
+			'GET /api/audit-log?entity=hygiene_task,equipment,hygiene_task_done,sterilization_cycle,sterile_pack_use,label_settings&limit=50': () => json(200, []),
 			'DELETE /api/hygiene/done/9': () => noContent()
 		});
 		history.replaceState(null, '', '/app/hygiene?tab=historique');
