@@ -481,6 +481,9 @@ equipment = Table(
     _ts("created_at"),
     Column("label_code", Text, nullable=True),  # "A1" on the labels of an autoclave (migration 0012)
     Column("last_cycle_number", Integer, nullable=False),  # only counts up (migration 0013)
+    # the numbers the last jump of the counter skipped, never given (migration 0014): the next cycle may take them
+    Column("skipped_from", Integer, nullable=True),
+    Column("skipped_to", Integer, nullable=True),
 )
 
 #: A recurring hygiene / maintenance task (rhythm rules: daftar/hygiene_rules.py).

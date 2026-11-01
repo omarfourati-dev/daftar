@@ -1,6 +1,6 @@
-"""Migrations 0012 and 0013 (sterilisation cycles, packs, their use, specimen labels, birth dates; codes never given
-twice, cancelled cycles, a use that outlives its patient): constraints that keep the traceability believable and the
-tenants apart."""
+"""Migrations 0012, 0013 and 0014 (sterilisation cycles, packs, their use, specimen labels, birth dates; codes never
+given twice, cancelled cycles, a use that outlives its patient; the numbers a jump skipped, the patient's number in the
+change log): constraints that keep the traceability believable and the tenants apart."""
 
 from collections.abc import Callable
 from datetime import UTC, date, datetime
@@ -205,6 +205,53 @@ def test_0013_keeps_every_number_and_starts_the_counters_at_the_highest_given(
             assert [tuple(r) for r in recorded] == [(owner.id, "Dr. Fadoua"), (owner.id, "Dr. Fadoua"), (None, "Nisrine")]
             assert tuple(conn.execute(select(sterile_pack_use.c.patient_id, sterile_pack_use.c.patient_no)).one()) == (
                 sami.id, sami.id)
+    finally:
+        with db.begin() as conn:
+            command.upgrade(_alembic(conn), "head")
+
+
+def test_the_numbers_a_jump_skipped_lie_below_the_counter(db: Engine, make_practice: Factory) -> None:
+    p = make_practice()
+    autoclave = _one(db, equipment, practice_id=p.id, name="Autoclave", kind="autoclave", label_code="A1",
+                     last_cycle_number=4130)
+    assert (autoclave.skipped_from, autoclave.skipped_to) == (None, None)
+    for values in ({"skipped_from": 414}, {"skipped_to": 4129}, {"skipped_from": 0, "skipped_to": 5},
+                   {"skipped_from": 500, "skipped_to": 499}, {"skipped_from": 414, "skipped_to": 4130}):
+        assert refused(db, update(equipment).where(equipment.c.id == autoclave.id).values(**values)) == (
+            "equipment_skipped_check")
+    with db.begin() as conn:
+        conn.execute(update(equipment).where(equipment.c.id == autoclave.id).values(skipped_from=414, skipped_to=4129))
+
+
+def test_0014_gives_the_change_log_of_today_the_patient_number_where_the_name_is_unique(
+    db: Engine, make_practice: Factory, make_patient: Factory,
+) -> None:
+    p, other = make_practice(), make_practice()
+    sami = make_patient(p, first_name="Sami", last_name="Trabelsi")
+    make_patient(p, first_name="Ali", last_name="Ben Salah")
+    make_patient(p, first_name="Ali", last_name="Ben Salah")  # two of them: which one is not known
+    make_patient(other, first_name="Lina", last_name="Ayari")  # another practice
+
+    def entry(conn: Any, name: str | None, practice_id: int = p.id) -> int:
+        return int(conn.execute(text(
+            "INSERT INTO audit_log (practice_id, user_name, at, entity, entity_id, action, before, reason) "
+            "VALUES (:p, 'Nisrine', now(), 'sterile_pack_use', 1, 'delete', "
+            "jsonb_build_object('code', 'A1-0412-01', 'patient', CAST(:name AS text)), 'Mauvais paquet') RETURNING id"),
+            {"p": practice_id, "name": name}).scalar_one())
+
+    try:
+        with db.begin() as conn:
+            command.downgrade(_alembic(conn), "0013")
+            ids = [entry(conn, "Sami Trabelsi"), entry(conn, "Ali Ben Salah"), entry(conn, "Lina Ayari"),
+                   entry(conn, None)]
+            command.upgrade(_alembic(conn), "head")
+        with db.connect() as conn:
+            before = dict(conn.execute(text("SELECT id, before FROM audit_log WHERE id = ANY(:ids)"), {"ids": ids}).all())
+        assert before[ids[0]] == {"code": "A1-0412-01", "patient": "Sami Trabelsi", "patientId": sami.id,
+                                  "patientNo": sami.id}
+        assert [before[i] for i in ids[1:]] == [{"code": "A1-0412-01", "patient": "Ali Ben Salah"},
+                                                {"code": "A1-0412-01", "patient": "Lina Ayari"},
+                                                {"code": "A1-0412-01", "patient": None}]
     finally:
         with db.begin() as conn:
             command.upgrade(_alembic(conn), "head")

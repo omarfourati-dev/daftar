@@ -11,17 +11,23 @@ cycle numbers of an autoclave (``equipment.last_cycle_number``) only count up, u
 the autoclave, so cycles entered at the same time get different numbers. A cycle is never deleted: the owner cancels
 it, it keeps its number and its pack codes, its packs can no longer be used.
 
+A number typed far above the counter (413 → 4130 – the dialog asks first, review Mi2) moves the counter, and the
+numbers it skipped are remembered as never given (``equipment.skipped_from`` … ``skipped_to``). If the jump was a
+mistake – its cycle cancelled, or the next cycle typed just above the last regular one – the next number is the last
+number entered + 1, taken from the skipped ones (never one given before); otherwise the counter goes on (4131).
+
 - ``GET /cycles/setup`` → ``{autoclaves:[{id, name, labelCode, nextNumber, lastRunAt}], programs, contents, team}``:
   the active autoclaves with the next cycle number, the practice's last programs and pack contents first, then the
   usual ones of the specialty (in the user's language), the team (who may have run the cycle: ``{id, name,
   initials}``).
 - ``POST /cycles {equipmentId, number?, runAt?, program, result: ok|not_ok, packs:[{content, packaging, quantity}],
   packCount?, note?, performedById?}`` → 201 Cycle. The autoclave gets its label code (``A1`` …) at its first cycle;
-  the number is the next one of its counter unless given (a forgotten cycle entered afterwards; 409
-  ``cycle_number_taken``). "Conforme": one pack per unit of ``quantity`` (at most 99, 422 ``too_many_packs``), each
-  with its code and "à utiliser avant" (sterilised day + shelf life of its packaging). "Non conforme": no pack and no
-  label (422 ``cycle_not_ok`` with packs) – only ``packCount``, the load to sterilise again. ``performedById``: who ran
-  it (a member of the team, 422 ``invalid_member``; by default the signed-in person, who is kept as ``recordedBy``).
+  the number is the next one (``nextNumber``, given under the lock) unless given (the autoclave's own number, a
+  forgotten cycle entered afterwards; 409 ``cycle_number_taken``). "Conforme": one pack per unit of ``quantity`` (at
+  most 99, 422 ``too_many_packs``), each with its code and "à utiliser avant" (sterilised day + shelf life of its
+  packaging). "Non conforme": no pack and no label (422 ``cycle_not_ok`` with packs) – only ``packCount``, the load to
+  sterilise again. ``performedById``: who ran it (a member of the team, 422 ``invalid_member``; by default the
+  signed-in person, who is kept as ``recordedBy``).
   422 ``not_an_autoclave`` / ``equipment_inactive`` / ``invalid_equipment`` / ``run_in_future`` / ``run_too_old``
   (more than a year back).
 - ``GET /cycles?from=&to=&equipmentId=`` (at most 366 days, default the last 30) → ``{from, to, cycles}``, newest
@@ -41,11 +47,14 @@ it, it keeps its number and its pack codes, its packs can no longer be used.
   goes on without it.
 - ``GET /pack-uses?appointmentId=`` (staff) or ``?patientId=`` (owner) → ``[Use]``, newest first.
 - ``DELETE /pack-uses/{id} {reason}``: its author within 15 minutes (a wrong code), the owner always; always with a
-  reason (422 ``reason_required``); logged.
+  reason (422 ``reason_required``); logged with the patient's name, id and number. Not for the use of an erased
+  patient (409 ``use_of_deleted_patient``): the pack would be free again (review Ni6).
 - ``GET /trace?code=`` (owner) → ``{pack, use}`` · ``GET /trace?patientId=`` → ``{patient:{id, name}, uses}``.
 
 A patient erased by the owner leaves the use of a pack behind (:func:`release_patient`): the pack stays used, the use
-keeps the patient's number (``patientNo``, ``patientDeleted``) and no name.
+keeps the patient's number (``patientNo``, ``patientDeleted``) and no name; the change log keeps his number and loses
+his name (review Mi1). A pack noted for him at that very moment either comes first (and stays, without his name) or
+finds him gone (422) – never a 500 (review Ni5).
 """
 
 from __future__ import annotations
@@ -55,7 +64,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Body, Query, Response
 from pydantic import Field, StrictInt, model_validator
-from sqlalchemy import Connection, delete, func, insert, or_, select, update
+from sqlalchemy import Connection, delete, func, insert, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 
 from . import audit
@@ -377,6 +386,9 @@ def _use_rows(conn: Connection, practice_id: int, *conditions: Any) -> list[Any]
 
 
 def _undoable(user: Principal, row: Any, now: datetime) -> bool:
+    """Its author soon, the owner always – never the use of an erased patient (review Ni6)."""
+    if row.patient_id is None:
+        return False
     return user.is_owner or (row.used_by_id == user.user_id and now - row.used_at <= UNDO_WINDOW)
 
 
@@ -442,15 +454,14 @@ def cycle_setup(user: StaffUser, conn: Conn) -> CycleSetup:
         .where(sterilization_cycle.c.practice_id == user.pid).group_by(sterilization_cycle.c.equipment_id).subquery()
     )
     rows = conn.execute(
-        select(equipment.c.id, equipment.c.name, equipment.c.label_code, equipment.c.last_cycle_number,
-               last_runs.c.last_run_at)
+        select(equipment, last_runs.c.last_run_at)
         .select_from(equipment.outerjoin(last_runs, last_runs.c.equipment_id == equipment.c.id))
         .where(equipment.c.practice_id == user.pid, equipment.c.kind == "autoclave", equipment.c.active.is_(True))
         .order_by(func.lower(equipment.c.name), equipment.c.id)
     ).all()
     specialty = conn.execute(select(practice.c.specialty).where(practice.c.id == user.pid)).scalar_one()
     return CycleSetup(
-        autoclaves=[AutoclaveOut(id=r.id, name=r.name, label_code=r.label_code, next_number=r.last_cycle_number + 1,
+        autoclaves=[AutoclaveOut(id=r.id, name=r.name, label_code=r.label_code, next_number=_next_number(conn, r),
                                  last_run_at=r.last_run_at) for r in rows],
         programs=_unique(_recent_programs(conn, user.pid), DEFAULT_PROGRAMS, limit=8),
         contents=_unique(_recent_contents(conn, user.pid), pack_contents(specialty, user.lang), limit=14),
@@ -496,19 +507,42 @@ def _label_code(conn: Connection, practice_id: int, gear: Any) -> str:
     return code
 
 
+def _next_number(conn: Connection, gear: Any) -> int:
+    """The number the next cycle of the autoclave gets (and the dialog proposes): the one after its counter – or, after
+    a jump that was a mistake, the last number entered + 1 from the numbers the jump skipped, never given (review Mi2).
+
+    The jump was a mistake when every cycle from it on is cancelled, or when the cycle entered last continues just
+    below it (typed with the autoclave's number once)."""
+    skipped = gear.skipped_from
+    if skipped is not None:
+        valid = (sterilization_cycle.c.equipment_id == gear.id, sterilization_cycle.c.cancelled_at.is_(None))
+        highest = conn.execute(select(func.max(sterilization_cycle.c.number)).where(*valid)).scalar_one_or_none()
+        latest = conn.execute(select(sterilization_cycle.c.number).where(*valid)
+                              .order_by(sterilization_cycle.c.id.desc()).limit(1)).scalar_one_or_none()
+        if highest is None or highest < skipped or latest == skipped - 1:
+            return int(skipped)
+    return int(gear.last_cycle_number) + 1
+
+
 def _cycle_number(conn: Connection, gear: Any, wanted: int | None) -> int:
-    """The next number of the autoclave's counter – or the number given (a cycle entered afterwards), which moves the
-    counter only forward. The counter never goes back: a number is never given twice."""
+    """The next number (:func:`_next_number`) – or the number given (the autoclave's own, a cycle entered
+    afterwards). The counter only moves forward and never goes back; a number is never given twice: a jump remembers
+    the numbers it skipped, and a number given from them is no longer one of them."""
     last = int(gear.last_cycle_number)
-    if wanted is None:
-        if last >= MAX_CYCLE_NUMBER:
-            raise unprocessable("Le compteur de cet autoclave est au bout : saisissez le n° du cycle.",
-                                code="validation")
-        number = last + 1
-    else:
-        number = wanted
+    number = _next_number(conn, gear) if wanted is None else wanted
+    if number > MAX_CYCLE_NUMBER:
+        raise unprocessable("Le compteur de cet autoclave est au bout : saisissez le n° du cycle.", code="validation")
+    values: dict[str, int | None] = {}
     if number > last:
-        conn.execute(update(equipment).where(equipment.c.id == gear.id).values(last_cycle_number=number))
+        values["last_cycle_number"] = number
+        if last and number > last + 1:  # a jump (not the first cycle, which takes the autoclave's number)
+            values |= {"skipped_from": last + 1, "skipped_to": number - 1}
+    elif gear.skipped_from is not None and gear.skipped_from <= number <= gear.skipped_to:
+        # the autoclave goes on below the jump, from this number: the skipped ones below it are left out for good
+        more = number < gear.skipped_to
+        values |= {"skipped_from": number + 1 if more else None, "skipped_to": gear.skipped_to if more else None}
+    if values:
+        conn.execute(update(equipment).where(equipment.c.id == gear.id).values(**values))
     return number
 
 
@@ -676,18 +710,30 @@ def find_packs(
     return found[:limit]
 
 
+def _held_patient(conn: Connection, practice_id: int, patient_id: int | None) -> int | None:
+    """The patient, held (``FOR KEY SHARE``) until the use is in: erasing him waits for it, or – erased first – he is
+    not found (review Ni5)."""
+    return conn.execute(select(patient.c.id).where(patient.c.id == patient_id, patient.c.practice_id == practice_id)
+                        .with_for_update(read=True, key_share=True)).scalar_one_or_none()
+
+
 def _whom(conn: Connection, practice_id: int, body: UseIn) -> tuple[int, int | None]:
-    """The patient (and appointment) a pack is used for – 422 ``invalid_appointment`` / ``invalid_patient``."""
+    """The patient (and appointment) a pack is used for – 422 ``invalid_appointment`` / ``invalid_patient``. Both are
+    held until the use is in, the patient first (as his erasure takes them: no deadlock)."""
     if body.appointment_id is not None:
-        found = conn.execute(select(appointment.c.patient_id).where(appointment.c.id == body.appointment_id,
-                                                                    appointment.c.practice_id == practice_id)).first()
+        query = select(appointment.c.patient_id).where(appointment.c.id == body.appointment_id,
+                                                      appointment.c.practice_id == practice_id)
+        found = conn.execute(query).first()
         if found is None:
             raise unprocessable("Rendez-vous introuvable dans le cabinet.", code="invalid_appointment")
         if body.patient_id is not None and body.patient_id != found.patient_id:
             raise unprocessable("Ce patient n'est pas celui du rendez-vous.", code="invalid_patient")
+        held = _held_patient(conn, practice_id, found.patient_id) is not None and conn.execute(
+            query.with_for_update(read=True, key_share=True)).first()
+        if not held or held.patient_id != found.patient_id:  # erased (or changed) meanwhile
+            raise unprocessable("Rendez-vous introuvable dans le cabinet.", code="invalid_appointment")
         return found.patient_id, body.appointment_id
-    known = conn.execute(select(patient.c.id).where(patient.c.id == body.patient_id,
-                                                    patient.c.practice_id == practice_id)).scalar_one_or_none()
+    known = _held_patient(conn, practice_id, body.patient_id)
     if known is None:
         raise unprocessable("Patient introuvable dans le cabinet.", code="invalid_patient")
     return int(known), None
@@ -745,8 +791,13 @@ def use_pack(body: UseIn, user: StaffWriter, ctx: Ctx, conn: Conn) -> UseOut:
                 practice_id=user.pid, pack_id=pack_id, patient_id=patient_id, patient_no=patient_id,
                 appointment_id=appointment_id, used_at=now, used_by=user.user_id, used_by_name=user.name[:120]))
     except IntegrityError as exc:
-        if constraint_name(exc) == "sterile_pack_use_once":
+        name = constraint_name(exc)
+        if name == "sterile_pack_use_once":
             raise conflict("Ce paquet est déjà utilisé.", code="pack_used") from exc
+        if name == "sterile_pack_use_appointment_id_fkey":  # held above – only if that ever changes
+            raise unprocessable("Rendez-vous introuvable dans le cabinet.", code="invalid_appointment") from exc
+        if name == "sterile_pack_use_patient_fkey":
+            raise unprocessable("Patient introuvable dans le cabinet.", code="invalid_patient") from exc
         raise
     (used,) = _use_rows(conn, user.pid, sterile_pack.c.id == pack_id)
     return _use(user, used, now)
@@ -774,6 +825,9 @@ def list_uses(
 @router.delete("/pack-uses/{use_id}", status_code=204)
 def undo_use(use_id: int, user: StaffWriter, ctx: Ctx, conn: Conn,
              body: Annotated[UndoIn | None, Body()] = None) -> Response:
+    # held: its patient erased at this moment is either still there (and his name leaves the log after) or gone (409)
+    conn.execute(select(sterile_pack_use.c.id).where(sterile_pack_use.c.id == use_id,
+                                                     sterile_pack_use.c.practice_id == user.pid).with_for_update())
     rows = _use_rows(conn, user.pid, sterile_pack_use.c.id == use_id)
     if not rows:
         raise not_found()
@@ -783,22 +837,40 @@ def undo_use(use_id: int, user: StaffWriter, ctx: Ctx, conn: Conn,
         if row.used_by_id == user.user_id:
             raise forbidden("Seule la personne titulaire peut annuler après 15 minutes.", code="undo_too_late")
         raise forbidden()
+    if row.patient_id is None:
+        raise conflict("Le patient de ce paquet a été supprimé : l'utilisation reste au registre, le paquet ne peut pas "
+                       "resservir.", code="use_of_deleted_patient")
     reason = body.reason.strip() if body else ""
     if not reason:
         raise unprocessable("Indiquez le motif du retrait.", code="reason_required")
-    patient_gone = {"patientNo": row.patient_no} if row.patient_id is None else {}
+    # the id lets the erasure of the patient take his name out of this entry (release_patient)
     audit.record(conn, user, entity="sterile_pack_use", entity_id=use_id, action="delete", now=now,
-                 before={"code": row.code, "content": row.content, "patient": _patient_name(row), **patient_gone,
-                         "usedAt": row.used_at, "usedBy": row.used_by_name},
+                 before={"code": row.code, "content": row.content, "patient": _patient_name(row),
+                         "patientId": row.patient_id, "patientNo": row.patient_no, "usedAt": row.used_at,
+                         "usedBy": row.used_by_name},
                  reason=reason)
     conn.execute(delete(sterile_pack_use).where(sterile_pack_use.c.id == use_id))
     return Response(status_code=204)
 
 
+#: The uses of a pack taken back, in the change log: the erased patient's name goes, his number stays (review Mi1).
+_FORGET_NAME = text(
+    "UPDATE audit_log SET before = (before - 'patientId') || jsonb_build_object('patient', NULL) "
+    "WHERE practice_id = :practice AND entity = 'sterile_pack_use' AND before ->> 'patientId' = :patient"
+)
+
+
 def release_patient(conn: Connection, practice_id: int, patient_id: int) -> None:
-    """Before a patient is erased: the packs he got stay used – their use keeps his number, no longer him."""
+    """Before a patient is erased: the packs he got stay used – their use keeps his number, no longer him; the change
+    log keeps his number, no longer his name.
+
+    The patient is held first (``FOR UPDATE``): a pack being noted for him at this moment is either in before – and
+    released here too – or waits and finds him gone (review Ni5)."""
+    conn.execute(select(patient.c.id).where(patient.c.id == patient_id, patient.c.practice_id == practice_id)
+                 .with_for_update())
     conn.execute(update(sterile_pack_use).where(sterile_pack_use.c.practice_id == practice_id,
                                                 sterile_pack_use.c.patient_id == patient_id).values(patient_id=None))
+    conn.execute(_FORGET_NAME, {"practice": practice_id, "patient": str(patient_id)})
 
 
 # --- traceability (owner) -----------------------------------------------------------------------------------------
