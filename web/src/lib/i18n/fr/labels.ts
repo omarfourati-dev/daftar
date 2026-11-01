@@ -54,6 +54,7 @@ export const labels = {
 		backToLabels: 'Revenir aux étiquettes',
 		nextStart: 'La prochaine impression sur planche commencera à la position {n} (modifiable).',
 		printedQuestion: 'Les {count} étiquette(s) sont-elles bien sorties de l’imprimante ?',
+		printedAgain: 'Impression précédente : {count} étiquette(s) à partir de la position {from}. Sont-elles bien sorties de l’imprimante ?',
 		printedYes: 'Oui, bien sorties',
 		printedNo: 'Non, pas imprimées',
 		sameStart: 'La planche reste à la position {n}.',
@@ -134,6 +135,12 @@ export const labels = {
 		chooseResult: 'Indiquez le résultat : conforme ou non conforme.',
 		whenInvalid: 'Vérifiez la date et l’heure du cycle.',
 		numberInvalid: 'Le n° de cycle est un nombre entier.',
+		jump: 'N° {number} – le prochain attendu est {expected}. Confirmer ?',
+		jumpFirst:
+			'N° {number} : premier cycle de cet autoclave dans Daftar, les suivants partiront de ce numéro. Est-ce bien le n° affiché par l’autoclave ?',
+		jumpConfirm: 'Oui, n° {number}',
+		jumpFix: 'Corriger le n°',
+		numberTaken: 'Le n° {number} existe déjà pour cet autoclave. Nouveau n° proposé : {next} – vérifiez-le sur l’autoclave, puis enregistrez.',
 		quantityInvalid: 'Le nombre de paquets est un nombre entier.',
 		contentMissing: 'Indiquez le contenu du paquet {n}, ou retirez la ligne.',
 		performedBy: 'Fait par'
@@ -274,6 +281,7 @@ export const labels = {
 		cycle_in_use: 'Un paquet de ce cycle a déjà été utilisé : corrigez le cycle au lieu de l’annuler.',
 		reason_required: 'Indiquez le motif.',
 		undo_too_late: 'Après 15 minutes, seul le titulaire peut retirer un paquet.',
+		use_of_deleted_patient: 'Le patient de ce paquet a été supprimé : le paquet reste noté comme utilisé et ne peut pas resservir.',
 		specimen_label_required: 'Nommez le prélèvement « Autre ».',
 		too_many_labels: '48 étiquettes au plus à la fois.',
 		invalid_collected_at: 'Vérifiez la date du prélèvement.',

@@ -193,6 +193,53 @@ describe('/app/etiquettes – labels at their real size, then the browser prints
 		expect(screen.queryByRole('button', { name: 'Oui, bien sorties' })).toBeNull();
 	});
 
+	it('asks again on the next visit when the question stayed open, and does not start on fields probably used (review Ni2)', async () => {
+		mockApi({
+			'GET /api/labels/settings': () => json(200, { ...settings, formats: { ...settings.formats, sterile: 'a4_3x8' } }),
+			'GET /api/hygiene/cycles/3': () => json(200, cycle)
+		});
+		let page = open('?cycle=3');
+		await fireEvent.click(await screen.findByRole('button', { name: 'Imprimer 2 étiquette(s)' }));
+		expect(await screen.findByText('Les 2 étiquette(s) sont-elles bien sorties de l’imprimante ?')).toBeInTheDocument();
+		page.unmount(); // "Retour" without an answer – the labels are stuck on the packs
+		page = open('?cycle=3');
+		const question = 'Impression précédente : 2 étiquette(s) à partir de la position 1. Sont-elles bien sorties de l’imprimante ?';
+		expect(await screen.findByText(question)).toBeInTheDocument();
+		const map = within(screen.getByRole('group', { name: 'Planche A4, 24 positions' }));
+		expect(map.getByRole('button', { name: 'Commencer à la position 3' })).toHaveAttribute('aria-pressed', 'true');
+		expect(localStorage.getItem('daftar.labels.sheetStart')).toBeNull(); // not taken as used before the answer
+		await fireEvent.click(screen.getByRole('button', { name: 'Oui, bien sorties' }));
+		expect(await screen.findByText('La prochaine impression sur planche commencera à la position 3 (modifiable).')).toBeInTheDocument();
+		expect(localStorage.getItem('daftar.labels.sheetStart')).toBe('3');
+		page.unmount();
+		open('?cycle=3');
+		await screen.findByRole('button', { name: 'Imprimer 2 étiquette(s)' });
+		expect(screen.queryByText(question)).toBeNull(); // answered: asked once only
+	});
+
+	it('goes back to the position of the last print when its labels did not come out after all (review Ni2)', async () => {
+		mockApi({
+			'GET /api/labels/settings': () => json(200, { ...settings, formats: { ...settings.formats, sterile: 'a4_3x8' } }),
+			'GET /api/hygiene/cycles/3': () => json(200, cycle)
+		});
+		localStorage.setItem('daftar.labels.sheetStart', '7');
+		let page = open('?cycle=3');
+		await fireEvent.click(await screen.findByRole('button', { name: 'Imprimer 2 étiquette(s)' }));
+		page.unmount();
+		page = open('?cycle=3');
+		await fireEvent.click(await screen.findByRole('button', { name: 'Non, pas imprimées' }));
+		expect(await screen.findByText('La planche reste à la position 7.')).toBeInTheDocument();
+		const map = within(screen.getByRole('group', { name: 'Planche A4, 24 positions' }));
+		expect(map.getByRole('button', { name: 'Commencer à la position 7' })).toHaveAttribute('aria-pressed', 'true');
+		page.unmount();
+		// a position chosen by hand answers the question too
+		open('?cycle=3');
+		await fireEvent.click(await screen.findByRole('button', { name: 'Imprimer 2 étiquette(s)' }));
+		await fireEvent.click(within(screen.getByRole('group', { name: 'Planche A4, 24 positions' })).getByRole('button', { name: 'Commencer à la position 12' }));
+		expect(screen.queryByRole('button', { name: 'Oui, bien sorties' })).toBeNull();
+		expect(localStorage.getItem('daftar.labels.sheetPending')).toBeNull();
+	});
+
 	it('warns before printing a content too long for the format instead of cutting it silently (review M6)', async () => {
 		const restore = narrowLabels();
 		try {

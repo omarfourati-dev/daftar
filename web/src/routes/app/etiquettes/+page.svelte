@@ -9,6 +9,8 @@
 	 * Nothing prints for a cycle "non conforme" or cancelled, also from an old link (review N1, H1). A text too long for
 	 * the format even at 7 pt is announced before printing, with what to do (review M6). The A4 sheet moves on only once
 	 * the labels came out of the printer – the browser does not tell whether the print dialog was cancelled (review N5).
+	 * A question left open is remembered: the next A4 preview asks again and, until it is answered, starts after the
+	 * labels probably printed – it never prints on fields probably used (review Ni2).
 	 */
 	import { onMount, tick } from 'svelte';
 	import { api, ApiError } from '#lib/api';
@@ -26,9 +28,12 @@
 		nextStart,
 		pageCss,
 		printable,
+		readPending,
 		readStart,
+		savePending,
 		saveStart,
 		sheets,
+		type SheetPrint,
 		specimenLabels,
 		sterileLabels,
 		type LabelData
@@ -54,7 +59,9 @@
 	let cycle = $state<Cycle | null>(null);
 	let specimen = $state<SpecimenPrint | null>(null);
 	let format = $state<LabelFormat>(isFormat(wanted) ? wanted : 'roll62');
-	let start = $state(readStart());
+	/** A print of an earlier visit not answered yet (review Ni2). */
+	const pending = readPending();
+	let start = $state(pending ? pending.next : readStart());
 	let chosen = $state<number[]>([]);
 	let choosing = $state(false);
 	let loading = $state(true);
@@ -63,8 +70,10 @@
 	let saving = $state(false);
 	/** The test page of the chosen format (also opened from a cycle or a specimen print, and back). */
 	let testing = $state(kind === 'test');
-	/** After printing on an A4 sheet: did the labels come out? Then the sheet moves on to `next`. */
-	let asking = $state<{ count: number; next: number } | null>(null);
+	/** After printing on an A4 sheet: did the labels come out? Then the sheet moves on to `next`, else stays at `from`. */
+	let asking = $state<SheetPrint | null>(pending);
+	/** The question is about a print of an earlier visit. */
+	let askingAgain = $state(!!pending);
 	/** What each fitted line of each label shows on paper, by `format|code|field`. */
 	let fits = $state<Record<string, FitResult>>({});
 	/** Labels only for a conforme cycle that was not cancelled. */
@@ -135,12 +144,19 @@
 		fits = { ...fits, [key]: result };
 	}
 
+	/** The question after a print on this page (or none) – kept until it is answered. */
+	function ask(print: SheetPrint | null) {
+		asking = print;
+		askingAgain = false;
+		savePending(print);
+	}
+
 	async function print() {
 		notice = '';
-		asking = null;
+		ask(null);
 		window.print();
 		if (sheet && !testing) {
-			asking = { count: labels.length, next: nextStart(start, labels.length) };
+			ask({ from: start, count: labels.length, next: nextStart(start, labels.length) });
 			await tick();
 			document.getElementById('printed-yes')?.focus();
 		}
@@ -152,14 +168,18 @@
 			start = asking.next;
 			saveStart(start);
 			notice = t('labels.print.nextStart', { n: start });
-		} else notice = t('labels.print.sameStart', { n: start });
-		asking = null;
+		} else {
+			start = asking.from;
+			if (start !== readStart()) saveStart(start); // printed from a position not confirmed yet
+			notice = t('labels.print.sameStart', { n: start });
+		}
+		ask(null);
 	}
 
 	function pick(position: number) {
 		start = position;
 		saveStart(position);
-		asking = null;
+		ask(null);
 	}
 
 	async function makeDefault() {
@@ -320,9 +340,13 @@
 						<button type="button" class="btn-secondary" onclick={() => showTest(true)}>{t('labels.print.printTest')}</button>
 					{/if}
 				</div>
-				{#if asking}
+				{#if asking && sheet && !testing}
 					<div class="flex flex-col gap-2 rounded-xl bg-white p-3 ring-1 ring-brand-700/40" role="group" aria-labelledby="printed-question">
-						<p id="printed-question" class="font-semibold">{t('labels.print.printedQuestion', { count: asking.count })}</p>
+						<p id="printed-question" class="font-semibold">
+							{askingAgain
+								? t('labels.print.printedAgain', { count: asking.count, from: asking.from })
+								: t('labels.print.printedQuestion', { count: asking.count })}
+						</p>
 						<div class="flex flex-wrap gap-2">
 							<button id="printed-yes" type="button" class="btn-primary min-h-11" onclick={() => printed(true)}>{t('labels.print.printedYes')}</button>
 							<button type="button" class="btn-secondary min-h-11" onclick={() => printed(false)}>{t('labels.print.printedNo')}</button>

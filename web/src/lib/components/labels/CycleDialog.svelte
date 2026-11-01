@@ -5,9 +5,13 @@
 	 * result is two big buttons. "Conforme": the packs, then their labels. "Non conforme": no label – the load is
 	 * sterilised again. "Fait par": who ran the autoclave (its initials go on the labels), by default the signed-in
 	 * person. A pack line without content is never dropped silently: the dialog asks for it.
+	 *
+	 * The number: left as proposed, none is sent – the server gives the next one under its lock, also when two people
+	 * enter a cycle at once; a number typed and taken meanwhile brings the new proposal (review Ni1). A number more than
+	 * 5 away from the proposal (4130 for 413) is asked about before saving – "Corriger" goes back to the field (Mi2).
 	 */
-	import { onMount } from 'svelte';
-	import { api } from '../../api';
+	import { onMount, tick } from 'svelte';
+	import { api, ApiError } from '../../api';
 	import { auth } from '../../auth.svelte';
 	import { clock } from '../../clock';
 	import { addDays, formatDay, t, todayTunis, tunisInstant } from '../../i18n.svelte';
@@ -38,10 +42,22 @@
 	let newAutoclave = $state('');
 	let performer = $state(String(auth.user?.id ?? ''));
 	let error = $state('');
+	let notice = $state('');
 	let busy = $state(false);
 	let nextKey = 1;
 	const manager = auth.role === 'owner' || auth.role === 'assistant';
 	const id = `cycle-${Math.random().toString(36).slice(2, 8)}`;
+	/** Further than this from the proposal, the number is asked about before saving (review Mi2). */
+	const JUMP = 5;
+	/** A number far from the proposal, waiting for "Oui" – and the one confirmed. */
+	let jump = $state<number | null>(null);
+	let confirmed: number | null = null;
+	let numberField = $state<HTMLInputElement>();
+
+	const autoclave = $derived(setup?.autoclaves.find((a) => String(a.id) === equipmentId) ?? null);
+	const proposed = $derived(autoclave?.nextNumber ?? null);
+	/** Its first cycle in Daftar: the number typed starts its count. */
+	const first = $derived(!!autoclave && !autoclave.lastRunAt);
 
 	async function loadSetup() {
 		loadError = '';
@@ -58,8 +74,14 @@
 
 	function choose(value: string) {
 		equipmentId = value;
-		const autoclave = setup?.autoclaves.find((a) => String(a.id) === value);
-		if (autoclave && !numberTouched) number = autoclave.nextNumber;
+		jump = null;
+		const chosen = setup?.autoclaves.find((a) => String(a.id) === value);
+		if (chosen && !numberTouched) number = chosen.nextNumber;
+	}
+
+	function typed() {
+		numberTouched = true;
+		jump = null;
 	}
 
 	async function addAutoclave() {
@@ -95,7 +117,12 @@
 
 	async function save(e: SubmitEvent) {
 		e.preventDefault();
+		await submit();
+	}
+
+	async function submit() {
 		error = '';
+		notice = '';
 		if (!equipmentId) return void (error = t('labels.cycleDialog.chooseAutoclave'));
 		if (!result) return void (error = t('labels.cycleDialog.chooseResult'));
 		if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{2}:\d{2}$/.test(time)) return void (error = t('labels.cycleDialog.whenInvalid'));
@@ -104,13 +131,21 @@
 		const empty = packs.findIndex((l) => !l.content.trim());
 		if (empty >= 0) return void (error = t('labels.cycleDialog.contentMissing', { n: empty + 1 }));
 		if (packs.some((l) => !Number.isInteger(l.quantity) || l.quantity < 1)) return void (error = t('labels.cycleDialog.quantityInvalid'));
+		if (number !== null && proposed !== null && Math.abs(number - proposed) > JUMP && confirmed !== number) {
+			jump = number;
+			await tick();
+			document.getElementById(`${id}-jump-yes`)?.focus();
+			return;
+		}
+		jump = null;
+		const sent = number === proposed ? null : number;
 		busy = true;
 		try {
 			const cycle = await api<Cycle>('/api/hygiene/cycles', {
 				method: 'POST',
 				json: {
 					equipmentId: Number(equipmentId),
-					number,
+					number: sent,
 					runAt: tunisInstant(day, time),
 					program: program.trim(),
 					result,
@@ -122,10 +157,36 @@
 			});
 			onsaved(cycle);
 		} catch (err) {
-			error = labelsError(err);
+			if (err instanceof ApiError && err.code === 'cycle_number_taken') await proposeAgain(sent ?? proposed);
+			else error = labelsError(err);
 		} finally {
 			busy = false;
 		}
+	}
+
+	/** "Oui, n° 4130": saved as typed. */
+	async function confirmJump() {
+		confirmed = jump;
+		jump = null;
+		await submit();
+	}
+
+	/** "Corriger le n°": back to the field. */
+	async function fixNumber() {
+		jump = null;
+		await tick();
+		numberField?.focus();
+		numberField?.select();
+	}
+
+	/** The number typed was entered meanwhile (another phone, the desk): the new proposal, said kindly (review Ni1). */
+	async function proposeAgain(taken: number | null) {
+		await loadSetup();
+		const next = setup?.autoclaves.find((a) => String(a.id) === equipmentId)?.nextNumber;
+		if (loadError || next === undefined) return;
+		number = next;
+		numberTouched = false;
+		notice = t('labels.cycleDialog.numberTaken', { number: taken ?? '', next });
 	}
 </script>
 
@@ -170,7 +231,16 @@
 				{/if}
 				<label class="label"
 					>{t('labels.cycleDialog.number')}
-					<input class="input tabular-nums" type="number" inputmode="numeric" min="1" step="1" bind:value={number} oninput={() => (numberTouched = true)} />
+					<input
+						class="input tabular-nums"
+						type="number"
+						inputmode="numeric"
+						min="1"
+						step="1"
+						bind:value={number}
+						bind:this={numberField}
+						oninput={typed}
+					/>
 				</label>
 			</div>
 			<div class="grid gap-3 sm:grid-cols-3">
@@ -289,6 +359,22 @@
 			{/if}
 
 			<label class="label">{t('labels.cycleDialog.note')}<input class="input" bind:value={note} maxlength="500" autocomplete="off" dir="auto" /></label>
+			{#if jump !== null}
+				<div class="flex flex-col gap-3 rounded-xl border-2 border-amber-500 bg-amber-50 p-3" role="group" aria-labelledby="{id}-jump">
+					<p id="{id}-jump" class="flex gap-2 font-semibold text-amber-950">
+						<Icon name="alert" class="mt-0.5 h-5 w-5 shrink-0" />{first
+							? t('labels.cycleDialog.jumpFirst', { number: jump })
+							: t('labels.cycleDialog.jump', { number: jump, expected: proposed ?? '' })}
+					</p>
+					<div class="flex flex-wrap gap-2">
+						<button id="{id}-jump-yes" type="button" class="btn-primary min-h-11 text-sm" disabled={busy} onclick={confirmJump}
+							>{t('labels.cycleDialog.jumpConfirm', { number: jump })}</button
+						>
+						<button type="button" class="btn-secondary min-h-11 text-sm" onclick={fixNumber}>{t('labels.cycleDialog.jumpFix')}</button>
+					</div>
+				</div>
+			{/if}
+			{#if notice}<p role="status" class="rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-950 ring-1 ring-amber-200">{notice}</p>{/if}
 			{#if error}<p role="alert" class="rounded-lg bg-rose-50 px-3 py-2 text-sm font-medium text-rose-900 ring-1 ring-rose-200">{error}</p>{/if}
 		</form>
 	{/if}
