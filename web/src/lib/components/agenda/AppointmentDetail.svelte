@@ -21,6 +21,8 @@
 	import Modal from '../daily/Modal.svelte';
 	import StatusPill from './StatusPill.svelte';
 	import MaterialUsed from '../stock/MaterialUsed.svelte';
+	import SpecimenForm from '../labels/SpecimenForm.svelte';
+	import SterileTrace from '../labels/SterileTrace.svelte';
 
 	type Props = {
 		appointment: Appointment;
@@ -211,6 +213,8 @@
 		{/if}
 		{#if MATERIAL_STATUSES.includes(a.status)}
 			<MaterialUsed appointmentId={a.id} />
+			<SterileTrace appointmentId={a.id} />
+			<SpecimenForm patientId={a.patient.id} appointmentId={a.id} birthKnown={false} />
 		{/if}
 
 		{#if notice}<p role="status" class="rounded-lg bg-emerald-50 px-3 py-2 font-medium text-emerald-900">{notice}</p>{/if}

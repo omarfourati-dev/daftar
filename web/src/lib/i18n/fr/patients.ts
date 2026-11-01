@@ -30,6 +30,9 @@ export const patients = {
 		phone: 'Téléphone',
 		phoneHint: 'Ex. 20 123 456 (un numéro peut être partagé par une famille)',
 		birthYear: 'Année de naissance',
+		birthDate: 'Date de naissance',
+		birthYearOr: 'ou année',
+		birthHint: 'La date complète figure sur les étiquettes de prélèvement ; à défaut, l’année.',
 		lang: 'Langue des messages',
 		consent: 'Accepte les rappels par WhatsApp ou SMS',
 		alerts: 'Alerte médicale (allergie, anticoagulant…)',
@@ -37,13 +40,15 @@ export const patients = {
 		notes: 'Notes',
 		save: 'Enregistrer',
 		saved: 'Patient enregistré.',
-		invalidYear: 'Année de naissance invalide.'
+		invalidYear: 'Année de naissance invalide.',
+		invalidDate: 'Date de naissance invalide.'
 	},
 	file: {
 		loadError: 'Le dossier n’a pas pu être chargé.',
 		notFound: 'Ce patient n’existe pas ou a été supprimé.',
 		back: 'Tous les patients',
 		born: 'né(e) en {year}',
+		bornOn: 'né(e) le {date}',
 		langFr: 'Français',
 		langAr: 'Arabe',
 		consentYes: 'Accepte les rappels',

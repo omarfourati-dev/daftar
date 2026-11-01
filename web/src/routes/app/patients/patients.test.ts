@@ -73,7 +73,7 @@ describe('/app/patients – list and search', () => {
 		await fireEvent.input(dialog.getByLabelText('Prénom'), { target: { value: 'Amel' } });
 		await fireEvent.input(dialog.getByLabelText('Nom'), { target: { value: 'Gharbi' } });
 		await fireEvent.input(dialog.getByLabelText('Téléphone'), { target: { value: '20 555 666' } });
-		await fireEvent.input(dialog.getByLabelText('Année de naissance'), { target: { value: '1990' } });
+		await fireEvent.input(dialog.getByLabelText('ou année'), { target: { value: '1990' } });
 		await fireEvent.click(dialog.getByLabelText('العربية'));
 		await fireEvent.input(dialog.getByLabelText('Alerte médicale (allergie, anticoagulant…)'), { target: { value: 'Diabète' } });
 		await fireEvent.click(dialog.getByRole('button', { name: 'Enregistrer' }));
@@ -83,6 +83,7 @@ describe('/app/patients – list and search', () => {
 			lastName: 'Gharbi',
 			phone: '20 555 666',
 			birthYear: 1990,
+			birthDate: null,
 			lang: 'ar',
 			reminderConsent: false,
 			notes: '',
