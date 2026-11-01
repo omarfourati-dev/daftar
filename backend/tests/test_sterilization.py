@@ -3,6 +3,8 @@
 T0 is Friday 30.10.2026 09:00 in Tunis.
 """
 
+import json
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
@@ -10,9 +12,10 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine, delete, select
+from sqlalchemy import Engine, delete, insert, select, text
 
-from daftar.tables import equipment, sterile_pack, sterilization_cycle
+from daftar.sterilization import release_patient
+from daftar.tables import equipment, patient, sterile_pack, sterile_pack_use, sterilization_cycle
 from tests.helpers import assert_problem
 
 Factory = Callable[..., Any]
@@ -58,6 +61,25 @@ def use(client: TestClient, headers: dict[str, str], code: str, **values: Any) -
 def cancel(client: TestClient, headers: dict[str, str], cycle_id: int, reason: str | None = "Saisi deux fois") -> Any:
     body = {} if reason is None else {"reason": reason}
     return client.post(f"/api/hygiene/cycles/{cycle_id}/cancel", json=body, headers=headers)
+
+
+def next_number(client: TestClient, headers: dict[str, str]) -> int:
+    """What the dialog of a new cycle proposes for the (only) autoclave."""
+    return int(client.get("/api/hygiene/cycles/setup", headers=headers).json()["autoclaves"][0]["nextNumber"])
+
+
+def waiting_for_a_lock(db: Engine) -> None:
+    """Until a request in another thread waits for a row lock held by the test."""
+    deadline = time.monotonic() + 15
+    with db.connect() as conn:
+        while time.monotonic() < deadline:
+            waiting = conn.execute(text("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() "
+                                        "AND wait_event_type = 'Lock'")).scalar_one()
+            conn.rollback()  # a new snapshot of pg_stat_activity next time
+            if waiting:
+                return
+            time.sleep(0.05)
+    raise AssertionError("no request waits for the lock")
 
 
 # --- settings ---------------------------------------------------------------------------------------------------
@@ -260,6 +282,60 @@ def test_cycle_numbers_come_from_a_counter_that_never_goes_back(client: TestClie
     assert cycle(client, cab.assistant, gear["id"])["packs"][0]["code"] == "A1-0414-01"
 
 
+def test_a_mistyped_number_once_cancelled_lets_the_numbers_go_on_where_the_autoclave_is(
+    client: TestClient, cab: Any, db: Engine,
+) -> None:
+    gear = autoclave(client, cab.assistant)
+    cycle(client, cab.assistant, gear["id"], number=412, packs=[])
+    cycle(client, cab.assistant, gear["id"], packs=[])  # 413
+    typo = cycle(client, cab.assistant, gear["id"], number=4130)  # 414 typed as 4130 – and confirmed (review Mi2)
+    assert next_number(client, cab.assistant) == 4131  # until somebody says it was a mistake
+    assert cancel(client, cab.owner, typo["id"], "N° mal saisi").status_code == 200
+    # the last number entered + 1, never given before – the counter itself stays at 4130
+    assert next_number(client, cab.assistant) == 414
+    assert cycle(client, cab.assistant, gear["id"])["packs"][0]["code"] == "A1-0414-01"
+    assert next_number(client, cab.assistant) == 415
+    # a test cycle not entered (415): the next one typed with its number, the numbers go on from there
+    assert cycle(client, cab.assistant, gear["id"], number=416, packs=[])["number"] == 416
+    assert next_number(client, cab.assistant) == 417
+    # a cycle forgotten at the time and entered afterwards does not move the proposal
+    cycle(client, cab.assistant, gear["id"], number=405, packs=[])
+    assert next_number(client, cab.assistant) == 417
+    # the cancelled number stays taken, nothing given before comes back, the counter never goes back
+    assert_problem(client.post("/api/hygiene/cycles", json={"equipmentId": gear["id"], "number": 4130, "result": "ok"},
+                               headers=cab.assistant), 409, "cycle_number_taken")
+    with db.connect() as conn:
+        assert conn.execute(select(equipment.c.last_cycle_number).where(equipment.c.id == gear["id"])).scalar_one() == 4130
+
+
+def test_a_mistyped_number_already_used_is_corrected_by_typing_the_right_one_once(client: TestClient, cab: Any) -> None:
+    gear = autoclave(client, cab.assistant)
+    cycle(client, cab.assistant, gear["id"], number=413, packs=[])
+    typo = cycle(client, cab.assistant, gear["id"], number=4140)  # 414 typed as 4140, a pack already opened
+    use(client, cab.assistant, typo["packs"][0]["code"], appointmentId=cab.appointment.id)
+    assert_problem(cancel(client, cab.owner, typo["id"]), 409, "cycle_in_use")
+    assert next_number(client, cab.assistant) == 4141
+    # the next cycle is typed with the autoclave's number once – the proposal follows it from then on
+    assert cycle(client, cab.assistant, gear["id"], number=415, packs=[])["number"] == 415
+    assert next_number(client, cab.assistant) == 416
+    assert cycle(client, cab.assistant, gear["id"], packs=[])["number"] == 416
+
+
+def test_a_real_jump_of_the_autoclave_counter_goes_on_above_it(client: TestClient, cab: Any) -> None:
+    gear = autoclave(client, cab.assistant)
+    cycle(client, cab.assistant, gear["id"], number=412, packs=[])  # the first cycle takes the autoclave's number
+    assert next_number(client, cab.assistant) == 413
+    cycle(client, cab.assistant, gear["id"], packs=[])  # 413
+    jump = cycle(client, cab.assistant, gear["id"], number=4130, packs=[])  # a new board in the autoclave
+    after = cycle(client, cab.assistant, gear["id"], packs=[])
+    assert after["number"] == 4131
+    assert cancel(client, cab.owner, after["id"]).status_code == 200
+    assert next_number(client, cab.assistant) == 4132  # 4130 is still the last valid one
+    # only once everything from the jump on is cancelled, the numbers in between are proposed (never given)
+    assert cancel(client, cab.owner, jump["id"], "N° mal saisi").status_code == 200
+    assert next_number(client, cab.assistant) == 414
+
+
 def test_cycles_entered_at_the_same_time_get_different_numbers(client: TestClient, cab: Any, db: Engine) -> None:
     gear = autoclave(client, cab.assistant)
     cycle(client, cab.assistant, gear["id"], packs=[])  # the autoclave has its code
@@ -384,7 +460,9 @@ def test_a_use_is_taken_back_by_its_author_soon_or_by_the_owner_with_a_reason(
     assert res.status_code == 204, res.text
     log = client.get("/api/audit-log?entity=sterile_pack_use", headers=cab.owner).json()
     assert [e["reason"] for e in log] == ["Mauvais patient", "Mauvais code"]
+    # with the patient's id and number: erasing him later takes his name out of the log (review Mi1)
     assert log[0]["before"] == {"code": "A1-0412-02", "content": "Kit examen", "patient": "Sami Trabelsi",
+                                "patientId": cab.patient.id, "patientNo": cab.patient.id,
                                 "usedAt": "2026-10-30T09:00:00+01:00", "usedBy": "Nisrine Hamza"}
 
 
@@ -409,12 +487,73 @@ def test_erasing_a_patient_keeps_the_pack_used_with_the_patient_number_only(clie
         None, None, sami, True)
     data = client.get("/api/practice/export", headers=cab.owner).json()
     assert [(u["patientId"], u["patientNo"]) for u in data["sterilePackUses"]] == [(None, sami)]
-    # the owner may still take the use back (a wrong code), with a reason
-    res = client.request("DELETE", f"/api/hygiene/pack-uses/{traced['id']}", json={"reason": "Mauvais code"},
-                         headers=cab.owner)
-    assert res.status_code == 204, res.text
+    # the use is not taken back any more: the pack would be free again for a second patient (review Ni6)
+    assert traced["undoable"] is False
+    refused = assert_problem(client.request("DELETE", f"/api/hygiene/pack-uses/{traced['id']}",
+                                            json={"reason": "Mauvais code"}, headers=cab.owner), 409, "use_of_deleted_patient")
+    assert "supprimé" in refused["detail"]
+    assert client.get("/api/hygiene/packs?q=A1-0412-01", headers=cab.owner).json()[0]["state"] == "used"
+    assert client.get("/api/audit-log?entity=sterile_pack_use", headers=cab.owner).json() == []
+
+
+def test_erasing_a_patient_takes_his_name_out_of_the_change_log(client: TestClient, cab: Any, make_patient: Factory) -> None:
+    gear = autoclave(client, cab.assistant)
+    cycle(client, cab.assistant, gear["id"], number=412, packs=[{"content": "Kit examen", "quantity": 2}])
+    lina = make_patient(cab.practice, first_name="Lina", last_name="Ayari")
+    sami = cab.patient.id
+    for code, whom in (("A1-0412-01", {"appointmentId": cab.appointment.id}), ("A1-0412-02", {"patientId": lina.id})):
+        noted = use(client, cab.assistant, code, **whom).json()
+        res = client.request("DELETE", f"/api/hygiene/pack-uses/{noted['id']}", json={"reason": "Mauvais paquet"},
+                             headers=cab.assistant)
+        assert res.status_code == 204, res.text
+    assert client.delete(f"/api/patients/{sami}", headers=cab.owner).status_code == 204
     log = client.get("/api/audit-log?entity=sterile_pack_use", headers=cab.owner).json()
-    assert (log[0]["before"]["patient"], log[0]["before"]["patientNo"]) == (None, sami)
+    # Sami's entry keeps the pack, the date and his number – the journal says "Patient supprimé (n° …)" (review Mi1)
+    assert log[1]["before"] == {"code": "A1-0412-01", "content": "Kit examen", "patient": None, "patientNo": sami,
+                                "usedAt": "2026-10-30T09:00:00+01:00", "usedBy": "Nisrine Hamza"}
+    assert (log[1]["reason"], log[0]["before"]["patient"], log[0]["before"]["patientId"]) == (
+        "Mauvais paquet", "Lina Ayari", lina.id)
+    everything = json.dumps(client.get("/api/audit-log", headers=cab.owner).json())
+    assert "Sami" not in everything and "Trabelsi" not in everything
+    assert "Trabelsi" not in json.dumps(client.get("/api/practice/export", headers=cab.owner).json()["auditLog"])
+
+
+def test_a_pack_noted_while_its_patient_is_being_erased_is_refused_clearly(client: TestClient, cab: Any,
+                                                                           db: Engine) -> None:
+    gear = autoclave(client, cab.assistant)
+    cycle(client, cab.assistant, gear["id"], number=412)
+    sami = cab.patient.id
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with db.begin() as conn:  # the owner erases Sami; the desk notes a pack in his appointment at that moment
+            release_patient(conn, cab.practice.id, sami)
+            conn.execute(delete(patient).where(patient.c.id == sami))
+            noted = pool.submit(use, client, cab.assistant, "A1-0412-01", appointmentId=cab.appointment.id)
+            waiting_for_a_lock(db)
+        res = noted.result(timeout=30)
+    assert_problem(res, 422, "invalid_appointment")  # not a 500 (review Ni5)
+    assert client.get("/api/hygiene/packs?q=A1-0412-01", headers=cab.assistant).json()[0]["state"] == "usable"
+
+
+def test_erasing_a_patient_while_a_pack_is_noted_for_him_keeps_that_use_too(client: TestClient, cab: Any, db: Engine,
+                                                                            clock: Any) -> None:
+    gear = autoclave(client, cab.assistant)
+    cycle(client, cab.assistant, gear["id"], number=412)
+    sami = cab.patient.id
+    with db.connect() as conn:
+        pack_id = conn.execute(select(sterile_pack.c.id).where(sterile_pack.c.code == "A1-0412-01",
+                                                               sterile_pack.c.practice_id == cab.practice.id)).scalar_one()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with db.begin() as conn:  # the desk notes a pack for Sami; the owner erases him at that moment
+            conn.execute(insert(sterile_pack_use).values(
+                practice_id=cab.practice.id, pack_id=pack_id, patient_id=sami, patient_no=sami,
+                appointment_id=cab.appointment.id, used_at=clock.now(), used_by_name="Nisrine Hamza"))
+            erased = pool.submit(client.delete, f"/api/patients/{sami}", headers=cab.owner)
+            waiting_for_a_lock(db)
+        res = erased.result(timeout=30)
+    assert res.status_code == 204, res.text  # not a 500 (review Ni5)
+    found = client.get("/api/hygiene/packs?q=A1-0412-01", headers=cab.owner).json()[0]
+    assert (found["state"], found["use"]["patientDeleted"], found["use"]["patientNo"], found["use"]["patientName"]) == (
+        "used", True, sami, None)
 
 
 def test_only_the_owner_sees_who_got_a_pack_outside_the_appointment(client: TestClient, cab: Any,

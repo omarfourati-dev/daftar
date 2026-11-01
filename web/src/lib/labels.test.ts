@@ -11,7 +11,9 @@ import {
 	nextStart,
 	pageCss,
 	patientOfUse,
+	readPending,
 	readStart,
+	savePending,
 	saveStart,
 	sheets,
 	shortLabelName,
@@ -68,6 +70,17 @@ describe('labels on real printers (spec stock-hygiène 7)', () => {
 		expect(readStart()).toBe(1);
 	});
 
+	it('remembers a print on A4 whose question was not answered (review Ni2)', () => {
+		localStorage.clear();
+		expect(readPending()).toBeNull();
+		savePending({ from: 23, count: 3, next: 2 });
+		expect(readPending()).toEqual({ from: 23, count: 3, next: 2 });
+		savePending(null);
+		expect(readPending()).toBeNull();
+		for (const broken of ['{', '{"from":0,"count":3,"next":3}', '{"from":1,"count":3,"next":30}', '[]', 'null'])
+			expect((localStorage.setItem('daftar.labels.sheetPending', broken), readPending())).toBeNull();
+	});
+
 	it('writes what a sterilisation label says', () => {
 		expect(sterileLabels(cycle, cycle.packs, 'Cabinet du Lac')).toEqual([
 			{ kind: 'sterile', code: 'A1-0412-07', practice: 'Cabinet du Lac', content: 'Kit extraction', sterilizedOn: '30/10/2026', useBefore: '28/01/2027', autoclave: 'A1', initials: 'NH' }
@@ -114,6 +127,10 @@ describe('labels on real printers (spec stock-hygiène 7)', () => {
 		expect(labelsError(used({ patientName: null, samePatient: false }))).toBe('Ce paquet est déjà noté pour un autre patient (le 30/10/2026).');
 		const cancelled = new ApiError(422, 'x', 'pack_cancelled', { code: 'pack_cancelled', reason: 'Saisi deux fois' });
 		expect(labelsError(cancelled)).toBe('Cycle annulé (Saisi deux fois) : cette étiquette n’est plus valable. Utilisez l’étiquette du bon cycle.');
+		// the use of an erased patient stays: the pack would be free again (review Ni6)
+		expect(labelsError(new ApiError(409, 'x', 'use_of_deleted_patient'))).toBe(
+			'Le patient de ce paquet a été supprimé : le paquet reste noté comme utilisé et ne peut pas resservir.'
+		);
 		i18n.setLocale('ar');
 		expect(labelsError(new ApiError(422, 'x', 'pack_not_sterile'))).toContain('غير معقّمة');
 	});

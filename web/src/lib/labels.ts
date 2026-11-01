@@ -5,7 +5,8 @@
  * - `roll62`: Brother QL, 62 mm roll cut at 29 mm (also the DK-11209 die-cut labels) – one label per page.
  * - `label57x32`: Dymo 11354 / Zebra 57 × 32 mm – one label per page.
  * - `a4_3x8`: A4 sheet of 24 labels 70 × 37 mm (3 × 8, no margin; 0.5 mm left at top and bottom); printing starts at
- *   any position, so a started sheet is used up. The next free position is remembered on this device.
+ *   any position, so a started sheet is used up. The next free position is remembered on this device – once the
+ *   labels came out; a print not answered yet is remembered too, and asked about again (review N5, Ni2).
  *
  * The safe area keeps text and QR away from the edges printers cannot reach (2–2.5 mm on label printers, 4–5 mm on
  * office printers). Text is at least 7 pt, black on white; codes and dates are always left to right.
@@ -80,6 +81,37 @@ export function saveStart(position: number) {
 		localStorage.setItem(START_KEY, String(position));
 	} catch {
 		/* private mode: the sheet starts at 1 next time */
+	}
+}
+
+/** A print on an A4 sheet whose question "did they come out?" is still open: `count` labels from `from`, then `next`. */
+export interface SheetPrint {
+	from: number;
+	count: number;
+	next: number;
+}
+
+const PENDING_KEY = 'daftar.labels.sheetPending';
+const isSlot = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= SHEET_SLOTS;
+
+/** The print still asked about (review Ni2): the next preview asks again and starts after it meanwhile. */
+export function readPending(): SheetPrint | null {
+	try {
+		const value: unknown = JSON.parse(localStorage.getItem(PENDING_KEY) ?? 'null');
+		if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+		const { from, count, next } = value as Record<string, unknown>;
+		return isSlot(from) && isSlot(next) && Number.isInteger(count) && (count as number) >= 1 ? { from, count: count as number, next } : null;
+	} catch {
+		return null;
+	}
+}
+
+export function savePending(print: SheetPrint | null) {
+	try {
+		if (print) localStorage.setItem(PENDING_KEY, JSON.stringify(print));
+		else localStorage.removeItem(PENDING_KEY);
+	} catch {
+		/* private mode: the question is asked on this page only */
 	}
 }
 

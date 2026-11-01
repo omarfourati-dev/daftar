@@ -154,8 +154,9 @@ describe('a new sterilisation cycle', () => {
 		expect(dialog.getByText('Double sachet : à utiliser avant le 28/04/2027')).toBeInTheDocument();
 		await fireEvent.click(dialog.getByRole('button', { name: 'Enregistrer et imprimer 3 étiquette(s)' }));
 		await vi.waitFor(() => expect(onsaved).toHaveBeenCalledWith(cycle));
+		// the proposed number untouched: the server gives the next one under its lock (review Ni1)
 		expect(sentJson('POST /api/hygiene/cycles')).toEqual({
-			equipmentId: 4, number: 413, runAt: '2026-10-30T10:10:00+01:00', program: '134 °C – 18 min', result: 'ok',
+			equipmentId: 4, number: null, runAt: '2026-10-30T10:10:00+01:00', program: '134 °C – 18 min', result: 'ok',
 			packs: [{ content: 'Kit examen', packaging: 'sachet', quantity: 2 }, { content: 'Kit extraction', packaging: 'double_sachet', quantity: 1 }],
 			packCount: null, note: '', performedById: 5
 		});
@@ -196,19 +197,98 @@ describe('a new sterilisation cycle', () => {
 		await vi.waitFor(() => expect(sentJson('POST /api/hygiene/cycles')).toMatchObject({ packs: [{ content: 'Kit examen' }, { content: 'Plateau ortho' }] }));
 	});
 
-	it('records a non conforme cycle without labels and explains a taken number', async () => {
-		mockApi({
-			'GET /api/hygiene/cycles/setup': () => json(200, setup),
-			'POST /api/hygiene/cycles': () => problem(409, 'cycle_number_taken')
+	it('records a non conforme cycle without labels; a number taken meanwhile brings the new proposal (review Ni1)', async () => {
+		let taken = false;
+		const fetch = mockApi({
+			'GET /api/hygiene/cycles/setup': () => json(200, taken ? { ...setup, autoclaves: [{ ...setup.autoclaves[0], nextNumber: 415 }] } : setup),
+			'POST /api/hygiene/cycles': () => (taken ? json(201, cycle) : ((taken = true), problem(409, 'cycle_number_taken')))
 		});
-		render(CycleDialog, { props: { settings, onsaved: vi.fn(), onclose: vi.fn() } });
+		const onsaved = vi.fn();
+		render(CycleDialog, { props: { settings, onsaved, onclose: vi.fn() } });
 		const dialog = within(await screen.findByRole('dialog'));
-		await fireEvent.click(await dialog.findByLabelText('Non conforme'));
+		const field = await dialog.findByLabelText('N° de cycle');
+		await fireEvent.input(field, { target: { value: '414' } }); // read on the autoclave – somebody entered it meanwhile
+		await fireEvent.click(dialog.getByLabelText('Non conforme'));
 		expect(dialog.getByText('Pas d’étiquette pour ce cycle : ses paquets ne sont pas stériles. Recommencez le cycle.')).toBeInTheDocument();
 		await fireEvent.input(dialog.getByLabelText('Paquets dans la charge'), { target: { value: '6' } });
 		await fireEvent.click(dialog.getByRole('button', { name: 'Enregistrer le cycle non conforme' }));
-		expect(await dialog.findByRole('alert')).toHaveTextContent('Ce n° de cycle existe déjà pour cet autoclave.');
-		expect(sentJson('POST /api/hygiene/cycles')).toMatchObject({ result: 'not_ok', packs: [], packCount: 6 });
+		expect(await dialog.findByRole('status')).toHaveTextContent(
+			'Le n° 414 existe déjà pour cet autoclave. Nouveau n° proposé : 415 – vérifiez-le sur l’autoclave, puis enregistrez.'
+		);
+		expect(field).toHaveValue(415);
+		expect(sentJson('POST /api/hygiene/cycles')).toMatchObject({ number: 414, result: 'not_ok', packs: [], packCount: 6 });
+		const again = dialog.getByRole('button', { name: 'Enregistrer le cycle non conforme' });
+		await vi.waitFor(() => expect(again).toBeEnabled());
+		await fireEvent.click(again);
+		await vi.waitFor(() => expect(onsaved).toHaveBeenCalledWith(cycle));
+		const posts = fetch.mock.calls.filter(([url, init]) => url === '/api/hygiene/cycles' && init?.method === 'POST');
+		expect(JSON.parse(posts[1][1]!.body as string)).toMatchObject({ number: null, packCount: 6 });
+	});
+
+	it('asks before saving a number far from the proposal – a cancel goes back to the field (review Mi2)', async () => {
+		mockApi({
+			'GET /api/hygiene/cycles/setup': () => json(200, setup),
+			'POST /api/hygiene/cycles': () => json(201, cycle)
+		});
+		render(CycleDialog, { props: { settings, onsaved: vi.fn(), onclose: vi.fn() } });
+		const dialog = within(await screen.findByRole('dialog'));
+		const field = await dialog.findByLabelText('N° de cycle');
+		await fireEvent.input(field, { target: { value: '4130' } });
+		await fireEvent.click(dialog.getByLabelText('Conforme'));
+		await fireEvent.click(dialog.getByRole('button', { name: 'Enregistrer le cycle' }));
+		const question = await dialog.findByRole('group', { name: 'N° 4130 – le prochain attendu est 413. Confirmer ?' });
+		expect(within(question).getByRole('button', { name: 'Oui, n° 4130' })).toHaveFocus();
+		expect(calls().some((c) => c.startsWith('POST'))).toBe(false);
+		await fireEvent.click(within(question).getByRole('button', { name: 'Corriger le n°' }));
+		expect(field).toHaveFocus();
+		expect(dialog.queryByRole('group', { name: /le prochain attendu/ })).toBeNull();
+		// downwards as well
+		await fireEvent.input(field, { target: { value: '407' } });
+		await fireEvent.click(dialog.getByRole('button', { name: 'Enregistrer le cycle' }));
+		expect(await dialog.findByRole('group', { name: 'N° 407 – le prochain attendu est 413. Confirmer ?' })).toBeInTheDocument();
+		// typing again closes the question; 5 away from the proposal is a plain cycle forgotten or skipped
+		await fireEvent.input(field, { target: { value: '408' } });
+		expect(dialog.queryByRole('group', { name: /le prochain attendu/ })).toBeNull();
+		await fireEvent.click(dialog.getByRole('button', { name: 'Enregistrer le cycle' }));
+		await vi.waitFor(() => expect(sentJson('POST /api/hygiene/cycles')).toMatchObject({ number: 408 }));
+	});
+
+	it('saves a number far from the proposal once it is confirmed (review Mi2)', async () => {
+		mockApi({
+			'GET /api/hygiene/cycles/setup': () => json(200, setup),
+			'POST /api/hygiene/cycles': () => json(201, cycle)
+		});
+		const onsaved = vi.fn();
+		render(CycleDialog, { props: { settings, onsaved, onclose: vi.fn() } });
+		const dialog = within(await screen.findByRole('dialog'));
+		await fireEvent.input(await dialog.findByLabelText('N° de cycle'), { target: { value: '4130' } });
+		await fireEvent.click(dialog.getByLabelText('Conforme'));
+		await fireEvent.click(dialog.getByRole('button', { name: 'Enregistrer le cycle' }));
+		await fireEvent.click(await dialog.findByRole('button', { name: 'Oui, n° 4130' }));
+		await vi.waitFor(() => expect(onsaved).toHaveBeenCalledWith(cycle));
+		expect(sentJson('POST /api/hygiene/cycles')).toMatchObject({ number: 4130 });
+		expect(calls().filter((c) => c.startsWith('POST'))).toHaveLength(1);
+		expect(labelInNameProblems()).toEqual([]);
+	});
+
+	it('asks to check the number of the first cycle of an autoclave, from which the next ones count (review Mi2)', async () => {
+		mockApi({
+			'GET /api/hygiene/cycles/setup': () =>
+				json(200, { ...setup, autoclaves: [{ id: 4, name: 'Autoclave Melag', labelCode: null, nextNumber: 1, lastRunAt: null }] }),
+			'POST /api/hygiene/cycles': () => json(201, cycle)
+		});
+		render(CycleDialog, { props: { settings, onsaved: vi.fn(), onclose: vi.fn() } });
+		const dialog = within(await screen.findByRole('dialog'));
+		const field = await dialog.findByLabelText('N° de cycle');
+		expect(field).toHaveValue(1);
+		await fireEvent.input(field, { target: { value: '412' } });
+		await fireEvent.click(dialog.getByLabelText('Conforme'));
+		await fireEvent.click(dialog.getByRole('button', { name: 'Enregistrer le cycle' }));
+		const question = await dialog.findByRole('group', {
+			name: 'N° 412 : premier cycle de cet autoclave dans Daftar, les suivants partiront de ce numéro. Est-ce bien le n° affiché par l’autoclave ?'
+		});
+		await fireEvent.click(within(question).getByRole('button', { name: 'Oui, n° 412' }));
+		await vi.waitFor(() => expect(sentJson('POST /api/hygiene/cycles')).toMatchObject({ number: 412 }));
 	});
 
 	it('adds the first autoclave of the practice from the dialog', async () => {
