@@ -178,11 +178,11 @@
 			<fieldset class="flex flex-col gap-2">
 				<legend class="mb-1 text-sm font-semibold text-slate-700">{t('labels.cycleDialog.result')}</legend>
 				<div class="grid grid-cols-2 gap-2">
-					<label class="choice {result === 'ok' ? 'border-emerald-700 bg-emerald-50 text-emerald-950' : ''}">
+					<label class="choice ok">
 						<input type="radio" name="{id}-result" value="ok" bind:group={result} class="sr-only" />
 						<Icon name="check" class="h-6 w-6" />{t('labels.cycleDialog.ok')}
 					</label>
-					<label class="choice {result === 'not_ok' ? 'border-rose-700 bg-rose-50 text-rose-950' : ''}">
+					<label class="choice not-ok">
 						<input type="radio" name="{id}-result" value="not_ok" bind:group={result} class="sr-only" />
 						<Icon name="alert" class="h-6 w-6" />{t('labels.cycleDialog.notOk')}
 					</label>
@@ -298,6 +298,16 @@
 		background: #fff;
 		font-size: 1.05rem;
 		font-weight: 700;
+	}
+	.choice.ok:has(:checked) {
+		border-color: #047857;
+		background: #ecfdf5;
+		color: #022c22;
+	}
+	.choice.not-ok:has(:checked) {
+		border-color: #be123c;
+		background: #fff1f2;
+		color: #4c0519;
 	}
 	.choice:has(:focus-visible) {
 		outline: 2px solid var(--color-brand-700);

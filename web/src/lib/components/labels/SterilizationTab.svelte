@@ -96,9 +96,8 @@
 		</div>
 	{/if}
 
-	{#if isOwner}<div class="print:hidden"><TraceSearch /></div>{/if}
-
-	<section aria-labelledby="cycles-title" class="flex flex-col gap-3">
+	<div class="grid items-start gap-5 {isOwner ? 'lg:grid-cols-[minmax(0,1fr)_22rem]' : ''}">
+	<section aria-labelledby="cycles-title" class="flex min-w-0 flex-col gap-3">
 		<h2 id="cycles-title" class="text-lg font-bold print:hidden">{t('labels.cycles.title')}</h2>
 		<form class="flex flex-wrap items-end gap-3 print:hidden" onsubmit={(e) => (e.preventDefault(), void load())}>
 			<label class="label">{t('hygiene.history.from')}<input class="input" type="date" bind:value={from} max={to} /></label>
@@ -222,6 +221,8 @@
 			<p class="card text-slate-600" aria-busy="true">{t('common.loading')}</p>
 		{/if}
 	</section>
+	{#if isOwner}<div class="print:hidden lg:sticky lg:top-4"><TraceSearch /></div>{/if}
+	</div>
 </div>
 
 {#if creating && settings}
