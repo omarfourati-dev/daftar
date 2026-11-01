@@ -24,7 +24,7 @@ export const labels = {
 		bornIn: 'Né(e) en {year}',
 		fileNo: 'N° {no}',
 		collected: 'Prél. le {when}',
-		collectedBy: 'Prél. le {when} – {by}'
+		collectedBy: 'Prél. le {when} – {by}'
 	},
 	test: { title: 'Test d’impression', label: 'Étiquette de test {n}', sample: 'Texte 7 pt :', position: 'Position {n}' },
 	print: {

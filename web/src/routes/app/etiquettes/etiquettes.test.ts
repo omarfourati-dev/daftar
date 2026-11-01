@@ -106,7 +106,7 @@ describe('/app/etiquettes – labels at their real size, then the browser prints
 		expect(label.getByText('TRABELSI Sami')).toBeInTheDocument();
 		expect(label.getByText('Né(e) le 12/03/1978 – N° 77')).toBeInTheDocument();
 		expect(label.getByText('Sang EDTA')).toBeInTheDocument();
-		expect(label.getByText('Prél. le 30/10/2026 09:42 – NH')).toBeInTheDocument();
+		expect(label.getByText(/^Prél\. le 30\/10\/2026 09:42\s– NH$/)).toBeInTheDocument();
 		expect(screen.getByRole('link', { name: 'Retour' })).toHaveAttribute('href', '/app/patients/77');
 		expect(screen.queryByRole('button', { name: /Garder ce format/ })).toBeNull(); // the dentist does not set up the desk
 	});
@@ -119,7 +119,7 @@ describe('/app/etiquettes – labels at their real size, then the browser prints
 		expect(pageStyle()).toContain('size:57mm 32mm');
 		const label = within(preview().getByRole('article', { name: 'Étiquette de test 1' }));
 		expect(label.getByText('57 × 32 mm')).toBeInTheDocument();
-		expect(label.getByText('AaBbCc 0123456789')).toBeInTheDocument();
+		expect(label.getByText('Aa 0123456789')).toBeInTheDocument();
 		await fireEvent.click(screen.getByLabelText(/Planche A4 de 24/));
 		expect(preview().getAllByRole('article')).toHaveLength(24);
 		await fireEvent.click(screen.getByRole('button', { name: 'Imprimer la page de test' }));

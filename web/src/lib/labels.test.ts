@@ -81,7 +81,7 @@ describe('labels on real printers (spec stock-hygiène 7)', () => {
 		const [edta, other] = specimenLabels(print, 'Cabinet du Lac');
 		expect(edta).toEqual({
 			kind: 'specimen', code: 'E1042-01', practice: 'Cabinet du Lac', name: 'TRABELSI Sami', birth: 'Né(e) le 12/03/1978', fileNo: '77',
-			specimen: 'Sang EDTA', collected: 'Prél. le 30/10/2026 09:42 – ABS'
+			specimen: 'Sang EDTA', collected: 'Prél. le 30/10/2026 09:42 – ABS'
 		});
 		expect(other.specimen).toBe('Liquide pleural');
 		expect(initialsOf('Nisrine Hamza')).toBe('NH');
@@ -95,6 +95,15 @@ describe('labels on real printers (spec stock-hygiène 7)', () => {
 		expect(labelsError(used)).toBe('Ce paquet est déjà noté pour Sami Trabelsi (le 30/10/2026).');
 		i18n.setLocale('ar');
 		expect(labelsError(new ApiError(422, 'x', 'pack_not_sterile'))).toContain('غير معقّمة');
+	});
+
+	it('keeps dates left to right on Arabic labels', () => {
+		i18n.setLocale('ar');
+		const [label] = sterileLabels(cycle, cycle.packs, 'Cabinet du Lac');
+		expect(label.useBefore).toBe('28/01/2027'); // no right-to-left marks inside the left-to-right date
+		const [tube] = specimenLabels(print, 'Cabinet du Lac');
+		expect(tube.birth).toBe('تاريخ الولادة ⁦12/03/1978⁩');
+		expect(tube.collected).toBe('أُخذت في ⁦30/10/2026 09:42⁩ – ABS');
 	});
 });
 

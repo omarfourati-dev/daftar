@@ -24,7 +24,7 @@ export const labels = {
 		bornIn: 'سنة الولادة {year}',
 		fileNo: 'ملف {no}',
 		collected: 'أُخذت في {when}',
-		collectedBy: 'أُخذت في {when} – {by}'
+		collectedBy: 'أُخذت في {when} – {by}'
 	},
 	test: { title: 'تجربة طباعة', label: 'ملصق تجربة {n}', sample: 'نص 7 نقاط:', position: 'الموضع {n}' },
 	print: {

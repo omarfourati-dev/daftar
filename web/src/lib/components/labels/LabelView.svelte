@@ -24,7 +24,7 @@
 
 <article class="label {label.kind}" style={vars} dir={i18n.dir} lang={i18n.locale} aria-label={name} data-label={label.code}>
 	{#if label.kind === 'sterile'}
-		<p class="head">{label.practice}</p>
+		<p class="head" data-critical>{label.practice}</p>
 		<div class="body">
 			<div class="qr-col">
 				<LabelQr text={label.code} class="qr" />
@@ -64,7 +64,7 @@
 			<div class="info">
 				<p class="big">{t('labels.test.title')}</p>
 				<p><span class="ltr" dir="ltr">{spec.label[0]} × {spec.label[1]} mm</span></p>
-				<p>{t('labels.test.sample')} <span class="ltr" dir="ltr">AaBbCc 0123456789</span></p>
+				<p>{t('labels.test.sample')} <span class="ltr" dir="ltr">Aa 0123456789</span></p>
 				<p class="strong">{t('labels.test.position', { n: label.position })}</p>
 			</div>
 		</div>

@@ -11,7 +11,7 @@
  * office printers). Text is at least 7 pt, black on white; codes and dates are always left to right.
  */
 import { ApiError, apiErrorMessage } from './api';
-import { formatDate, formatDay, formatTime, t, translate } from './i18n.svelte';
+import { formatDate, formatDay, formatTime, i18n, t, translate } from './i18n.svelte';
 import type { Cycle, LabelFormat, Pack, Packaging, SpecimenKind, SpecimenPrint } from './types/labels';
 
 export const FORMATS: readonly LabelFormat[] = ['roll62', 'label57x32', 'a4_3x8'];
@@ -114,8 +114,15 @@ export type LabelData = SterileLabel | SpecimenLabel | TestLabel;
 /** "TRABELSI Sami"; Arabic names stay as they are written. */
 export const labelName = (first: string, last: string) => `${last.toLocaleUpperCase('fr')} ${first}`.trim();
 
+/** A date or time on a label: without the bidi marks of the Arabic format, and – in Arabic text – isolated left to
+ * right, so "30/01/2027" never turns into "302027/01/". */
+export function labelDate(text: string): string {
+	const plain = text.replace(/[‎‏؜]/g, '');
+	return i18n.dir === 'rtl' ? `⁦${plain}⁩` : plain;
+}
+
 export function birthText(patient: { birthDate: string | null; birthYear: number | null }): string {
-	if (patient.birthDate) return t('labels.specimen.bornOn', { date: formatDay(patient.birthDate) });
+	if (patient.birthDate) return t('labels.specimen.bornOn', { date: labelDate(formatDay(patient.birthDate)) });
 	if (patient.birthYear) return t('labels.specimen.bornIn', { year: patient.birthYear });
 	return '';
 }
@@ -131,15 +138,15 @@ export function sterileLabels(cycle: Cycle, packs: Pack[], practice: string): St
 		code: p.code,
 		practice,
 		content: p.content,
-		sterilizedOn: formatDate(cycle.runAt),
-		useBefore: formatDay(p.expiresOn),
+		sterilizedOn: labelDate(formatDate(cycle.runAt)).replace(/[⁦⁩]/g, ''),
+		useBefore: labelDate(formatDay(p.expiresOn)).replace(/[⁦⁩]/g, ''),
 		autoclave: cycle.labelCode,
 		initials: cycle.initials
 	}));
 }
 
 export function specimenLabels(print: SpecimenPrint, practice: string): SpecimenLabel[] {
-	const collected = `${formatDate(print.collectedAt)} ${formatTime(print.collectedAt)}`;
+	const collected = labelDate(`${formatDate(print.collectedAt)} ${formatTime(print.collectedAt)}`);
 	return print.labels.map((l) => ({
 		kind: 'specimen',
 		code: l.code,

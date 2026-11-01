@@ -128,7 +128,7 @@
 
 	function testLabels(): LabelData[] {
 		const count = format === 'a4_3x8' ? SHEET_SLOTS : 1;
-		return Array.from({ length: count }, (_, i) => ({ kind: 'test', code: 'DAFTAR-TEST', position: i + 1 }));
+		return Array.from({ length: count }, (_, i) => ({ kind: 'test', code: 'TEST', position: i + 1 }));
 	}
 
 	function showTest(on: boolean) {

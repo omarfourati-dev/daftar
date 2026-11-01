@@ -10,7 +10,14 @@ export interface FitOptions {
 	key?: unknown;
 }
 
-const overflowing = (node: HTMLElement) => node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1;
+/**
+ * Lines hidden or cut: the box scrolls by more than the font's own ascent and descent stick out of its line boxes
+ * (IBM Plex Sans Arabic keeps room for Arabic marks above and below – about a third of the size).
+ */
+function overflowing(node: HTMLElement): boolean {
+	const slack = 0.35 * (parseFloat(getComputedStyle(node).fontSize) || 0) + 1;
+	return node.scrollHeight > node.clientHeight + slack || node.scrollWidth > node.clientWidth + 1;
+}
 
 export function fit(node: HTMLElement, options: FitOptions) {
 	let current = options;
