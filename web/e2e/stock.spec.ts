@@ -19,6 +19,9 @@ test('stock on the phone: start list, delivery of two lines, use in three taps, 
 	await expect(page.getByText(/produit\(s\) ajouté\(s\)/)).toBeVisible();
 	const list = page.getByRole('list', { name: 'Produits en stock' });
 	await expect(list.getByText('Seringues 5 ml')).toBeVisible();
+	// never delivered: grey, not "à commander" (no count on the tab)
+	await expect(list.getByRole('button', { name: /Seringues 5 ml/ })).toContainText('Pas encore reçu');
+	await expect(page.getByRole('button', { name: 'À commander', exact: true })).toBeVisible();
 	await noHorizontalScroll(page, 'stock list 360');
 
 	// delivery: supplier created on the way, two lines, live total
@@ -37,7 +40,17 @@ test('stock on the phone: start list, delivery of two lines, use in three taps, 
 	await page.getByLabel('Prix unitaire (DT)').fill('0,180');
 	await page.getByLabel('Ajouter un produit reçu').fill('gants');
 	await page.getByRole('button', { name: 'Gants d’examen' }).click();
+	// "13500" typed for "13,500": read back as dinars, and asked about before saving
+	await page.getByLabel('Prix unitaire (DT)').nth(1).fill('13500');
+	await expect(page.getByText('Soit 13 500 DT par boîte')).toBeVisible();
+	await page.getByRole('button', { name: 'Enregistrer la réception' }).click();
+	const unusual = page.getByRole('dialog', { name: 'Prix inhabituel' });
+	await expect(unusual.getByText('Gants d’examen : 13 500 DT par boîte ?')).toBeVisible();
+	await axe(page);
+	await unusual.getByRole('button', { name: 'Corriger le prix' }).click();
+	await expect(unusual).toHaveCount(0);
 	await page.getByLabel('Prix unitaire (DT)').nth(1).fill('13,5');
+	await expect(page.getByText('Soit 13,500 DT par boîte')).toBeVisible();
 	await expect(page.getByText('24,300 DT')).toBeVisible(); // 60 × 0,180 + 1 × 13,5
 	await axe(page);
 	await noHorizontalScroll(page, 'reception 360');
@@ -60,6 +73,24 @@ test('stock on the phone: start list, delivery of two lines, use in three taps, 
 	await expect(group.getByRole('link', { name: 'Commander par WhatsApp' })).toHaveAttribute('href', /^https:\/\/wa\.me\/21620123456\?text=/);
 	await axe(page);
 	await noHorizontalScroll(page, 'to order 360');
+
+	// the owner corrects a mistyped quantity of the delivery; the change log says it in words
+	await page.getByRole('button', { name: 'Mouvements' }).click();
+	await page.getByRole('button', { name: 'Corriger la réception : Seringues 5 ml' }).click();
+	const correction = page.getByRole('dialog', { name: /^Corriger la réception du/ });
+	await correction.getByLabel('Quantité reçue').fill('50');
+	await correction.getByLabel('Motif').fill('Bon de livraison relu');
+	await axe(page);
+	await correction.getByRole('button', { name: 'Enregistrer la correction' }).click();
+	await expect(page.getByText('Réception corrigée : le stock et les coûts sont à jour.')).toBeVisible();
+	const log = page.getByRole('list', { name: 'Journal des corrections' });
+	await expect(log).toContainText('a corrigé la réception du');
+	await expect(log).toContainText('Quantité : 60 → 50');
+	await expect(log).toContainText('Motif : Bon de livraison relu');
+	await axe(page);
+	await noHorizontalScroll(page, 'movements 360');
+	await page.getByRole('button', { name: 'Produits' }).click();
+	await expect(list.getByRole('button', { name: /Seringues 5 ml/ })).toContainText('49 pièces');
 });
 
 test('material of an appointment and the owner’s figures; Arabic right to left', async ({ page, request }) => {
@@ -95,6 +126,13 @@ test('material of an appointment and the owner’s figures; Arabic right to left
 	const figures = page.getByRole('region', { name: 'Matériel du mois' });
 	await expect(figures.getByRole('table', { name: 'Coût du matériel par acte' })).toContainText(p.services[0].nameFr);
 	await axe(page);
+	// on a phone the costs per act are cards, nothing scrolls sideways
+	await page.setViewportSize({ width: 360, height: 780 });
+	await expect(figures.getByRole('list', { name: 'Coût du matériel par acte' })).toContainText(p.services[0].nameFr);
+	await expect(figures.getByRole('table', { name: 'Coût du matériel par acte' })).toBeHidden();
+	await axe(page);
+	await noHorizontalScroll(page, 'material figures 360');
+	await page.setViewportSize({ width: 1280, height: 800 });
 
 	await signIn(page, p, 'ar');
 	await page.goto(APP + '/app/stock');

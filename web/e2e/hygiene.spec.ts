@@ -46,13 +46,34 @@ test('hygiene on the phone: plan of the specialty, tick on "Aujourd’hui", fail
 	await expect(row.getByText('Joint de porte usé')).toBeVisible();
 	await axe(page);
 
-	// the register shows both proofs and can be printed
+	// the register on the phone: one card per due date, both proofs
 	await page.getByRole('button', { name: 'Historique' }).click();
-	const register = page.getByRole('table', { name: 'Registre d’hygiène' });
-	await expect(register.getByRole('row', { name: /Contrôle du stérilisateur/ })).toContainText('Non conforme');
-	await expect(register.getByRole('row', { name: /Désinfection des surfaces/ })).toContainText('Fait');
+	const cards = page.getByRole('list', { name: 'Registre d’hygiène, une carte par date' });
+	await expect(cards.getByRole('listitem').filter({ hasText: 'Contrôle du stérilisateur' })).toContainText('Non conforme');
+	await expect(cards.getByRole('listitem').filter({ hasText: 'Désinfection des surfaces' })).toContainText('Fait');
+	await expect(page.getByRole('table', { name: 'Registre d’hygiène' })).toBeHidden();
 	await axe(page);
 	await noHorizontalScroll(page, 'register 360');
+
+	// the owner corrects a proof with a reason; the change log keeps old → new
+	await cards.getByRole('button', { name: /^Corriger – Désinfection des surfaces du/ }).click();
+	const proof = page.getByRole('dialog', { name: 'Corriger la preuve' });
+	await proof.getByLabel('Non conforme').check();
+	await proof.getByLabel('Motif').fill('Produit périmé utilisé');
+	await axe(page);
+	await proof.getByRole('button', { name: 'Enregistrer la correction' }).click();
+	await expect(page.getByText('Preuve corrigée.')).toBeVisible();
+	const log = page.getByRole('list', { name: 'Journal des corrections' });
+	await expect(log).toContainText('a corrigé « Désinfection des surfaces »');
+	await expect(log).toContainText('Résultat : Conforme → Non conforme');
+	await noHorizontalScroll(page, 'register with log 360');
+
+	// from a tablet on, the register is a table (and so on paper)
+	await page.setViewportSize({ width: 1024, height: 800 });
+	const register = page.getByRole('table', { name: 'Registre d’hygiène' });
+	await expect(register.getByRole('row', { name: /Contrôle du stérilisateur/ })).toContainText('Non conforme');
+	await expect(register.getByRole('row', { name: /Désinfection des surfaces/ })).toContainText('Non conforme');
+	await axe(page);
 });
 
 test('hygiene in Arabic, right to left', async ({ page, request }) => {
