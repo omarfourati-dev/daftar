@@ -278,7 +278,7 @@
 		{#each tabs as which (which)}
 			<button
 				type="button"
-				class="min-h-11 rounded-full px-4 text-sm font-semibold ring-1 transition-colors {tab === which
+				class="min-h-11 rounded-full px-4 text-sm font-semibold ring-1 {tab === which
 					? 'bg-brand-700 text-white ring-brand-700'
 					: 'bg-white text-slate-700 ring-slate-300 hover:bg-slate-50'}"
 				aria-pressed={tab === which}

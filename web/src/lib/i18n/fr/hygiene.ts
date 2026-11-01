@@ -3,7 +3,7 @@ export const hygiene = {
 	title: 'Hygiène',
 	intro: 'Nettoyage, désinfection et maintenance du cabinet : ce qui est à faire, et la preuve de ce qui est fait.',
 	loadError: 'Les tâches d’hygiène n’ont pas pu être chargées.',
-	tabs: { label: 'Parties de l’hygiène', today: 'Aujourd’hui', setup: 'Équipements et tâches', history: 'Historique' },
+	tabs: { label: 'Parties de l’hygiène', today: 'Aujourd’hui', sterilization: 'Stérilisation', setup: 'Équipements et tâches', history: 'Historique' },
 	today: {
 		title: 'Hygiène du jour',
 		label: 'Tâches du jour',

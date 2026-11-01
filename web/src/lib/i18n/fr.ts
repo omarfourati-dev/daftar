@@ -20,6 +20,7 @@ import { feedback } from './fr/feedback';
 import { importer } from './fr/importer';
 import { stock } from './fr/stock';
 import { hygiene } from './fr/hygiene';
+import { labels } from './fr/labels';
 import { installer } from './fr/installer';
 import { invitation } from './fr/invitation';
 import { kit } from './fr/kit';
@@ -77,7 +78,8 @@ export const fr = {
 	importer,
 	stock,
 	hygiene,
-	audit
+	audit,
+	labels
 };
 
 export type Messages = typeof fr;

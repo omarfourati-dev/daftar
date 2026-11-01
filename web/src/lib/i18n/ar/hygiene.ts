@@ -5,7 +5,7 @@ export const hygiene: Messages['hygiene'] = {
 	title: 'النظافة والتعقيم',
 	intro: 'تنظيف العيادة وتطهيرها وصيانتها: ما يجب فعله، وإثبات ما تمّ.',
 	loadError: 'تعذّر تحميل مهام النظافة.',
-	tabs: { label: 'أقسام النظافة', today: 'اليوم', setup: 'الأجهزة والمهام', history: 'السجلّ' },
+	tabs: { label: 'أقسام النظافة', today: 'اليوم', sterilization: 'التعقيم', setup: 'الأجهزة والمهام', history: 'السجلّ' },
 	today: {
 		title: 'نظافة اليوم',
 		label: 'مهام اليوم',

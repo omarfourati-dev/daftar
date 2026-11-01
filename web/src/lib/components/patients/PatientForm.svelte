@@ -4,7 +4,7 @@
 	import { untrack } from 'svelte';
 	import { api } from '../../api';
 	import { clock } from '../../clock';
-	import { i18n, t } from '../../i18n.svelte';
+	import { i18n, t, todayTunis } from '../../i18n.svelte';
 	import type { Patient } from '../../types/patients';
 	import Modal from '../daily/Modal.svelte';
 
@@ -16,6 +16,7 @@
 	let lastName = $state(start?.lastName ?? '');
 	let phone = $state(start?.phone ?? '');
 	let birthYear = $state(start?.birthYear ? String(start.birthYear) : '');
+	let birthDate = $state(start?.birthDate ?? '');
 	let lang = $state<string>(start?.lang ?? i18n.locale);
 	let consent = $state(start?.reminderConsent ?? false);
 	let alerts = $state(start?.alerts ?? '');
@@ -26,7 +27,12 @@
 	async function submit(e: SubmitEvent) {
 		e.preventDefault();
 		error = '';
-		const year = birthYear.trim() ? Number(birthYear) : null;
+		const date = birthDate || null;
+		if (date !== null && (date < '1900-01-01' || date > todayTunis(clock.now()))) {
+			error = t('patients.form.invalidDate');
+			return;
+		}
+		const year = date ? null : birthYear.trim() ? Number(birthYear) : null;
 		if (year !== null && (!Number.isInteger(year) || year < 1900 || year > clock.now().getFullYear())) {
 			error = t('patients.form.invalidYear');
 			return;
@@ -36,6 +42,7 @@
 			lastName: lastName.trim(),
 			phone: phone.trim(),
 			birthYear: year,
+			birthDate: date,
 			lang,
 			reminderConsent: consent,
 			notes: notes.trim(),
@@ -61,13 +68,27 @@
 			<label class="label">{t('patients.form.firstName')}<input class="input" bind:value={firstName} maxlength="120" required autocomplete="off" data-autofocus /></label>
 			<label class="label">{t('patients.form.lastName')}<input class="input" bind:value={lastName} maxlength="120" required autocomplete="off" /></label>
 		</div>
-		<div class="grid gap-3 sm:grid-cols-[2fr_1fr]">
-			<label class="label"
-				>{t('patients.form.phone')}<input class="input" type="tel" inputmode="tel" dir="ltr" bind:value={phone} required autocomplete="off" aria-describedby="phone-hint" /></label
-			>
-			<label class="label">{t('patients.form.birthYear')}<input class="input" inputmode="numeric" maxlength="4" bind:value={birthYear} autocomplete="off" /></label>
-		</div>
+		<label class="label"
+			>{t('patients.form.phone')}<input class="input" type="tel" inputmode="tel" dir="ltr" bind:value={phone} required autocomplete="off" aria-describedby="phone-hint" /></label
+		>
 		<p id="phone-hint" class="-mt-2 text-xs text-slate-500">{t('patients.form.phoneHint')}</p>
+		<div class="grid grid-cols-2 gap-3">
+			<label class="label"
+				>{t('patients.form.birthDate')}<input class="input" type="date" min="1900-01-01" max={todayTunis(clock.now())} bind:value={birthDate} aria-describedby="birth-hint" /></label
+			>
+			<label class="label"
+				>{t('patients.form.birthYear')}<input
+					class="input tabular-nums"
+					inputmode="numeric"
+					maxlength="4"
+					value={birthDate ? birthDate.slice(0, 4) : birthYear}
+					oninput={(e) => (birthYear = e.currentTarget.value)}
+					disabled={!!birthDate}
+					autocomplete="off"
+				/></label
+			>
+		</div>
+		<p id="birth-hint" class="-mt-2 text-xs text-slate-500">{t('patients.form.birthHint')}</p>
 		<fieldset class="flex flex-wrap items-center gap-4">
 			<legend class="sr-only">{t('patients.form.lang')}</legend>
 			<span class="text-sm font-medium text-slate-700" aria-hidden="true">{t('patients.form.lang')}</span>

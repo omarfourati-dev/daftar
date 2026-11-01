@@ -31,6 +31,8 @@ export const patients: Messages['patients'] = {
 		phone: 'الهاتف',
 		phoneHint: 'مثال: 20 123 456 (يمكن أن تتشارك العائلة رقمًا واحدًا)',
 		birthYear: 'سنة الولادة',
+		birthDate: 'تاريخ الولادة',
+		birthHint: 'يُطبع التاريخ الكامل على ملصقات العيّنات، وإلا فالسنة.',
 		lang: 'لغة الرسائل',
 		consent: 'يقبل التذكير عبر واتساب أو الإرساليات القصيرة',
 		alerts: 'تنبيه طبي (حساسية، مضاد تخثّر…)',
@@ -38,13 +40,15 @@ export const patients: Messages['patients'] = {
 		notes: 'ملاحظات',
 		save: 'حفظ',
 		saved: 'تم حفظ المريض.',
-		invalidYear: 'سنة الولادة غير صحيحة.'
+		invalidYear: 'سنة الولادة غير صحيحة.',
+		invalidDate: 'تاريخ الولادة غير صحيح.'
 	},
 	file: {
 		loadError: 'تعذّر تحميل الملف.',
 		notFound: 'هذا المريض غير موجود أو تم حذفه.',
 		back: 'كل المرضى',
 		born: 'مولود(ة) سنة {year}',
+		bornOn: 'مولود(ة) في {date}',
 		langFr: 'الفرنسية',
 		langAr: 'العربية',
 		consentYes: 'يقبل التذكير',

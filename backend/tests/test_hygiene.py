@@ -52,7 +52,7 @@ def test_the_assistant_sets_up_equipment_and_tasks(client: TestClient, cab: Any)
     assert res.status_code == 201, res.text
     autoclave = res.json()
     assert autoclave == {"id": autoclave["id"], "name": "Autoclave", "kind": "autoclave", "serialNumber": "SN-44", "note": "",
-                         "active": True, "tasks": 0}
+                         "active": True, "labelCode": None, "tasks": 0, "cycles": 0}
     created = task(client, cab.assistant, "Test Bowie-Dick", frequency="weekly", weekday=1, equipmentId=autoclave["id"],
                    instructions="Premier cycle de la semaine")
     assert created["equipmentName"] == "Autoclave" and created["startsOn"] == "2026-10-30"

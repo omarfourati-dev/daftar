@@ -83,6 +83,7 @@ describe('/app/patients – list and search', () => {
 			lastName: 'Gharbi',
 			phone: '20 555 666',
 			birthYear: 1990,
+			birthDate: null,
 			lang: 'ar',
 			reminderConsent: false,
 			notes: '',

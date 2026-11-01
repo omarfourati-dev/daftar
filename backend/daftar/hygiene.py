@@ -5,7 +5,9 @@
 Roles (section 3): every staff role reads and ticks; assistant and owner set up equipment and tasks; the owner
 corrects proofs. Changes of equipment and tasks are in the change log (who, when, old → new – :mod:`daftar.audit`).
 
-- ``GET /equipment`` · ``POST`` · ``PATCH /{id}`` · ``DELETE /{id}`` (only without tasks, else 409 ``equipment_in_use``).
+- ``GET /equipment`` (with ``labelCode`` – ``A1`` on the labels of an autoclave – and how many tasks and sterilisation
+  cycles use it) · ``POST`` · ``PATCH /{id}`` · ``DELETE /{id}`` (only without tasks and cycles, else 409
+  ``equipment_in_use``).
 - ``GET /tasks`` → ``[Task]`` with ``nextDueOn`` (the open occurrence, else the next one) · ``POST`` · ``PATCH /{id}``
   (a new frequency clears the weekday / interval it does not use; a new rhythm, first date or a deactivation counts
   from today) · ``DELETE /{id}`` (only while nothing of it is in the register but today's open row, else 409
@@ -53,7 +55,7 @@ from .hygiene_register import (
 from .hygiene_rules import MAX_SHIFT_DAYS, EquipmentKind, Frequency, Rhythm, next_due, open_weekday, starter_plan
 from .problems import ApiError, conflict, forbidden, not_found, unprocessable
 from .schemas import ApiModel, Name, TunisDateTime
-from .tables import equipment, hygiene_task, hygiene_task_done, hygiene_task_due, practice
+from .tables import equipment, hygiene_task, hygiene_task_done, hygiene_task_due, practice, sterilization_cycle
 
 router = APIRouter(prefix="/api/hygiene", tags=["hygiene"])
 
@@ -95,7 +97,9 @@ class EquipmentOut(ApiModel):
     serial_number: str
     note: str
     active: bool
+    label_code: str | None
     tasks: int
+    cycles: int
 
 
 class EquipmentIn(ApiModel):
@@ -126,11 +130,13 @@ EQUIPMENT_LOG = {"name": "name", "kind": "kind", "serial_number": "serialNumber"
 
 def _equipment(conn: Connection, practice_id: int, equipment_id: int | None = None) -> list[EquipmentOut]:
     count = select(func.count()).where(hygiene_task.c.equipment_id == equipment.c.id).scalar_subquery()
+    cycles = select(func.count()).where(sterilization_cycle.c.equipment_id == equipment.c.id).scalar_subquery()
     conditions = [equipment.c.practice_id == practice_id]
     if equipment_id is not None:
         conditions.append(equipment.c.id == equipment_id)
     rows = conn.execute(
-        select(equipment, count.label("tasks")).where(*conditions).order_by(func.lower(equipment.c.name), equipment.c.id)
+        select(equipment, count.label("tasks"), cycles.label("cycles"))
+        .where(*conditions).order_by(func.lower(equipment.c.name), equipment.c.id)
     ).all()
     return [EquipmentOut.model_validate(r, from_attributes=True) for r in rows]
 
@@ -192,9 +198,12 @@ def patch_equipment(equipment_id: int, body: EquipmentPatch, user: HygieneManage
 
 @router.delete("/equipment/{equipment_id}", status_code=204)
 def delete_equipment(equipment_id: int, user: HygieneManager, ctx: Ctx, conn: Conn) -> Response:
+    # locked like a new cycle locks its autoclave: no cycle slips in between the check and the deletion
+    conn.execute(select(equipment.c.id).where(equipment.c.id == equipment_id, equipment.c.practice_id == user.pid)
+                 .with_for_update())
     current = _one_equipment(conn, user.pid, equipment_id)
-    if current.tasks:
-        raise conflict("Des tâches utilisent cet équipement : désactivez-le plutôt.", code="equipment_in_use")
+    if current.tasks or current.cycles:
+        raise conflict("Des tâches ou des cycles utilisent cet équipement : désactivez-le plutôt.", code="equipment_in_use")
     audit.record(conn, user, entity="equipment", entity_id=equipment_id, action="delete", now=ctx.clock.now(),
                  before={"name": current.name, "kind": current.kind, "serialNumber": current.serial_number})
     conn.execute(delete(equipment).where(equipment.c.id == equipment_id))

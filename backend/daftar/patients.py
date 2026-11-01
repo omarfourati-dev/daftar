@@ -5,6 +5,10 @@
 - ``POST /api/patients`` → 201 Patient · ``GET/PATCH /api/patients/{id}`` · ``DELETE`` (owner) → 204 (cascades).
 - ``GET /api/patients/{id}/appointments`` (newest first) · ``GET /api/patients/{id}/ledger``.
 
+Birth: ``birthDate`` is optional (labs need it on specimen labels); when it is set, ``birthYear`` is its year –
+another year in the same request is 422 ``birth_year_mismatch``, a date in the future or before 1900 422
+``invalid_birth_date``. Patients with a year only stay valid; clearing the date keeps the year.
+
 Reliability: ``noShows`` = no_show, ``attended`` = done, ``cancelled`` = cancelled appointments.
 ``nextAppointmentAt`` = earliest appointment from now on that is still planned (requested … in_treatment).
 """
@@ -12,7 +16,7 @@ Reliability: ``noShows`` = no_show, ``attended`` = done, ``cancelled`` = cancell
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, Response
@@ -26,6 +30,7 @@ from .finance import PaymentOut, TreatmentOut, load_payments, load_treatments, p
 from .phone import Phone
 from .problems import not_found, unprocessable
 from .schemas import ApiModel, Lang, Name, TunisDateTime
+from .sterilization import release_patient
 from .tables import appointment, patient, payment
 
 router = APIRouter(prefix="/api/patients", tags=["patients"])
@@ -48,6 +53,7 @@ class PatientSummary(ApiModel):
     last_name: str
     phone: str
     birth_year: int | None
+    birth_date: date | None
     lang: str
     reminder_consent: bool
     no_shows: int
@@ -83,6 +89,7 @@ class PatientIn(ApiModel):
     last_name: Name
     phone: Phone
     birth_year: BirthYear | None = None
+    birth_date: date | None = None
     lang: Lang = "fr"
     reminder_consent: bool = False
     notes: Notes = ""
@@ -98,6 +105,7 @@ class PatientPatch(ApiModel):
     last_name: Name | None = None
     phone: Phone | None = None
     birth_year: BirthYear | None = None
+    birth_date: date | None = None
     lang: Lang | None = None
     reminder_consent: bool | None = None
     notes: Notes | None = None
@@ -176,6 +184,7 @@ def _summary_values(row: Any) -> dict[str, Any]:
         "last_name": row.last_name,
         "phone": row.phone,
         "birth_year": row.birth_year,
+        "birth_date": row.birth_date,
         "lang": row.lang,
         "reminder_consent": row.reminder_consent,
         "no_shows": row.no_shows,
@@ -225,6 +234,27 @@ def _check_birth_year(ctx: Any, birth_year: int | None) -> None:
         raise unprocessable("L'année de naissance est dans le futur.", code="invalid_birth_year")
 
 
+def _mismatch() -> Exception:
+    return unprocessable("L'année ne correspond pas à la date de naissance.", code="birth_year_mismatch")
+
+
+def _birth(ctx: Any, sent: dict[str, Any], current_date: date | None = None) -> dict[str, Any]:
+    """The birth fields to store: a sent date sets the year (another sent year is a mismatch); a sent year must agree
+    with the date that stays."""
+    if sent.get("birth_date") is not None:
+        born: date = sent["birth_date"]
+        if not date(1900, 1, 1) <= born <= today_tunis(ctx.clock):
+            raise unprocessable("Date de naissance invalide.", code="invalid_birth_date")
+        if sent.get("birth_year") not in (None, born.year):
+            raise _mismatch()
+        return {**sent, "birth_year": born.year}
+    _check_birth_year(ctx, sent.get("birth_year"))
+    stays = current_date if "birth_date" not in sent else None
+    if stays is not None and "birth_year" in sent and sent["birth_year"] != stays.year:
+        raise _mismatch()
+    return sent
+
+
 # --- endpoints -------------------------------------------------------------------------------------------------
 
 @router.get("")
@@ -250,10 +280,10 @@ def list_patients(
 
 @router.post("", status_code=201)
 def create_patient(body: PatientIn, user: StaffWriter, ctx: Ctx, conn: Conn) -> PatientOut:
-    _check_birth_year(ctx, body.birth_year)
+    values = _birth(ctx, body.model_dump(by_alias=False))
     new_id = conn.execute(
         insert(patient)
-        .values(practice_id=user.pid, created_at=ctx.clock.now(), **body.model_dump(by_alias=False))
+        .values(practice_id=user.pid, created_at=ctx.clock.now(), **values)
         .returning(patient.c.id)
     ).scalar_one()
     return load_patient(conn, user.pid, new_id, ctx.clock.now())
@@ -266,9 +296,8 @@ def get_patient(patient_id: int, user: StaffUser, ctx: Ctx, conn: Conn) -> Patie
 
 @router.patch("/{patient_id}")
 def patch_patient(patient_id: int, body: PatientPatch, user: StaffWriter, ctx: Ctx, conn: Conn) -> PatientOut:
-    find_patient(conn, user.pid, patient_id, lock=True)
-    values = body.model_dump(include=body.model_fields_set, by_alias=False)
-    _check_birth_year(ctx, values.get("birth_year"))
+    current = find_patient(conn, user.pid, patient_id, lock=True)
+    values = _birth(ctx, body.model_dump(include=body.model_fields_set, by_alias=False), current.birth_date)
     if values:
         conn.execute(
             update(patient).where(patient.c.id == patient_id, patient.c.practice_id == user.pid).values(**values)
@@ -278,8 +307,10 @@ def patch_patient(patient_id: int, body: PatientPatch, user: StaffWriter, ctx: C
 
 @router.delete("/{patient_id}", status_code=204)
 def delete_patient(patient_id: int, user: OwnerWriter, conn: Conn) -> Response:
-    """Deletes the patient and – through the composite foreign keys – appointments, queue tickets, treatments and
-    payments of the patient."""
+    """Deletes the patient and – through the composite foreign keys – appointments, queue tickets, treatments,
+    payments and specimen label prints of the patient. The sterile packs he got stay used (traceability): their use
+    keeps his number only."""
+    release_patient(conn, user.pid, patient_id)
     result = conn.execute(delete(patient).where(patient.c.id == patient_id, patient.c.practice_id == user.pid))
     if not result.rowcount:
         raise not_found()

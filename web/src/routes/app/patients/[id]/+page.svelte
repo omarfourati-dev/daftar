@@ -19,6 +19,7 @@
 	import PatientForm from '../../../../lib/components/patients/PatientForm.svelte';
 	import PaymentForm from '../../../../lib/components/patients/PaymentForm.svelte';
 	import TreatmentForm from '../../../../lib/components/patients/TreatmentForm.svelte';
+	import PatientLabels from '../../../../lib/components/labels/PatientLabels.svelte';
 
 	let { data }: { data?: { id: number } } = $props();
 	const id = $derived(data?.id ?? Number(location.pathname.split('/').filter(Boolean)[2]));
@@ -180,7 +181,9 @@
 							<h1 class="text-2xl font-bold">{fullName}</h1>
 							<p class="flex flex-wrap gap-x-3 gap-y-1 text-sm text-slate-600">
 								<span class="tabular-nums" dir="ltr">{displayPhone(patient.phone)}</span>
-								{#if patient.birthYear}<span>{t('patients.file.born', { year: patient.birthYear })}</span>{/if}
+								{#if patient.birthDate}<span>{t('patients.file.bornOn', { date: formatDay(patient.birthDate) })}</span>{:else if patient.birthYear}<span
+									>{t('patients.file.born', { year: patient.birthYear })}</span
+								>{/if}
 								<span>{patient.lang === 'ar' ? t('patients.file.langAr') : t('patients.file.langFr')}</span>
 								<span class={patient.reminderConsent ? 'text-emerald-800' : 'text-slate-500'}
 									>{patient.reminderConsent ? t('patients.file.consentYes') : t('patients.file.consentNo')}</span
@@ -402,6 +405,8 @@
 						</div>
 					</div>
 				{/if}
+
+				{#key patient.id}<PatientLabels patientId={patient.id} birthDate={patient.birthDate ?? null} />{/key}
 
 				<section aria-labelledby="upcoming-title" class="card flex flex-col gap-3 p-5">
 					<h2 id="upcoming-title" class="font-bold">{t('patients.file.upcoming')}</h2>

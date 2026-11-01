@@ -86,14 +86,19 @@ export function t(key: MessageKey, params?: Params): string {
 
 /** Like `t` for keys built at runtime (e.g. `errors.${code}`); undefined when the key does not exist. */
 export function translate(key: string, params?: Params): string | undefined {
-	const text = lookup(DICTIONARIES[i18n.locale], key) ?? lookup(fr, key);
+	return translateIn(i18n.locale, key, params);
+}
+
+/** A text in a given language, whatever the screen shows (specimen labels are always French, for the labs). */
+export function translateIn(locale: Locale, key: string, params?: Params): string | undefined {
+	const text = lookup(DICTIONARIES[locale], key) ?? lookup(fr, key);
 	return text === undefined ? undefined : fill(text, params);
 }
 
 // --- numbers and money ------------------------------------------------------------------------------------------
 
-function intlLocale(): string {
-	return i18n.locale === 'ar' ? 'ar-TN-u-nu-latn' : 'fr-TN';
+function intlLocale(locale: Locale = i18n.locale): string {
+	return locale === 'ar' ? 'ar-TN-u-nu-latn' : 'fr-TN';
 }
 
 export function formatNumber(value: number): string {
@@ -124,14 +129,15 @@ function dateFormat(style: 'short' | 'long'): Intl.DateTimeFormatOptions {
 		: { timeZone: TIME_ZONE, day: '2-digit', month: '2-digit', year: 'numeric' };
 }
 
-/** "31/10/2026" or (long) "samedi 31 octobre 2026" – the Tunis date of an instant. */
-export function formatDate(value: DateInput, style: 'short' | 'long' = 'short'): string {
-	return new Intl.DateTimeFormat(intlLocale(), dateFormat(style)).format(toDate(value));
+/** "31/10/2026" or (long) "samedi 31 octobre 2026" – the Tunis date of an instant (in the screen's language unless
+ * another one is asked for). */
+export function formatDate(value: DateInput, style: 'short' | 'long' = 'short', locale?: Locale): string {
+	return new Intl.DateTimeFormat(intlLocale(locale), dateFormat(style)).format(toDate(value));
 }
 
 /** "09:30" – 24 h, Tunis time. */
-export function formatTime(value: DateInput): string {
-	return new Intl.DateTimeFormat(intlLocale(), {
+export function formatTime(value: DateInput, locale?: Locale): string {
+	return new Intl.DateTimeFormat(intlLocale(locale), {
 		timeZone: TIME_ZONE,
 		hour: '2-digit',
 		minute: '2-digit',
@@ -144,8 +150,8 @@ export function formatDateTime(value: DateInput): string {
 }
 
 /** A calendar day `YYYY-MM-DD` (no instant, no shifting): "30/10/2026" or "vendredi 30 octobre 2026". */
-export function formatDay(day: string, style: 'short' | 'long' = 'short'): string {
-	return formatDate(`${day}T12:00:00+01:00`, style);
+export function formatDay(day: string, style: 'short' | 'long' = 'short', locale?: Locale): string {
+	return formatDate(`${day}T12:00:00+01:00`, style, locale);
 }
 
 /** Today in Tunis as `YYYY-MM-DD`. */

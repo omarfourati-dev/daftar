@@ -22,6 +22,8 @@ function fileApi(extra: Record<string, Handler> = {}) {
 		'GET /api/patients/7': () => json(200, file),
 		'GET /api/patients/7/appointments': () => json(200, [upcoming, past]),
 		'GET /api/patients/7/ledger': () => json(200, ledger),
+		'GET /api/labels/specimens?patientId=7': () => json(200, []),
+		'GET /api/hygiene/pack-uses?patientId=7': () => json(200, []),
 		...extra
 	});
 }
@@ -54,6 +56,33 @@ describe('/app/patients/[id] – the patient file', () => {
 		expect(screen.getByRole('link', { name: 'Nouveau rendez-vous' })).toHaveAttribute('href', '/app/agenda?nouveau=1&patient=7');
 		const next = within(screen.getByRole('region', { name: 'Prochains rendez-vous' }));
 		expect(next.getByText(/Pose de la couronne/)).toBeInTheDocument();
+	});
+
+	it('shows the full birth date, the specimen prints with a reprint and – for the owner – the packs received', async () => {
+		auth.set('tok', owner);
+		fileApi({
+			'GET /api/patients/7': () => json(200, { ...file, birthDate: '1978-03-12', birthYear: 1978 }),
+			'GET /api/labels/specimens?patientId=7': () =>
+				json(200, [
+					{ id: 1042, patient: { id: 7, firstName: 'Sami', lastName: 'Trabelsi', birthDate: '1978-03-12', birthYear: 1978 }, appointmentId: null,
+						items: [{ kind: 'edta', count: 2, label: '' }, { kind: 'urine', count: 1, label: '' }], labelCount: 3, labels: [],
+						collectedAt: '2026-10-29T09:42:00+01:00', collectedBy: 'Salma', printedBy: 'Salma', printedAt: '2026-10-29T09:43:00+01:00' }
+				]),
+			'GET /api/hygiene/pack-uses?patientId=7': () =>
+				json(200, [
+					{ id: 50, packId: 1, code: 'A1-0412-01', content: 'Kit examen', packaging: 'sachet', expiresOn: '2027-01-28',
+						cycle: { id: 3, labelCode: 'A1', number: 412, equipmentName: 'Autoclave', runAt: '2026-10-30T07:45:00+01:00', result: 'not_ok' },
+						patientId: 7, patientName: 'Sami Trabelsi', appointmentId: 81, usedAt: '2026-10-30T09:05:00+01:00', usedBy: 'Karim', undoable: true }
+				])
+		});
+		render(Page);
+		expect(await screen.findByText('né(e) le 12/03/1978')).toBeInTheDocument();
+		const specimens = within(screen.getByRole('region', { name: 'Prélèvements' }));
+		expect(await specimens.findByText('2 × Sang EDTA, 1 × Urine')).toBeInTheDocument();
+		expect(specimens.getByRole('link', { name: /Réimprimer/ })).toHaveAttribute('href', '/app/etiquettes?specimen=1042');
+		const packs = within(await screen.findByRole('region', { name: 'Paquets stérilisés reçus' }));
+		expect(packs.getByText('A1-0412-01')).toBeInTheDocument();
+		expect(packs.getByText('Cycle non conforme : paquet rappelé.')).toBeInTheDocument();
 	});
 
 	it('lists treatments and payments with receipts, and the appointments in their tab', async () => {

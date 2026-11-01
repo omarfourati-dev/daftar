@@ -8,6 +8,8 @@ export interface PatientSummary {
 	lastName: string;
 	phone: string;
 	birthYear: number | null;
+	/** Optional full date (`YYYY-MM-DD`); when set, `birthYear` is its year. */
+	birthDate?: string | null;
 	lang: string;
 	reminderConsent: boolean;
 	noShows: number;
@@ -39,6 +41,7 @@ export interface PatientInput {
 	lastName: string;
 	phone: string;
 	birthYear?: number | null;
+	birthDate?: string | null;
 	lang: string;
 	reminderConsent: boolean;
 	notes?: string;

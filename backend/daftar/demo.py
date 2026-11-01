@@ -36,6 +36,7 @@ from sqlalchemy import Connection, delete, insert, select
 from .auth import Session, session_for
 from .catalog import Specialty, insert_default_services
 from .demo_hygiene import seed_hygiene
+from .demo_labels import seed_labels
 from .demo_stock import seed_stock
 from .clock import TUNIS, at_tunis
 from .context import AppContext
@@ -534,9 +535,11 @@ def seed_demo(conn: Connection, *, now: datetime, lang: str, specialty: str, rng
     seeder.waiting_room()
     seed_stock(conn, practice_id=seeder.practice_id, user_id=seeder.user_id, specialty=specialty,
                arabic=seeder.arabic, now=now, plans=seeder.plans, rng=seeder.rng)
-    seed_hygiene(conn, practice_id=seeder.practice_id, user_id=seeder.user_id,
-                 user_name="د. تجربة" if seeder.arabic else "Dr. Démo", specialty=specialty, arabic=seeder.arabic, now=now,
-                 rng=seeder.rng)
+    owner_name = "د. تجربة" if seeder.arabic else "Dr. Démo"
+    seed_hygiene(conn, practice_id=seeder.practice_id, user_id=seeder.user_id, user_name=owner_name, specialty=specialty,
+                 arabic=seeder.arabic, now=now, rng=seeder.rng)
+    seed_labels(conn, practice_id=seeder.practice_id, user_id=seeder.user_id, user_name=owner_name, specialty=specialty,
+                arabic=seeder.arabic, now=now, plans=seeder.plans, patient_ids=seeder.patient_ids, rng=seeder.rng)
     return seeder.user_id
 
 

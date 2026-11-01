@@ -567,6 +567,43 @@ test.describe("Rechtstexte: Online-Buchung und Abonnement", () => {
   });
 });
 
+test.describe("Rechtstexte: Material, Hygiene, Sterilisation und Probenetiketten (Review Etiketten M5)", () => {
+  const FACTS: Record<string, { section: string; facts: RegExp[] }> = {
+    "/confidentialite/": {
+      section: "application",
+      facts: [/date de naissance/, /stérilisation/, /prélèvement/, /sans aucun résultat/, /fournisseurs/, /numéro du patient/]
+    },
+    "/ar/confidentialite/": { section: "application", facts: [/تاريخ الولادة/, /التعقيم/, /العيّنات/, /دون أي نتيجة/, /المزوّدون/, /برقم المريض/] },
+    "/datenschutz/": {
+      section: "anwendung",
+      facts: [/Geburtsdatum/, /Sterilisation/, /Probenetiketten/, /ohne Befunde/, /Lieferanten/, /Nummer des Patienten/]
+    }
+  };
+  for (const [path, { section, facts }] of Object.entries(FACTS)) {
+    test(`${path} nennt die Daten von Material, Hygiene, Sterilisation und Probenetiketten`, async ({ page }) => {
+      await page.goto(BASE + path);
+      const app = await page.evaluate((id) => {
+        const start = document.getElementById(id)!;
+        let text = start.textContent ?? "";
+        for (let el = start.nextElementSibling; el && el.tagName !== "H2"; el = el.nextElementSibling) text += " " + el.textContent;
+        return text;
+      }, section);
+      for (const fact of facts) expect(app).toMatch(fact);
+      await expect(page.locator(".updated")).toContainText(/1(er)? nov|1\. November|1 نوفمبر/);
+    });
+  }
+
+  test("Muster-AVV nennt die neuen Daten in Anlage 1", async ({ page }) => {
+    await page.goto(BASE + "/contrat-sous-traitance/");
+    const annex1 = page.locator("#annexe1 + table");
+    for (const row of ["Matériel et hygiène", "Stérilisation et traçabilité", "Étiquettes de prélèvement", "Journal des corrections"])
+      await expect(annex1).toContainText(row);
+    await expect(annex1).toContainText("date ou année de naissance (facultatives)");
+    await expect(annex1).toContainText("aucun résultat d'analyse");
+    await expect(page.locator("main")).toContainText("Version du 1er novembre 2026.");
+  });
+});
+
 test.describe("Pilot-Formular", () => {
   async function mockApi(page: Page, respond: (route: Route) => Promise<void>) {
     const calls: { method: string; contentType: string | undefined; body: unknown }[] = [];

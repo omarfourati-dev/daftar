@@ -36,6 +36,7 @@ from . import booking
 from . import queue_next
 from . import audit, stock, stock_moves, stock_report
 from . import hygiene
+from . import labels, sterilization
 
 ROUTERS: list[APIRouter] = [
     auth.router,
@@ -76,4 +77,6 @@ ROUTERS: list[APIRouter] = [
     stock_moves.router,
     stock_report.router,
     hygiene.router,
+    sterilization.router,
+    labels.router,
 ]
